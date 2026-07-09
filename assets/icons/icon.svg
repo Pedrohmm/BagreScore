@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">BagreScore</title>
+  <desc id="desc">Icone do app BagreScore com campo e iniciais BS.</desc>
+  <rect width="512" height="512" rx="96" fill="#07130f" />
+  <rect x="56" y="72" width="400" height="280" rx="26" fill="#0d1d17" stroke="#19a765" stroke-width="16" />
+  <path d="M256 72v280M56 212h400" stroke="#24453a" stroke-width="12" />
+  <circle cx="256" cy="212" r="58" fill="none" stroke="#24453a" stroke-width="12" />
+  <path d="M126 384h260c18 0 32 14 32 32v8c0 18-14 32-32 32H126c-18 0-32-14-32-32v-8c0-18 14-32 32-32Z" fill="#19a765" />
+  <text x="256" y="438" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="74" font-weight="900" fill="#03110a">BS</text>
+  <circle cx="384" cy="120" r="34" fill="#f4c95d" />
+</svg>

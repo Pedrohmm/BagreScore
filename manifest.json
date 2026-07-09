@@ -1,0 +1,49 @@
+{
+  "name": "BagreScore - Peladas",
+  "short_name": "BagreScore",
+  "description": "App offline-first para organizar peladas, jogos, eventos, estatísticas e cartinhas.",
+  "id": "./index.html",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#07130f",
+  "theme_color": "#0a7f3f",
+  "categories": ["sports", "productivity"],
+  "icons": [
+    {
+      "src": "assets/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Partida ao Vivo",
+      "short_name": "Ao Vivo",
+      "description": "Abrir a tela de jogo ao vivo.",
+      "url": "./index.html#ao-vivo",
+      "icons": [
+        {
+          "src": "assets/icons/icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Jogadores",
+      "short_name": "Jogadores",
+      "description": "Abrir cadastro e lista de jogadores.",
+      "url": "./index.html#jogadores",
+      "icons": [
+        {
+          "src": "assets/icons/icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ]
+}
