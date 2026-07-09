@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.9.0";
+  const APP_VERSION = "0.9.1";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 15000;
@@ -66,6 +66,7 @@
       keyPath: "id",
       indexes: [
         ["por_jogo", "jogoId"],
+        ["por_pelada", "peladaId"],
         ["por_tipo", "tipo"],
         ["por_jogador", "jogadorId"],
         ["por_time", "timeId"],
@@ -213,6 +214,10 @@
       "horarioFim",
       "valor",
       "observacoes",
+      "status",
+      "finalizadaEm",
+      "mvpJogadorId",
+      "bagreJogadorId",
       "createdAt",
       "updatedAt",
       "revision",
@@ -365,6 +370,9 @@
     motivoCancelamento: "Motivo do cancelamento",
     pontuacaoCalculada: "Pontuação calculada",
     escolhidoManual: "Escolhido manualmente",
+    finalizadaEm: "Finalizada em",
+    mvpJogadorId: "MVP da Pelada",
+    bagreJogadorId: "Bagre da Pelada",
     jogadorCometeuId: "Jogador que cometeu",
     timeCometeu: "Time que cometeu",
     timeSofreu: "Time que sofreu",
@@ -996,6 +1004,8 @@
       golsContra: `${value} contra`,
       mvp: `${value} MVP`,
       bagre: `${value} bagre${value === 1 ? "" : "s"}`,
+      mvpsPelada: `${value} MVP${value === 1 ? "" : "s"} da Pelada`,
+      bagresPelada: `${value} bagre${value === 1 ? "" : "s"} da Pelada`,
     };
 
     if (key === "cartoesDetalhe" && stats) {
@@ -1249,7 +1259,7 @@
           }
         }
 
-        if ((eventType === "mvp" || typeToken === "mvp") && evento.jogadorId === jogadorId) {
+        if ((eventType === "mvp" || typeToken === "mvp" || typeToken === "mvp_pelada") && evento.jogadorId === jogadorId) {
           const atributo = isGoalkeeper(jogador.tipoJogador, jogador.posicaoPrincipal)
             ? "REF"
             : getHighestAttributeKey(jogador, attributes);
@@ -1259,11 +1269,11 @@
             evento,
             atributo,
             variacao: 1,
-            motivo: "MVP da partida.",
+            motivo: typeToken === "mvp_pelada" ? "MVP da pelada." : "MVP da partida.",
           }));
         }
 
-        if ((eventType === "bagre" || typeToken === "bagre") && evento.jogadorId === jogadorId) {
+        if ((eventType === "bagre" || typeToken === "bagre" || typeToken === "bagre_pelada") && evento.jogadorId === jogadorId) {
           const atributo = getLowestUsefulAttributeKey(jogador, attributes);
 
           addEvolutionChange(changes, createEventEvolutionChange({
@@ -1271,7 +1281,7 @@
             evento,
             atributo,
             variacao: -1,
-            motivo: "Bagre da rodada.",
+            motivo: typeToken === "bagre_pelada" ? "Bagre da pelada." : "Bagre da rodada.",
           }));
         }
 
@@ -1902,6 +1912,303 @@
     };
   }
 
+  function formatScoreNumber(value) {
+    const numberValue = Number(value) || 0;
+    return numberValue
+      .toFixed(numberValue % 1 === 0 ? 0 : 1)
+      .replace(".", ",");
+  }
+
+  function createPeladaPlayerScore(jogador) {
+    return {
+      jogador,
+      jogadorId: jogador.id,
+      jogos: 0,
+      vitorias: 0,
+      empates: 0,
+      derrotas: 0,
+      gols: 0,
+      assistencias: 0,
+      participacoesGol: 0,
+      faltasCometidas: 0,
+      cartoesAmarelos: 0,
+      cartoesVermelhos: 0,
+      golsContra: 0,
+      acoesDefensivas: 0,
+      defesasDificeis: 0,
+      defesasPenalti: 0,
+      eventos: 0,
+      pontuacao: 0,
+      bagreScore: 0,
+    };
+  }
+
+  function getOrCreatePeladaPlayerScore(scoreByPlayerId, playerById, jogadorId) {
+    if (!jogadorId) {
+      return null;
+    }
+
+    if (!scoreByPlayerId.has(jogadorId)) {
+      scoreByPlayerId.set(
+        jogadorId,
+        createPeladaPlayerScore(playerById.get(jogadorId) || { id: jogadorId, nome: "Jogador" })
+      );
+    }
+
+    return scoreByPlayerId.get(jogadorId);
+  }
+
+  function getLatestAwardEvent(events, awardType) {
+    return events
+      .filter((evento) => normalizeToken(evento.tipo) === awardType)
+      .sort((a, b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")))[0] || null;
+  }
+
+  function getTopPeladaPlayerScore(playerScores, metric, options = {}) {
+    const requirePositive = options.requirePositive !== false;
+    const entries = playerScores
+      .filter((stats) => stats.jogador && (!requirePositive || Number(stats[metric] || 0) > 0))
+      .sort((a, b) =>
+        Number(b[metric] || 0) - Number(a[metric] || 0) ||
+        Number(b.pontuacao || 0) - Number(a.pontuacao || 0) ||
+        playerDisplayName(a.jogador).localeCompare(playerDisplayName(b.jogador), "pt-BR")
+      );
+
+    return entries[0] || null;
+  }
+
+  function buildPeladaClosureSummary(pelada, jogos = [], eventos = [], escalacoes = [], jogadores = []) {
+    const playerById = new Map(jogadores.map((jogador) => [jogador.id, jogador]));
+    const finalizedGames = jogos.filter((jogo) => jogo.status === "Finalizado");
+    const activeGames = jogos.filter((jogo) => jogo.status === "Em andamento");
+    const finalizedGameIds = new Set(finalizedGames.map((jogo) => jogo.id));
+    const scoreByPlayerId = new Map();
+    const awardEvents = eventos.filter((evento) =>
+      !evento.cancelado &&
+      evento.peladaId === pelada.id &&
+      ["mvp_pelada", "bagre_pelada"].includes(normalizeToken(evento.tipo))
+    );
+    const gameEvents = eventos.filter(
+      (evento) => !evento.cancelado && finalizedGameIds.has(evento.jogoId)
+    );
+
+    finalizedGames.forEach((jogo) => {
+      escalacoes
+        .filter((escalacao) => escalacao.jogoId === jogo.id)
+        .forEach((escalacao) => {
+          const stats = getOrCreatePeladaPlayerScore(scoreByPlayerId, playerById, escalacao.jogadorId);
+          const result = getGameResultForTeam(jogo, escalacao.time);
+
+          if (!stats) {
+            return;
+          }
+
+          stats.jogos += 1;
+          if (result === "vitoria") {
+            stats.vitorias += 1;
+            stats.pontuacao += 2;
+          } else if (result === "empate") {
+            stats.empates += 1;
+            stats.pontuacao += 1;
+          } else if (result === "derrota") {
+            stats.derrotas += 1;
+            stats.bagreScore += 1;
+          }
+        });
+    });
+
+    gameEvents.forEach((evento) => {
+      const eventType = normalizeToken(evento.tipo);
+      const tipoGol = normalizeToken(evento.tipoGol);
+      const cartao = normalizeToken(evento.cartao);
+
+      if (eventType === "gol") {
+        const stats = getOrCreatePeladaPlayerScore(scoreByPlayerId, playerById, evento.jogadorId);
+        const isOwnGoal = Boolean(evento.golContra) || tipoGol === "gol_contra";
+
+        if (stats) {
+          stats.eventos += 1;
+
+          if (isOwnGoal) {
+            stats.golsContra += 1;
+            stats.pontuacao -= 3;
+            stats.bagreScore += 4;
+          } else {
+            stats.gols += 1;
+            stats.pontuacao += 3;
+
+            if (tipoGol === "penalti") stats.pontuacao += 1;
+            if (tipoGol === "falta") stats.pontuacao += 2;
+            if (tipoGol === "cabeca") stats.pontuacao += 1;
+          }
+        }
+
+        if (evento.assistenteId) {
+          const assistStats = getOrCreatePeladaPlayerScore(scoreByPlayerId, playerById, evento.assistenteId);
+          if (assistStats) {
+            assistStats.assistencias += 1;
+            assistStats.eventos += 1;
+            assistStats.pontuacao += 2;
+          }
+        }
+      }
+
+      if (eventType === "falta") {
+        const stats = getOrCreatePeladaPlayerScore(scoreByPlayerId, playerById, evento.jogadorId);
+        if (stats) {
+          stats.faltasCometidas += 1;
+          stats.eventos += 1;
+          stats.pontuacao -= 0.5;
+          stats.bagreScore += 0.5;
+
+          if (cartao === "amarelo") {
+            stats.cartoesAmarelos += 1;
+            stats.pontuacao -= 1;
+            stats.bagreScore += 1;
+          }
+
+          if (cartao === "vermelho") {
+            stats.cartoesVermelhos += 1;
+            stats.pontuacao -= 2;
+            stats.bagreScore += 3;
+          }
+        }
+      }
+
+      if (eventType === "cartao") {
+        const stats = getOrCreatePeladaPlayerScore(scoreByPlayerId, playerById, evento.jogadorId);
+        if (stats) {
+          if (cartao === "amarelo") {
+            stats.cartoesAmarelos += 1;
+            stats.pontuacao -= 1;
+            stats.bagreScore += 1;
+          }
+
+          if (cartao === "vermelho") {
+            stats.cartoesVermelhos += 1;
+            stats.pontuacao -= 2;
+            stats.bagreScore += 3;
+          }
+        }
+      }
+
+      if (eventType === "acao_defensiva") {
+        const stats = getOrCreatePeladaPlayerScore(scoreByPlayerId, playerById, evento.jogadorId);
+        if (stats) {
+          stats.acoesDefensivas += 1;
+          stats.eventos += 1;
+          stats.pontuacao += 1;
+        }
+      }
+
+      if (eventType === "defesa_goleiro") {
+        const stats = getOrCreatePeladaPlayerScore(scoreByPlayerId, playerById, evento.jogadorId);
+        const tipoDefesa = normalizeToken(evento.tipoDefesaGoleiro);
+
+        if (stats) {
+          stats.eventos += 1;
+
+          if (tipoDefesa === "penalti") {
+            stats.defesasDificeis += 1;
+            stats.defesasPenalti += 1;
+            stats.pontuacao += 4;
+          } else if (["dificil", "cara_a_cara", "reflexo"].includes(tipoDefesa)) {
+            stats.defesasDificeis += 1;
+            stats.pontuacao += 2;
+          }
+        }
+      }
+    });
+
+    const playerScores = [...scoreByPlayerId.values()].map((stats) => {
+      const positiveActions = stats.gols + stats.assistencias + stats.acoesDefensivas + stats.defesasDificeis;
+      stats.participacoesGol = stats.gols + stats.assistencias;
+
+      if (stats.jogos > 0 && positiveActions === 0) {
+        stats.bagreScore += 1;
+      }
+
+      if (stats.pontuacao < 0) {
+        stats.bagreScore += Math.abs(stats.pontuacao);
+      }
+
+      return stats;
+    });
+    const goals = gameEvents.filter((evento) => normalizeToken(evento.tipo) === "gol");
+    const assists = goals.filter((evento) => evento.assistenteId);
+    const fouls = gameEvents.filter((evento) => normalizeToken(evento.tipo) === "falta");
+    const defensiveActions = gameEvents.filter((evento) => normalizeToken(evento.tipo) === "acao_defensiva");
+    const difficultSaves = gameEvents.filter((evento) => {
+      const eventType = normalizeToken(evento.tipo);
+      const tipoDefesa = normalizeToken(evento.tipoDefesaGoleiro);
+      return eventType === "defesa_goleiro" && ["dificil", "penalti", "cara_a_cara", "reflexo"].includes(tipoDefesa);
+    });
+    const suggestedMvp = playerScores
+      .filter((stats) => stats.jogos > 0 || stats.eventos > 0)
+      .sort((a, b) =>
+        Number(b.pontuacao || 0) - Number(a.pontuacao || 0) ||
+        Number(b.participacoesGol || 0) - Number(a.participacoesGol || 0) ||
+        Number(b.vitorias || 0) - Number(a.vitorias || 0) ||
+        playerDisplayName(a.jogador).localeCompare(playerDisplayName(b.jogador), "pt-BR")
+      )[0] || null;
+    const suggestedBagre = playerScores
+      .filter((stats) => stats.jogos > 0 || stats.eventos > 0)
+      .sort((a, b) =>
+        Number(b.bagreScore || 0) - Number(a.bagreScore || 0) ||
+        Number(a.pontuacao || 0) - Number(b.pontuacao || 0) ||
+        Number(b.golsContra || 0) - Number(a.golsContra || 0) ||
+        Number(b.cartoesVermelhos || 0) - Number(a.cartoesVermelhos || 0) ||
+        Number(b.faltasCometidas || 0) - Number(a.faltasCometidas || 0) ||
+        playerDisplayName(a.jogador).localeCompare(playerDisplayName(b.jogador), "pt-BR")
+      )[0] || null;
+
+    const summary = {
+      pelada,
+      jogos,
+      finalizedGames,
+      activeGames,
+      hasActiveGames: activeGames.length > 0,
+      playerById,
+      scoreByPlayerId,
+      playerScores,
+      gameEvents,
+      awards: {
+        mvp: getLatestAwardEvent(awardEvents, "mvp_pelada"),
+        bagre: getLatestAwardEvent(awardEvents, "bagre_pelada"),
+      },
+      leaders: {
+        artilheiro: getTopPeladaPlayerScore(playerScores, "gols"),
+        assistencias: getTopPeladaPlayerScore(playerScores, "assistencias"),
+        participacoesGol: getTopPeladaPlayerScore(playerScores, "participacoesGol"),
+        vitorias: getTopPeladaPlayerScore(playerScores, "vitorias"),
+        goleiroDefesas: getTopPeladaPlayerScore(playerScores, "defesasDificeis"),
+      },
+      suggestions: {
+        mvp: suggestedMvp,
+        bagre: suggestedBagre,
+      },
+      totals: {
+        jogosRealizados: finalizedGames.length,
+        gols: goals.length,
+        assistencias: assists.length,
+        faltas: fouls.length,
+        acoesDefensivas: defensiveActions.length,
+        defesasDificeis: difficultSaves.length,
+      },
+    };
+
+    summary.canFinalize = summary.totals.jogosRealizados > 0 && !summary.hasActiveGames && pelada.status !== "Finalizada";
+    summary.finishDisabledReason = pelada.status === "Finalizada"
+      ? "Pelada já finalizada."
+      : summary.hasActiveGames
+        ? "Finalize os jogos em andamento antes de encerrar a pelada."
+        : summary.totals.jogosRealizados === 0
+          ? "É preciso ter pelo menos um jogo finalizado."
+          : "";
+
+    return summary;
+  }
+
   async function findActiveGame() {
     if (state.activeGameId) {
       const storedGame = await getRecord("jogos", state.activeGameId);
@@ -1957,7 +2264,10 @@
       cartoesTotal: 0,
       mvp: 0,
       bagre: 0,
+      mvpsPelada: 0,
+      bagresPelada: 0,
       historico: [],
+      premiosPelada: [],
     };
   }
 
@@ -1974,6 +2284,11 @@
     const playerById = new Map(jogadores.map((jogador) => [jogador.id, jogador]));
     const selectedGames = jogos.filter((jogo) => gameMatchesStatsFilters(jogo, peladaById, filters));
     const selectedGameIds = new Set(selectedGames.map((jogo) => jogo.id));
+    const selectedPeladaIdsForAwards = new Set(
+      peladas
+        .filter((pelada) => peladaMatchesStatsFilters(pelada, filters))
+        .map((pelada) => pelada.id)
+    );
     const finalizedGames = selectedGames.filter((jogo) => jogo.status === "Finalizado");
     const filteredPlayers = jogadores.filter((jogador) => playerMatchesStatsFilters(jogador, filters));
     const statsByPlayerId = new Map(
@@ -2019,9 +2334,18 @@
         });
     });
 
-    const scopedEvents = eventos.filter(
-      (evento) => selectedGameIds.has(evento.jogoId) && !evento.cancelado
-    );
+    const scopedEvents = eventos.filter((evento) => {
+      if (evento.cancelado) {
+        return false;
+      }
+
+      const eventType = normalizeToken(evento.tipo);
+      const isGameEvent = selectedGameIds.has(evento.jogoId);
+      const isPeladaAward = ["mvp_pelada", "bagre_pelada"].includes(eventType) &&
+        selectedPeladaIdsForAwards.has(evento.peladaId);
+
+      return isGameEvent || isPeladaAward;
+    });
 
     scopedEvents.forEach((evento) => {
       const eventType = normalizeToken(evento.tipo);
@@ -2106,12 +2430,42 @@
         }
       }
 
-      if (eventType === "mvp" && evento.jogadorId && statsByPlayerId.has(evento.jogadorId)) {
-        statsByPlayerId.get(evento.jogadorId).mvp += 1;
+      if ((eventType === "mvp" || eventType === "mvp_pelada") && evento.jogadorId && statsByPlayerId.has(evento.jogadorId)) {
+        const stats = statsByPlayerId.get(evento.jogadorId);
+        const pelada = peladaById.get(evento.peladaId);
+
+        stats.mvp += 1;
+
+        if (eventType === "mvp_pelada") {
+          stats.mvpsPelada += 1;
+          stats.premiosPelada.push({
+            tipo: "MVP da Pelada",
+            peladaId: evento.peladaId,
+            data: pelada?.data || evento.createdAt?.slice(0, 10) || "",
+            local: pelada?.local || "Pelada",
+            pontuacaoCalculada: evento.pontuacaoCalculada,
+            observacoes: evento.observacoes || "",
+          });
+        }
       }
 
-      if (eventType === "bagre" && evento.jogadorId && statsByPlayerId.has(evento.jogadorId)) {
-        statsByPlayerId.get(evento.jogadorId).bagre += 1;
+      if ((eventType === "bagre" || eventType === "bagre_pelada") && evento.jogadorId && statsByPlayerId.has(evento.jogadorId)) {
+        const stats = statsByPlayerId.get(evento.jogadorId);
+        const pelada = peladaById.get(evento.peladaId);
+
+        stats.bagre += 1;
+
+        if (eventType === "bagre_pelada") {
+          stats.bagresPelada += 1;
+          stats.premiosPelada.push({
+            tipo: "Bagre da Pelada",
+            peladaId: evento.peladaId,
+            data: pelada?.data || evento.createdAt?.slice(0, 10) || "",
+            local: pelada?.local || "Pelada",
+            pontuacaoCalculada: evento.pontuacaoCalculada,
+            observacoes: evento.observacoes || "",
+          });
+        }
       }
     });
 
@@ -2125,6 +2479,7 @@
       stats.assistenciasPorJogo = safeDivide(stats.assistencias, stats.jogos);
       stats.gaPorJogo = safeDivide(stats.participacoesGol, stats.jogos);
       stats.historico.sort((a, b) => String(b.data || "").localeCompare(String(a.data || "")));
+      stats.premiosPelada.sort((a, b) => String(b.data || "").localeCompare(String(a.data || "")));
       return stats;
     });
     const golsRegistrados = scopedEvents.filter(
@@ -2176,6 +2531,18 @@
     }
 
     if (filters.month && !String(referenceDate).startsWith(filters.month)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  function peladaMatchesStatsFilters(pelada, filters) {
+    if (filters.peladaId && pelada.id !== filters.peladaId) {
+      return false;
+    }
+
+    if (filters.month && !String(pelada.data || "").startsWith(filters.month)) {
       return false;
     }
 
@@ -3086,11 +3453,13 @@
       return;
     }
 
-    const [allPlayers, allEvents] = await Promise.all([
+    const [allPlayers, allEvents, allEscalacoes] = await Promise.all([
       getAllRecords("jogadores"),
       getAllRecords("eventos"),
+      getAllRecords("escalacoes"),
     ]);
     const playerById = new Map(allPlayers.map((player) => [player.id, player]));
+    const peladaSummary = buildPeladaClosureSummary(selectedPelada, jogos, allEvents, allEscalacoes, allPlayers);
     const gameIds = new Set(jogos.map((jogo) => jogo.id));
     const eventsByGameId = allEvents
       .filter((evento) => gameIds.has(evento.jogoId) && !evento.cancelado)
@@ -3107,9 +3476,9 @@
 
     $("#section-content").innerHTML = `
       <div class="pelada-detail-flow">
-        ${renderPeladaOpenToolbar(selectedPelada)}
+        ${renderPeladaOpenToolbar(selectedPelada, peladaSummary)}
         ${renderGameSetup(selectedPelada, jogadores)}
-        ${renderGameHistory(selectedPelada, jogos, eventsByGameId, playerById)}
+        ${renderGameHistory(selectedPelada, jogos, eventsByGameId, playerById, peladaSummary)}
       </div>
     `;
 
@@ -3264,15 +3633,26 @@
     `;
   }
 
-  function renderPeladaOpenToolbar(pelada) {
+  function renderPeladaOpenToolbar(pelada, peladaSummary = null) {
     const horario = [pelada.horarioInicio, pelada.horarioFim].filter(Boolean).join(" - ") || "Horário aberto";
-    const status = getPeladaStatusLabel(pelada);
+    const status = getPeladaStatusLabel(pelada, peladaSummary?.jogos || []);
+    const canFinalize = Boolean(peladaSummary?.canFinalize);
+    const finishTitle = peladaSummary?.finishDisabledReason || "Encerrar a pelada e escolher MVP/Bagre.";
 
     return `
       <div class="pelada-open-toolbar">
         <h3>${escapeHtml(pelada.local || "Pelada")}</h3>
         <div class="pelada-open-actions">
           <button class="ghost-button compact-button" type="button" data-pelada-action="back-list">Voltar para Peladas</button>
+          <button
+            class="primary-button compact-button"
+            type="button"
+            data-pelada-action="finish-pelada"
+            ${canFinalize ? "" : "disabled"}
+            title="${escapeHtml(finishTitle)}"
+          >
+            Finalizar Pelada
+          </button>
           <details class="pelada-details-disclosure">
             <summary>Detalhes da Pelada</summary>
             <div class="pelada-details-mini">
@@ -3292,6 +3672,17 @@
 
   function renderGameSetup(pelada, jogadores) {
     const draft = normalizeGameDraft(jogadores);
+
+    if (pelada.status === "Finalizada") {
+      return `
+        <section class="data-card game-setup-card">
+          <div class="empty-state compact-empty">
+            <h3>Pelada finalizada</h3>
+            <p>Esta pelada já foi encerrada com MVP e Bagre. O histórico de jogos continua disponível abaixo.</p>
+          </div>
+        </section>
+      `;
+    }
 
     return `
       <section class="data-card game-setup-card">
@@ -3617,7 +4008,160 @@
     `;
   }
 
-  function renderGameHistory(pelada, jogos, eventsByGameId = new Map(), playerById = new Map()) {
+  function renderPeladaLeaderText(stats, metric, emptyText = "Sem dados") {
+    if (!stats || Number(stats[metric] || 0) <= 0) {
+      return emptyText;
+    }
+
+    return `${playerDisplayName(stats.jogador)} - ${metricLabel(metric, stats[metric], stats)}`;
+  }
+
+  function renderPeladaAwardWinner(summary, awardType) {
+    const evento = summary.awards?.[awardType];
+
+    if (!evento?.jogadorId) {
+      return "Ainda não escolhido";
+    }
+
+    return playerDisplayName(summary.playerById.get(evento.jogadorId) || { nome: "Jogador" });
+  }
+
+  function renderPeladaHistoryOverview(summary) {
+    const status = getPeladaStatusLabel(summary.pelada, summary.jogos);
+
+    return `
+      <div class="pelada-history-overview">
+        <div class="pelada-award-strip">
+          <span><strong>Status</strong>${escapeHtml(status)}</span>
+          <span><strong>MVP escolhido</strong>${escapeHtml(renderPeladaAwardWinner(summary, "mvp"))}</span>
+          <span><strong>Bagre escolhido</strong>${escapeHtml(renderPeladaAwardWinner(summary, "bagre"))}</span>
+        </div>
+        <div class="event-summary-grid">
+          <span><strong>${escapeHtml(summary.totals.jogosRealizados)}</strong> jogos realizados</span>
+          <span><strong>${escapeHtml(summary.totals.gols)}</strong> gols</span>
+          <span><strong>${escapeHtml(summary.totals.assistencias)}</strong> assistências</span>
+          <span><strong>${escapeHtml(summary.totals.faltas)}</strong> faltas</span>
+          <span><strong>${escapeHtml(summary.totals.acoesDefensivas)}</strong> ações defensivas</span>
+          <span><strong>${escapeHtml(summary.totals.defesasDificeis)}</strong> defesas difíceis</span>
+        </div>
+        <div class="pelada-leaders-list">
+          <span><strong>Artilheiro</strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.artilheiro, "gols"))}</span>
+          <span><strong>Garçom</strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.assistencias, "assistencias"))}</span>
+          <span><strong>Maior G/A</strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.participacoesGol, "participacoesGol"))}</span>
+          <span><strong>Mais vitórias</strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.vitorias, "vitorias"))}</span>
+          <span><strong>Goleiro destaque</strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.goleiroDefesas, "defesasDificeis"))}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderPeladaSuggestionCard(title, stats, scoreKey, scoreLabel) {
+    if (!stats) {
+      return `
+        <article class="pelada-suggestion-card">
+          <span class="metric-label">${escapeHtml(title)}</span>
+          <strong>Sem sugestão</strong>
+        </article>
+      `;
+    }
+
+    return `
+      <article class="pelada-suggestion-card">
+        <span class="metric-label">${escapeHtml(title)}</span>
+        <strong>${escapeHtml(playerDisplayName(stats.jogador))}</strong>
+        <small>${escapeHtml(stats.jogador.posicaoPrincipal || "-")} - ${escapeHtml(stats.jogador.overall || "-")} OVR</small>
+        <em>${escapeHtml(scoreLabel)}: ${escapeHtml(formatScoreNumber(stats[scoreKey]))}</em>
+      </article>
+    `;
+  }
+
+  function renderAwardPlayerOptions(summary, suggestedId = "", scoreKey = "pontuacao") {
+    const candidates = summary.playerScores
+      .filter((stats) => stats.jogador && (stats.jogos > 0 || stats.eventos > 0))
+      .sort((a, b) => playerDisplayName(a.jogador).localeCompare(playerDisplayName(b.jogador), "pt-BR"));
+
+    if (!candidates.length) {
+      return `<option value="">Sem jogadores elegíveis</option>`;
+    }
+
+    return `
+      <option value="">Escolha manualmente</option>
+      ${candidates
+        .map((stats) => {
+          const suggestion = stats.jogadorId === suggestedId ? " (sugestão)" : "";
+          return `
+            <option value="${escapeHtml(stats.jogadorId)}">
+              ${escapeHtml(playerDisplayName(stats.jogador))} - ${escapeHtml(stats.jogador.posicaoPrincipal || "-")} - ${escapeHtml(formatScoreNumber(stats[scoreKey]))}${escapeHtml(suggestion)}
+            </option>
+          `;
+        })
+        .join("")}
+    `;
+  }
+
+  function renderPeladaFinishModal(summary) {
+    const canChoose = summary.playerScores.some((stats) => stats.jogador && (stats.jogos > 0 || stats.eventos > 0));
+
+    return `
+      <form class="event-form finish-pelada-form" id="finish-pelada-form" data-pelada-id="${escapeHtml(summary.pelada.id)}" novalidate>
+        <div class="form-errors" id="finish-pelada-errors" hidden></div>
+
+        <section class="pelada-finish-block">
+          <h3>Resumo geral da pelada</h3>
+          <div class="event-summary-grid">
+            <span><strong>${escapeHtml(summary.totals.jogosRealizados)}</strong> jogos realizados</span>
+            <span><strong>${escapeHtml(summary.totals.gols)}</strong> gols</span>
+            <span><strong>${escapeHtml(summary.totals.assistencias)}</strong> assistências</span>
+            <span><strong>${escapeHtml(summary.totals.faltas)}</strong> faltas</span>
+            <span><strong>${escapeHtml(summary.totals.acoesDefensivas)}</strong> ações defensivas</span>
+            <span><strong>${escapeHtml(summary.totals.defesasDificeis)}</strong> defesas difíceis</span>
+          </div>
+          <div class="pelada-leaders-list">
+            <span><strong>Artilheiro</strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.artilheiro, "gols"))}</span>
+            <span><strong>Líder de assistências</strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.assistencias, "assistencias"))}</span>
+            <span><strong>Maior participação em gol</strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.participacoesGol, "participacoesGol"))}</span>
+            <span><strong>Mais vitórias</strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.vitorias, "vitorias"))}</span>
+            <span><strong>Goleiro com mais defesas</strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.goleiroDefesas, "defesasDificeis"))}</span>
+          </div>
+        </section>
+
+        <section class="pelada-finish-block">
+          <h3>Sugestões da Pelada</h3>
+          <p>O app sugere com base na pontuação, mas a escolha final é manual.</p>
+          <div class="pelada-suggestion-grid">
+            ${renderPeladaSuggestionCard("Sugestão de MVP da Pelada", summary.suggestions.mvp, "pontuacao", "Pontuação")}
+            ${renderPeladaSuggestionCard("Sugestão de Bagre da Pelada", summary.suggestions.bagre, "bagreScore", "Índice negativo")}
+          </div>
+        </section>
+
+        <div class="form-grid">
+          <label class="field-label">
+            <span>MVP da Pelada *</span>
+            <select name="mvpJogadorId" ${canChoose ? "" : "disabled"}>
+              ${renderAwardPlayerOptions(summary, summary.suggestions.mvp?.jogadorId || "", "pontuacao")}
+            </select>
+          </label>
+          <label class="field-label">
+            <span>Bagre da Pelada *</span>
+            <select name="bagreJogadorId" ${canChoose ? "" : "disabled"}>
+              ${renderAwardPlayerOptions(summary, summary.suggestions.bagre?.jogadorId || "", "bagreScore")}
+            </select>
+          </label>
+          <label class="field-label wide-field">
+            <span>Observações</span>
+            <textarea name="observacoes" rows="3" placeholder="Ex.: escolha confirmada pelo grupo após a última partida."></textarea>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button class="primary-button big-touch" type="submit" ${canChoose ? "" : "disabled"}>Confirmar encerramento</button>
+          <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
+        </div>
+      </form>
+    `;
+  }
+
+  function renderGameHistory(pelada, jogos, eventsByGameId = new Map(), playerById = new Map(), peladaSummary = null) {
     return `
       <section class="data-card game-history-card">
         <div class="players-toolbar">
@@ -3626,6 +4170,7 @@
             <p>${jogos.length} jogo${jogos.length === 1 ? "" : "s"} criado${jogos.length === 1 ? "" : "s"} nesta pelada.</p>
           </div>
         </div>
+        ${peladaSummary ? renderPeladaHistoryOverview(peladaSummary) : ""}
         ${
           jogos.length
             ? `<div class="game-history-grid">${jogos
@@ -3804,6 +4349,19 @@
         return;
       }
 
+      if (action === "finish-pelada") {
+        if (actionButton.disabled || !state.selectedPeladaId) {
+          return;
+        }
+
+        const confirmed = window.confirm("Quer mesmo finalizar esta pelada? Depois disso você escolherá MVP e Bagre da Pelada.");
+
+        if (confirmed) {
+          await openPeladaFinishModal(state.selectedPeladaId);
+        }
+        return;
+      }
+
       if (action === "open-lineup" || action === "open-goalkeeper") {
         const teamKey = actionButton.dataset.team;
         if (["A", "B"].includes(teamKey)) {
@@ -3817,6 +4375,135 @@
         await switchSection("ao-vivo");
       }
     });
+  }
+
+  async function readPeladaClosureSummary(peladaId) {
+    const [pelada, jogos, eventos, escalacoes, jogadores] = await Promise.all([
+      getRecord("peladas", peladaId),
+      readGamesForPelada(peladaId),
+      getAllRecords("eventos"),
+      getAllRecords("escalacoes"),
+      getAllRecords("jogadores"),
+    ]);
+
+    return pelada ? buildPeladaClosureSummary(pelada, jogos, eventos, escalacoes, jogadores) : null;
+  }
+
+  async function openPeladaFinishModal(peladaId) {
+    const summary = await readPeladaClosureSummary(peladaId);
+
+    if (!summary) {
+      return;
+    }
+
+    if (!summary.canFinalize) {
+      window.alert(summary.finishDisabledReason || "Não é possível finalizar esta pelada agora.");
+      return;
+    }
+
+    const modal = openLiveModal("Finalizar Pelada", renderPeladaFinishModal(summary));
+    const form = modal.querySelector("#finish-pelada-form");
+
+    form?.addEventListener("submit", (event) => handleFinishPeladaSubmit(event, peladaId));
+  }
+
+  async function handleFinishPeladaSubmit(event, peladaId) {
+    event.preventDefault();
+
+    const form = event.currentTarget;
+    const summary = await readPeladaClosureSummary(peladaId);
+    const pelada = summary?.pelada;
+    const mvpJogadorId = form.elements.mvpJogadorId?.value || "";
+    const bagreJogadorId = form.elements.bagreJogadorId?.value || "";
+    const observacoes = String(form.elements.observacoes?.value || "").trim();
+    const errors = [];
+
+    if (!summary || !pelada) errors.push("Pelada não encontrada.");
+    if (summary && !summary.canFinalize) errors.push(summary.finishDisabledReason || "Não é possível finalizar esta pelada agora.");
+    if (!mvpJogadorId) errors.push("Escolha manualmente o MVP da Pelada.");
+    if (!bagreJogadorId) errors.push("Escolha manualmente o Bagre da Pelada.");
+    if (mvpJogadorId && bagreJogadorId && mvpJogadorId === bagreJogadorId) {
+      errors.push("MVP e Bagre da Pelada devem ser jogadores diferentes.");
+    }
+
+    showFormErrors("finish-pelada-errors", errors);
+
+    if (errors.length) {
+      return;
+    }
+
+    const savedAt = nowIso();
+    const mvpScore = summary.scoreByPlayerId.get(mvpJogadorId)?.pontuacao || 0;
+    const bagreScore = summary.scoreByPlayerId.get(bagreJogadorId)?.bagreScore || 0;
+    const baseEvent = {
+      jogoId: "",
+      peladaId,
+      timeId: "",
+      time: "",
+      assistenteId: "",
+      jogadorSofreuId: "",
+      minuto: "",
+      tipoGol: "",
+      cartao: "",
+      tipoAcaoDefensiva: "",
+      tipoDefesaGoleiro: "",
+      golContra: false,
+      observacoes,
+      criadoPor: getDeviceId(),
+      createdAt: savedAt,
+      updatedAt: savedAt,
+      revision: 1,
+      cancelado: false,
+      escolhidoManual: true,
+    };
+    const mvpEvent = {
+      ...baseEvent,
+      id: uid(),
+      tipo: "MVP_PELADA",
+      jogadorId: mvpJogadorId,
+      detalhe: `MVP da Pelada - ${pelada.local || "Pelada"}`,
+      pontuacaoCalculada: Number(mvpScore.toFixed(1)),
+    };
+    const bagreEvent = {
+      ...baseEvent,
+      id: uid(),
+      tipo: "BAGRE_PELADA",
+      jogadorId: bagreJogadorId,
+      detalhe: `Bagre da Pelada - ${pelada.local || "Pelada"}`,
+      pontuacaoCalculada: Number(bagreScore.toFixed(1)),
+    };
+    const updatedPelada = {
+      ...pelada,
+      status: "Finalizada",
+      finalizadaEm: savedAt,
+      mvpJogadorId,
+      bagreJogadorId,
+      updatedAt: savedAt,
+      revision: (pelada.revision || 0) + 1,
+    };
+
+    await putRecords({
+      peladas: [updatedPelada],
+      eventos: [mvpEvent, bagreEvent],
+      syncQueue: [
+        createSyncQueueRecord("peladas", "upsert", peladaId, updatedPelada),
+        createSyncQueueRecord("eventos", "upsert", mvpEvent.id, mvpEvent),
+        createSyncQueueRecord("eventos", "upsert", bagreEvent.id, bagreEvent),
+      ],
+      auditLog: [
+        createAuditRecord("peladas", peladaId, "finalizar-pelada", pelada, updatedPelada),
+        createAuditRecord("eventos", mvpEvent.id, "criar-mvp-pelada", null, mvpEvent),
+        createAuditRecord("eventos", bagreEvent.id, "criar-bagre-pelada", null, bagreEvent),
+      ],
+    });
+
+    for (const playerId of [mvpJogadorId, bagreJogadorId]) {
+      await aplicarEvolucaoPorEventos(playerId);
+    }
+
+    closeLiveModal();
+    await syncNow();
+    await refreshCurrentView();
   }
 
   function collectPeladaFormData(form) {
@@ -5227,8 +5914,8 @@
           ${renderRankingList("Defesas de pênalti", statsResult.playersStats, "defesasPenalti")}
           ${renderRankingList("Cartões", statsResult.playersStats, "cartoesTotal", "cartoesDetalhe")}
           ${renderSpecialGoalsRanking(statsResult.playersStats)}
-          ${renderRankingList("MVP", statsResult.playersStats, "mvp")}
-          ${renderRankingList("Bagre da rodada", statsResult.playersStats, "bagre")}
+          ${renderRankingList("MVPs da Pelada", statsResult.playersStats, "mvpsPelada")}
+          ${renderRankingList("Bagres da Pelada", statsResult.playersStats, "bagresPelada")}
         </section>
       </div>
     `;
@@ -5389,6 +6076,8 @@
       ["defesasDificeis", "Defesas difíceis"],
       ["defesasPenalti", "Defesas de pênalti"],
       ["cartoesTotal", "Cartões"],
+      ["mvpsPelada", "MVPs da Pelada"],
+      ["bagresPelada", "Bagres da Pelada"],
     ];
 
     return options
@@ -5524,8 +6213,8 @@
       ["Mais desarmes", getMetricRankingEntries(statsResult.playersStats, "desarmes")],
       ["Mais bloqueios", getMetricRankingEntries(statsResult.playersStats, "bloqueios")],
       ["Defesas difíceis", getMetricRankingEntries(statsResult.playersStats, "defesasDificeis")],
-      ["MVPs da Pelada", getMetricRankingEntries(statsResult.playersStats, "mvp")],
-      ["Bagres da Pelada", getMetricRankingEntries(statsResult.playersStats, "bagre")],
+      ["MVPs da Pelada", getMetricRankingEntries(statsResult.playersStats, "mvpsPelada")],
+      ["Bagres da Pelada", getMetricRankingEntries(statsResult.playersStats, "bagresPelada")],
     ];
     const lineAttributeRankings = LINE_ATTRIBUTES.map((attribute) => [
       `Maior ${attribute.label}`,
@@ -5825,6 +6514,8 @@
       defesasDificeis: "Defesas difíceis",
       defesasPenalti: "Defesas de pênalti",
       cartoesTotal: "Cartões",
+      mvpsPelada: "MVPs da Pelada",
+      bagresPelada: "Bagres da Pelada",
     };
 
     return titles[metric] || "Ranking";
@@ -5912,8 +6603,8 @@
               ["Gols de falta", "golsFalta"],
               ["Gols de cabeça", "golsCabeca"],
               ["Gols contra", "golsContra"],
-              ["MVPs", "mvp"],
-              ["Bagres", "bagre"],
+              ["MVPs da Pelada", "mvpsPelada"],
+              ["Bagres da Pelada", "bagresPelada"],
             ])}
           </article>
 
@@ -5934,6 +6625,11 @@
         <section class="data-card">
           <h3>Histórico dos últimos jogos</h3>
           ${renderPlayerGameHistory(stats)}
+        </section>
+
+        <section class="data-card">
+          <h3>Histórico de prêmios da pelada</h3>
+          ${renderPlayerAwardHistory(stats)}
         </section>
       </div>
     `;
@@ -5987,6 +6683,33 @@
                 <span>${escapeHtml(history.faltasSofridas)} FS</span>
                 <span>${escapeHtml(history.acoesDefensivas)} AD</span>
                 <span>${escapeHtml(history.defesasDificeis)} DD</span>
+              </article>
+            `
+          )
+          .join("")}
+      </div>
+    `;
+  }
+
+  function renderPlayerAwardHistory(stats) {
+    if (!stats.premiosPelada.length) {
+      return `<div class="empty-state compact-empty"><p>Este jogador ainda não tem MVP ou Bagre da Pelada registrado.</p></div>`;
+    }
+
+    return `
+      <div class="player-history-list">
+        ${stats.premiosPelada
+          .slice(0, 12)
+          .map(
+            (award) => `
+              <article class="player-history-row award-history-row">
+                <span>
+                  <strong>${escapeHtml(formatDateLabel(award.data))}</strong>
+                  <small>${escapeHtml(award.local || "Pelada")}</small>
+                </span>
+                <span>${escapeHtml(award.tipo)}</span>
+                <span>${escapeHtml(formatScoreNumber(award.pontuacaoCalculada))} pts</span>
+                <span>${escapeHtml(award.observacoes || "-")}</span>
               </article>
             `
           )
