@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.9.14";
+  const APP_VERSION = "0.9.15";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 15000;
@@ -471,6 +471,9 @@
   const STRONG_FEET = ["Direito", "Esquerdo", "Ambidestro"];
   const PLAYER_POSITIONS = ["GK", "CB", "MC", "MAT", "SA", "ST", "LW", "RW"];
   const LINE_POSITIONS = ["CB", "MC", "MAT", "SA", "ST", "LW", "RW"];
+  const PLAYER_PHOTO_MAX_INPUT_BYTES = 8 * 1024 * 1024;
+  const PLAYER_PHOTO_MAX_SIZE = 720;
+  const PLAYER_PHOTO_QUALITY = 0.84;
 
   const LINE_ATTRIBUTES = [
     {
@@ -3150,6 +3153,37 @@
     `;
   }
 
+  function renderPlayerPhotoUpload(player = null) {
+    const previewPlayer = {
+      nome: player?.nome || "",
+      apelido: player?.apelido || "",
+      foto: player?.foto || "",
+    };
+
+    return `
+      <div class="photo-upload-field wide-field">
+        <input type="hidden" name="foto" value="${escapeHtml(player?.foto || "")}" />
+        <div class="photo-upload-preview" data-photo-preview>
+          ${renderPlayerAvatar(previewPlayer, "player-avatar photo-upload-avatar")}
+          <span>
+            <strong>Foto da carta</strong>
+            <small>${player?.foto ? "Foto vinculada ao jogador." : "Anexe uma imagem do jogador para usar no ranking, estatísticas e campo ao vivo."}</small>
+          </span>
+        </div>
+        <div class="photo-upload-actions">
+          <label class="photo-upload-button">
+            <input type="file" name="fotoArquivo" accept="image/*" />
+            <span>Anexar foto</span>
+          </label>
+          <button class="ghost-button compact-button" type="button" data-player-action="remove-photo" ${player?.foto ? "" : "hidden"}>
+            Remover foto
+          </button>
+        </div>
+        <small class="photo-upload-hint">A imagem será salva no banco local do app e acompanhará o jogador nas telas principais.</small>
+      </div>
+    `;
+  }
+
   function renderPlayerForm(player = null, attributesRecord = null) {
     const isEditing = Boolean(player);
     const tipoJogador = player?.tipoJogador || "Linha";
@@ -3177,10 +3211,7 @@
               <span>Apelido / nome da carta</span>
               <input type="text" name="apelido" value="${escapeHtml(player?.apelido || "")}" autocomplete="off" />
             </label>
-            <label class="field-label">
-              <span>Foto (URL)</span>
-              <input type="url" name="foto" value="${escapeHtml(player?.foto || "")}" placeholder="https://..." />
-            </label>
+            ${renderPlayerPhotoUpload(player)}
             <label class="field-label">
               <span>Idade</span>
               <input type="number" name="idade" min="1" max="120" step="1" value="${escapeHtml(idade)}" />
@@ -3343,6 +3374,38 @@
     `;
   }
 
+  function renderPlayersHero(jogadores) {
+    const activeCount = jogadores.filter((jogador) => jogador.status === "Ativo").length;
+    const guestCount = jogadores.filter((jogador) => jogador.status === "Convidado").length;
+    const topPlayer = jogadores
+      .filter((jogador) => jogador.status !== "Inativo")
+      .sort((a, b) => Number(b.overall || 0) - Number(a.overall || 0))[0];
+
+    return `
+      <section class="players-hero">
+        <div class="players-hero-copy">
+          <span>Elenco BagreScore</span>
+          <h2>Jogadores</h2>
+          <p>Cadastre atletas, fotos, atributos e cartas para usar em peladas, rankings, estatísticas e partida ao vivo.</p>
+        </div>
+        <div class="players-hero-stats">
+          <span><strong>${escapeHtml(jogadores.length)}</strong> cadastrados</span>
+          <span><strong>${escapeHtml(activeCount)}</strong> ativos</span>
+          <span><strong>${escapeHtml(guestCount)}</strong> convidados</span>
+        </div>
+        <div class="players-hero-feature">
+          ${topPlayer ? renderPlayerAvatar(topPlayer, "player-avatar players-hero-avatar") : `<span class="player-avatar players-hero-avatar" aria-hidden="true">BS</span>`}
+          <span>
+            <small>Maior overall</small>
+            <strong>${topPlayer ? escapeHtml(playerDisplayName(topPlayer)) : "Sem jogadores"}</strong>
+            <em>${topPlayer ? `${escapeHtml(topPlayer.overall || "-")} OVR` : "Cadastre o primeiro atleta"}</em>
+          </span>
+        </div>
+        <button class="primary-button players-hero-action" type="button" data-player-action="new">Novo jogador</button>
+      </section>
+    `;
+  }
+
   async function renderPlayersSection() {
     const jogadores = await readPlayersWithAttributes();
     const selectedPlayer =
@@ -3353,12 +3416,15 @@
     state.selectedPlayerId = selectedPlayer?.id || null;
 
     $("#section-content").innerHTML = `
-      <div class="players-layout">
+      <div class="players-screen">
+        ${renderPlayersHero(jogadores)}
+        <div class="players-layout">
         <section class="data-card player-form-card">
           <div class="players-toolbar">
             <div>
-              <h3>${editingPlayer ? "Editar jogador" : "Novo jogador"}</h3>
-              <p>Cadastro local com carta calculada automaticamente.</p>
+              <span class="panel-kicker">${editingPlayer ? "Edição da carta" : "Nova carta"}</span>
+              <h3>${editingPlayer ? "Editar jogador" : "Cadastrar jogador"}</h3>
+              <p>Foto, dados e atributos com overall calculado automaticamente.</p>
             </div>
           </div>
           ${renderPlayerForm(editingPlayer)}
@@ -3367,8 +3433,9 @@
         <section class="players-list-panel">
           <div class="players-toolbar">
             <div>
-              <h3>Elenco local</h3>
-              <p>${jogadores.length} jogador${jogadores.length === 1 ? "" : "es"} cadastrado${jogadores.length === 1 ? "" : "s"}.</p>
+              <span class="panel-kicker">Elenco local</span>
+              <h3>Jogadores cadastrados</h3>
+              <p>${jogadores.length} jogador${jogadores.length === 1 ? "" : "es"} salvo${jogadores.length === 1 ? "" : "s"} neste aparelho.</p>
             </div>
             <button class="ghost-button compact-button" type="button" data-player-action="new">Novo</button>
           </div>
@@ -3384,6 +3451,7 @@
           }
           ${renderPlayerDetail(selectedPlayer)}
         </section>
+        </div>
       </div>
     `;
 
@@ -3392,15 +3460,25 @@
   }
 
   function bindPlayerSectionEvents() {
-    const layout = $(".players-layout");
+    const layout = $(".players-screen");
     const form = $("#player-form");
 
     if (!layout || !form) {
       return;
     }
 
-    form.addEventListener("input", () => updatePlayerFormState(form));
-    form.addEventListener("change", (event) => {
+    form.addEventListener("input", (event) => {
+      if (["nome", "apelido"].includes(event.target?.name)) {
+        updatePlayerPhotoPreview(form);
+      }
+      updatePlayerFormState(form);
+    });
+    form.addEventListener("change", async (event) => {
+      if (event.target?.name === "fotoArquivo") {
+        await handlePlayerPhotoSelection(form, event.target);
+        return;
+      }
+
       normalizePlayerTypeAndPosition(form, event.target);
       updatePlayerFormState(form);
     });
@@ -3415,6 +3493,11 @@
 
       const action = actionButton.dataset.playerAction;
       const playerId = actionButton.dataset.playerId;
+
+      if (action === "remove-photo") {
+        clearPlayerPhoto(form);
+        return;
+      }
 
       if (action === "view" && playerId) {
         state.selectedStatsPlayerId = playerId;
@@ -3445,6 +3528,122 @@
         state.editingPlayerId = null;
         await renderCurrentSection();
       }
+    });
+  }
+
+  function updatePlayerPhotoPreview(form = $("#player-form")) {
+    if (!form) {
+      return;
+    }
+
+    const preview = form.querySelector("[data-photo-preview]");
+    const removeButton = form.querySelector('[data-player-action="remove-photo"]');
+    const previewPlayer = {
+      nome: String(form.elements.nome?.value || "").trim(),
+      apelido: String(form.elements.apelido?.value || "").trim(),
+      foto: String(form.elements.foto?.value || "").trim(),
+    };
+
+    if (preview) {
+      preview.innerHTML = `
+        ${renderPlayerAvatar(previewPlayer, "player-avatar photo-upload-avatar")}
+        <span>
+          <strong>Foto da carta</strong>
+          <small>${previewPlayer.foto ? "Foto vinculada ao jogador." : "Anexe uma imagem do jogador para usar no ranking, estatísticas e campo ao vivo."}</small>
+        </span>
+      `;
+    }
+
+    if (removeButton) {
+      removeButton.hidden = !previewPlayer.foto;
+    }
+  }
+
+  function clearPlayerPhoto(form = $("#player-form")) {
+    if (!form) {
+      return;
+    }
+
+    if (form.elements.foto) {
+      form.elements.foto.value = "";
+    }
+
+    if (form.elements.fotoArquivo) {
+      form.elements.fotoArquivo.value = "";
+    }
+
+    updatePlayerPhotoPreview(form);
+  }
+
+  async function handlePlayerPhotoSelection(form, input) {
+    const file = input?.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    try {
+      const photoDataUrl = await readPlayerPhotoFile(file);
+      form.elements.foto.value = photoDataUrl;
+      updatePlayerPhotoPreview(form);
+    } catch (error) {
+      window.alert(error?.message || "Não foi possível anexar essa foto.");
+      input.value = "";
+    }
+  }
+
+  async function readPlayerPhotoFile(file) {
+    if (!file.type.startsWith("image/")) {
+      throw new Error("Escolha um arquivo de imagem válido.");
+    }
+
+    if (file.size > PLAYER_PHOTO_MAX_INPUT_BYTES) {
+      throw new Error("A foto é muito grande. Use uma imagem de até 8 MB.");
+    }
+
+    const dataUrl = await readFileAsDataUrl(file);
+
+    if (file.type === "image/svg+xml") {
+      return dataUrl;
+    }
+
+    return resizeImageDataUrl(dataUrl);
+  }
+
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Não foi possível ler a imagem."));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function resizeImageDataUrl(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+
+      image.onload = () => {
+        const maxSide = Math.max(image.naturalWidth || image.width, image.naturalHeight || image.height);
+        const scale = maxSide > PLAYER_PHOTO_MAX_SIZE ? PLAYER_PHOTO_MAX_SIZE / maxSide : 1;
+        const width = Math.max(1, Math.round((image.naturalWidth || image.width) * scale));
+        const height = Math.max(1, Math.round((image.naturalHeight || image.height) * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d");
+
+        if (!context) {
+          reject(new Error("Não foi possível preparar a imagem."));
+          return;
+        }
+
+        context.drawImage(image, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", PLAYER_PHOTO_QUALITY));
+      };
+
+      image.onerror = () => reject(new Error("Não foi possível processar essa imagem."));
+      image.src = dataUrl;
     });
   }
 
