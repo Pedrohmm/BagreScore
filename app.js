@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.9.21";
+  const APP_VERSION = "0.9.22";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 15000;
@@ -711,6 +711,24 @@
 
   function playerDisplayName(player) {
     return player.apelido || player.nome || "Jogador";
+  }
+
+  function comparePlayersByNickname(a, b) {
+    const nicknameDiff = String(a?.apelido || a?.nome || "")
+      .localeCompare(String(b?.apelido || b?.nome || ""), "pt-BR", { sensitivity: "base" });
+
+    if (nicknameDiff) {
+      return nicknameDiff;
+    }
+
+    const nameDiff = String(a?.nome || "")
+      .localeCompare(String(b?.nome || ""), "pt-BR", { sensitivity: "base" });
+
+    if (nameDiff) {
+      return nameDiff;
+    }
+
+    return String(a?.createdAt || "").localeCompare(String(b?.createdAt || ""));
   }
 
   function playerInitials(player) {
@@ -1707,6 +1725,23 @@
     storeNames.forEach((storeName) => {
       const store = transaction.objectStore(storeName);
       recordsByStore[storeName].forEach((record) => store.put(record));
+    });
+
+    await transactionDone(transaction);
+  }
+
+  async function deleteRecords(keysByStore) {
+    const storeNames = Object.keys(keysByStore).filter((storeName) => keysByStore[storeName]?.length);
+
+    if (!storeNames.length) {
+      return;
+    }
+
+    const transaction = state.db.transaction(storeNames, "readwrite");
+
+    storeNames.forEach((storeName) => {
+      const store = transaction.objectStore(storeName);
+      keysByStore[storeName].forEach((key) => store.delete(key));
     });
 
     await transactionDone(transaction);
@@ -3131,16 +3166,7 @@
           attributes: card.attributes,
         };
       })
-      .sort((a, b) => {
-        const statusOrder = { Ativo: 0, Convidado: 1, Inativo: 2 };
-        const statusDiff = (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3);
-
-        if (statusDiff) {
-          return statusDiff;
-        }
-
-        return playerDisplayName(a).localeCompare(playerDisplayName(b), "pt-BR");
-      });
+      .sort(comparePlayersByNickname);
   }
 
   function renderPlayerAttributeFields(definitions, values, groupName, activeGroup) {
@@ -3273,8 +3299,8 @@
               <input type="text" name="nome" value="${escapeHtml(player?.nome || "")}" autocomplete="off" required />
             </label>
             <label class="field-label">
-              <span>Apelido / nome da carta</span>
-              <input type="text" name="apelido" value="${escapeHtml(player?.apelido || "")}" autocomplete="off" />
+              <span>Apelido / nome da carta *</span>
+              <input type="text" name="apelido" value="${escapeHtml(player?.apelido || "")}" autocomplete="off" required />
             </label>
             ${renderPlayerPhotoUpload(player)}
             <label class="field-label">
@@ -3369,6 +3395,7 @@
               ? `<button class="ghost-button compact-button" type="button" data-player-action="reactivate" data-player-id="${escapeHtml(player.id)}">Reativar</button>`
               : `<button class="danger-button compact-button" type="button" data-player-action="inactivate" data-player-id="${escapeHtml(player.id)}">Inativar</button>`
           }
+          <button class="danger-button compact-button player-delete-button" type="button" data-player-action="delete" data-player-id="${escapeHtml(player.id)}">Excluir</button>
         </div>
       </article>
     `;
@@ -3431,6 +3458,7 @@
               ? `<button class="ghost-button compact-button" type="button" data-player-action="reactivate" data-player-id="${escapeHtml(player.id)}">Reativar</button>`
               : `<button class="danger-button compact-button" type="button" data-player-action="inactivate" data-player-id="${escapeHtml(player.id)}">Inativar</button>`
           }
+          <button class="danger-button compact-button player-delete-button" type="button" data-player-action="delete" data-player-id="${escapeHtml(player.id)}">Excluir</button>
         </div>
       </aside>
     `;
@@ -3492,7 +3520,6 @@
               </div>
             `
         }
-        ${selectedPlayer ? renderPlayerDetail(selectedPlayer) : ""}
       </section>
     `;
   }
@@ -3631,10 +3658,18 @@
       }
 
       if (action === "view" && playerId) {
-        state.selectedPlayerId = playerId;
-        state.editingPlayerId = null;
-        state.playersListOpen = true;
-        await renderCurrentSection();
+        state.statsFilters = {
+          ...state.statsFilters,
+          periodo: "all",
+          peladaId: "",
+          month: "",
+          temporadaId: "",
+          jogadorId: "",
+          posicao: "",
+        };
+        state.selectedStatsPlayerId = playerId;
+        state.selectedProfileTab = "resumo";
+        await switchSection("estatisticas");
         return;
       }
 
@@ -3656,6 +3691,11 @@
 
       if (action === "reactivate" && playerId) {
         await updatePlayerStatus(playerId, "Ativo");
+        return;
+      }
+
+      if (action === "delete" && playerId) {
+        await deletePlayer(playerId);
         return;
       }
 
@@ -3722,11 +3762,16 @@
 
     if (normalizedStep === "basicos") {
       const nome = String(form.elements.nome?.value || "").trim();
+      const apelido = String(form.elements.apelido?.value || "").trim();
       const idadeValue = String(form.elements.idade?.value || "").trim();
       const idade = idadeValue ? Number(idadeValue) : "";
 
       if (!nome) {
         errors.push("Nome é obrigatório.");
+      }
+
+      if (!apelido) {
+        errors.push("Apelido / nome da carta é obrigatório.");
       }
 
       if (idade !== "" && (!Number.isFinite(idade) || idade < 1 || idade > 120)) {
@@ -3943,6 +3988,10 @@
       errors.push("Nome é obrigatório.");
     }
 
+    if (!player.apelido) {
+      errors.push("Apelido / nome da carta é obrigatório.");
+    }
+
     if (!PLAYER_TYPES.includes(player.tipoJogador)) {
       errors.push("Tipo de jogador é obrigatório.");
     }
@@ -4146,6 +4195,101 @@
     state.selectedPlayerId = playerId;
     state.editingPlayerId = null;
     await refreshCurrentView();
+    await syncNow();
+  }
+
+  async function deletePlayer(playerId) {
+    const [
+      existingPlayer,
+      existingAttributes,
+      escalacoes,
+      eventos,
+      faltas,
+      evolucoes,
+      estatisticasCache,
+    ] = await Promise.all([
+      getRecord("jogadores", playerId),
+      getRecord("atributos", playerId),
+      getAllRecords("escalacoes"),
+      getAllRecords("eventos"),
+      getAllRecords("faltas"),
+      getAllRecords("evolucoes"),
+      getAllRecords("estatisticasCache"),
+    ]);
+
+    if (!existingPlayer) {
+      return;
+    }
+
+    const linkedEscalacoes = escalacoes.filter((item) => item.jogadorId === playerId);
+    const linkedEventos = eventos.filter((item) =>
+      [item.jogadorId, item.assistenteId, item.jogadorSofreuId].includes(playerId)
+    );
+    const linkedFaltas = faltas.filter((item) =>
+      [item.jogadorCometeuId, item.jogadorSofreuId].includes(playerId)
+    );
+    const hasHistoryLinks = linkedEscalacoes.length || linkedEventos.length || linkedFaltas.length;
+
+    if (hasHistoryLinks) {
+      window.alert(
+        "Esse jogador já tem jogos ou eventos vinculados. Para preservar histórico, placares e estatísticas, use Inativar em vez de Excluir."
+      );
+      return;
+    }
+
+    const playerName = playerDisplayName(existingPlayer);
+    const confirmed = window.confirm(
+      `Excluir ${playerName} definitivamente deste aparelho? Essa ação remove o cadastro, atributos e evoluções manuais sem vínculo.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const playerEvolucoes = evolucoes.filter((item) => item.jogadorId === playerId);
+    const playerStatsCache = estatisticasCache.filter((item) => item.jogadorId === playerId);
+    const before = {
+      jogador: existingPlayer,
+      atributos: existingAttributes || null,
+      evolucoes: playerEvolucoes,
+      estatisticasCache: playerStatsCache,
+    };
+
+    await deleteRecords({
+      jogadores: [playerId],
+      atributos: [playerId],
+      evolucoes: playerEvolucoes.map((item) => item.id),
+      estatisticasCache: playerStatsCache.map((item) => item.id),
+    });
+
+    await putRecords({
+      syncQueue: [
+        createSyncQueueRecord("jogadores", "delete", playerId, { id: playerId }),
+        createSyncQueueRecord("atributos", "delete", playerId, { jogadorId: playerId }),
+        ...playerEvolucoes.map((item) =>
+          createSyncQueueRecord("evolucoes", "delete", item.id, { id: item.id })
+        ),
+      ],
+      auditLog: [createAuditRecord("jogadores", playerId, "excluir", before, null)],
+    });
+
+    if (state.selectedPlayerId === playerId) {
+      state.selectedPlayerId = null;
+    }
+
+    if (state.editingPlayerId === playerId) {
+      state.editingPlayerId = null;
+      state.playerFormOpen = false;
+      state.playerFormStep = "basicos";
+    }
+
+    if (state.selectedStatsPlayerId === playerId) {
+      state.selectedStatsPlayerId = null;
+    }
+
+    state.playersListOpen = true;
+    await refreshCurrentView();
+    scrollToPlayersRoster();
     await syncNow();
   }
 
