@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.9.18";
+  const APP_VERSION = "0.9.19";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 15000;
@@ -7742,15 +7742,13 @@
     state.rankingCategory = activeCategoryId;
 
     return `
-      <div class="ranking-premium-page">
-        ${renderRankingPremiumHero(statsResult)}
-
-        <section class="ranking-tabs-card">
-          <div class="ranking-tabs-header">
+      <div class="ranking-premium-page ranking-leaderboard-page">
+        <section class="ranking-leaderboard-screen">
+          <div class="ranking-leaderboard-top">
             <div>
-              <span class="panel-kicker">Pódios</span>
-              <h3>${escapeHtml(getRankingModeTitle(activeMode))}</h3>
-              <p>Escolha uma categoria para ver os três melhores em formato de pódio.</p>
+              <span class="panel-kicker">Leaderboard</span>
+              <h2>Ranking</h2>
+              <p>${escapeHtml(getRankingModeDescription(activeMode))}</p>
             </div>
           </div>
           ${renderRankingModeTabs(activeMode)}
@@ -7762,94 +7760,100 @@
   }
 
   function buildRankingCategoryGroups(statsResult) {
+    const fullLimit = getRankingFullLimit(statsResult);
+
     return {
       geral: [
         {
           id: "overall",
           title: "Maior Overall",
           description: "Cartas com maior nota geral.",
-          entries: getOverallRankingEntries(statsResult),
+          entries: getOverallRankingEntries(statsResult, fullLimit),
         },
         {
           id: "artilharia",
           title: "Artilharia",
           description: "Quem mais marcou gols.",
-          entries: getMetricRankingEntries(statsResult.playersStats, "gols"),
+          entries: getMetricRankingEntries(statsResult.playersStats, "gols", { limit: fullLimit }),
         },
         {
           id: "assistencias",
           title: "Assistências",
           description: "Os garçons da pelada.",
-          entries: getMetricRankingEntries(statsResult.playersStats, "assistencias"),
+          entries: getMetricRankingEntries(statsResult.playersStats, "assistencias", { limit: fullLimit }),
         },
         {
           id: "participacoes",
           title: "Participações em gol",
           description: "Gols + assistências.",
-          entries: getMetricRankingEntries(statsResult.playersStats, "participacoesGol"),
+          entries: getMetricRankingEntries(statsResult.playersStats, "participacoesGol", { limit: fullLimit }),
         },
         {
           id: "vitorias",
           title: "Mais vitórias",
           description: "Jogadores com mais jogos vencidos.",
-          entries: getMetricRankingEntries(statsResult.playersStats, "vitorias"),
+          entries: getMetricRankingEntries(statsResult.playersStats, "vitorias", { limit: fullLimit }),
         },
         {
           id: "aproveitamento",
           title: "Melhor aproveitamento",
           description: "Percentual por vitórias, empates e derrotas.",
-          entries: getMetricRankingEntries(statsResult.playersStats, "aproveitamento", { requireGames: true }),
+          entries: getMetricRankingEntries(statsResult.playersStats, "aproveitamento", { limit: fullLimit, requireGames: true }),
         },
         {
           id: "jogos",
           title: "Mais jogos",
           description: "Quem mais entrou em campo.",
-          entries: getMetricRankingEntries(statsResult.playersStats, "jogos"),
+          entries: getMetricRankingEntries(statsResult.playersStats, "jogos", { limit: fullLimit }),
         },
         {
           id: "media-gols",
           title: "Melhor média de gols",
           description: "Gols por jogo disputado.",
-          entries: getMetricRankingEntries(statsResult.playersStats, "golsPorJogo", { requireGames: true }),
+          entries: getMetricRankingEntries(statsResult.playersStats, "golsPorJogo", { limit: fullLimit, requireGames: true }),
         },
         {
           id: "faltas-cometidas",
           title: "Mais faltas cometidas",
           description: "Ranking de faltas feitas.",
-          entries: getMetricRankingEntries(statsResult.playersStats, "faltasCometidas"),
+          entries: getMetricRankingEntries(statsResult.playersStats, "faltasCometidas", { limit: fullLimit }),
         },
         {
           id: "faltas-sofridas",
           title: "Mais faltas sofridas",
           description: "Quem mais sofreu faltas.",
-          entries: getMetricRankingEntries(statsResult.playersStats, "faltasSofridas"),
+          entries: getMetricRankingEntries(statsResult.playersStats, "faltasSofridas", { limit: fullLimit }),
         },
         {
           id: "mvp",
           title: "MVPs da Pelada",
           description: "Mais vezes escolhido MVP.",
-          entries: getMetricRankingEntries(statsResult.playersStats, "mvpsPelada"),
+          entries: getMetricRankingEntries(statsResult.playersStats, "mvpsPelada", { limit: fullLimit }),
         },
         {
           id: "bagre",
           title: "Bagres da Pelada",
           description: "Mais marcações de Bagre.",
-          entries: getMetricRankingEntries(statsResult.playersStats, "bagresPelada"),
+          entries: getMetricRankingEntries(statsResult.playersStats, "bagresPelada", { limit: fullLimit }),
         },
       ],
       atributos: LINE_ATTRIBUTES.map((attribute) => ({
         id: `atributo-${attribute.key}`,
         title: `Maior ${attribute.label}`,
         description: attribute.description,
-        entries: getAttributeRankingEntries(statsResult, attribute.key),
+        entries: getAttributeRankingEntries(statsResult, attribute.key, fullLimit),
       })),
       goleiros: GOALKEEPER_ATTRIBUTES.map((attribute) => ({
         id: `goleiro-${attribute.key}`,
         title: `Maior ${attribute.label}`,
         description: attribute.description,
-        entries: getAttributeRankingEntries(statsResult, attribute.key),
+        entries: getAttributeRankingEntries(statsResult, attribute.key, fullLimit),
       })),
     };
+  }
+
+  function getRankingFullLimit(statsResult) {
+    return Math.max(3, statsResult.playersStats.length || 3);
   }
 
   function getRankingModeTitle(mode) {
@@ -7860,6 +7864,16 @@
     };
 
     return titles[mode] || titles.geral;
+  }
+
+  function getRankingModeDescription(mode) {
+    const descriptions = {
+      geral: "Escolha uma categoria e veja o pódio em destaque, com o restante da classificação logo abaixo.",
+      atributos: "Compare as cartinhas por atributo e descubra os monstros de cada fundamento.",
+      goleiros: "Ranking exclusivo dos atributos de goleiro, com pódio e classificação completa.",
+    };
+
+    return descriptions[mode] || descriptions.geral;
   }
 
   function renderRankingPremiumHero(statsResult) {
@@ -7977,20 +7991,17 @@
 
   function renderRankingCategoryPicker(categories, activeCategoryId) {
     return `
-      <div class="ranking-category-grid">
+      <div class="ranking-category-rail" aria-label="Categorias de ranking">
         ${categories.map((category) => renderRankingCategoryButton(category, activeCategoryId)).join("")}
       </div>
     `;
   }
 
   function renderRankingCategoryButton(category, activeCategoryId) {
-    const leader = category.entries[0];
-
     return `
       <button class="ranking-category-button ${category.id === activeCategoryId ? "active" : ""}" type="button" data-ranking-category="${escapeHtml(category.id)}">
-        <span>${escapeHtml(category.title)}</span>
-        <strong>${leader ? escapeHtml(playerDisplayName(leader.stats.jogador)) : "Sem dados"}</strong>
-        <small>${leader ? escapeHtml(leader.value) : escapeHtml(category.description || "Aguardando jogos")}</small>
+        <strong>${escapeHtml(category.title)}</strong>
+        <small>${escapeHtml(category.entries.length ? `${category.entries.length} no ranking` : "Sem dados")}</small>
       </button>
     `;
   }
@@ -8009,10 +8020,10 @@
     ];
 
     return `
-      <section class="ranking-podium-stage">
+      <section class="ranking-podium-stage ranking-leaderboard-board">
         <div class="ranking-podium-heading">
           <div>
-            <span class="panel-kicker">Categoria selecionada</span>
+            <span class="panel-kicker">Top 3</span>
             <h3>${escapeHtml(category.title)}</h3>
             <p>${escapeHtml(category.description || "Top 3 da categoria.")}</p>
           </div>
@@ -8020,13 +8031,14 @@
         <div class="ranking-podium-places">
           ${podium.map((item) => renderRankingPodiumPlace(item.entry, item.place, item.className)).join("")}
         </div>
+        ${renderRankingRemainingList(category, category.entries)}
       </section>
     `;
   }
 
   function renderEmptyRankingPodium(category = null) {
     return `
-      <section class="ranking-podium-stage">
+      <section class="ranking-podium-stage ranking-leaderboard-board">
         <div class="empty-state compact-empty">
           <h3>${escapeHtml(category?.title || "Sem ranking")}</h3>
           <p>Ainda não há dados suficientes para montar esse pódio.</p>
@@ -8055,6 +8067,44 @@
         <span class="ranking-podium-name">${escapeHtml(playerDisplayName(jogador))}</span>
         <span class="ranking-podium-meta">${escapeHtml(jogador.posicaoPrincipal || "-")} · ${escapeHtml(jogador.overall || "-")} OVR</span>
         <strong>${escapeHtml(value)}</strong>
+      </button>
+    `;
+  }
+
+  function renderRankingRemainingList(category, entries) {
+    const rest = entries.slice(3);
+
+    return `
+      <div class="ranking-rest-board">
+        <div class="ranking-rest-heading">
+          <div>
+            <span>Classificação</span>
+            <strong>${escapeHtml(category.title)}</strong>
+          </div>
+          <small>${escapeHtml(entries.length)} jogador${entries.length === 1 ? "" : "es"}</small>
+        </div>
+        ${
+          rest.length
+            ? `<div class="ranking-rest-list">${rest.map((entry, index) => renderRankingRestRow(entry, index + 4)).join("")}</div>`
+            : `<div class="ranking-rest-empty">Sem outros jogadores nesta categoria.</div>`
+        }
+      </div>
+    `;
+  }
+
+  function renderRankingRestRow(entry, position) {
+    const { stats, value } = entry;
+    const jogador = stats.jogador;
+
+    return `
+      <button class="ranking-rest-row" type="button" data-ranking-action="profile" data-player-id="${escapeHtml(stats.jogadorId)}">
+        <span class="ranking-rest-position">${position}º</span>
+        ${renderPlayerAvatar(jogador, "player-avatar small")}
+        <span class="ranking-rest-player">
+          <strong>${escapeHtml(playerDisplayName(jogador))}</strong>
+          <small>${escapeHtml(jogador.posicaoPrincipal || "-")} · ${escapeHtml(jogador.overall || "-")} OVR</small>
+        </span>
+        <em>${escapeHtml(value)}</em>
       </button>
     `;
   }
