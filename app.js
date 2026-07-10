@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.9.19";
+  const APP_VERSION = "0.9.20";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 15000;
@@ -575,6 +575,7 @@
     selectedGameSummaryId: null,
     peladasView: "gerenciar",
     selectedStatsPlayerId: null,
+    selectedProfileTab: "resumo",
     rankingMode: "geral",
     rankingCategory: "overall",
     evolutionMessage: "",
@@ -3061,6 +3062,7 @@
     const isHome = state.currentSection === "inicio";
     document.body.dataset.section = state.currentSection;
     document.body.classList.toggle("is-internal", !isHome);
+    document.body.classList.remove("stats-profile-mode");
     $(".workspace-panel")?.classList.toggle("is-home", isHome);
     const backHome = $("#back-home");
     if (backHome) {
@@ -7427,6 +7429,7 @@
       ? statsResult.playersStats.find((item) => item.jogadorId === state.selectedStatsPlayerId)
       : null;
 
+    document.body.classList.toggle("stats-profile-mode", Boolean(selectedProfile));
     setSectionTitle("Ranking", selectedProfile ? "Perfil do jogador" : "Estatísticas");
 
     $("#section-content").innerHTML = selectedProfile
@@ -8351,6 +8354,7 @@
 
       if (actionButton.dataset.rankingAction === "profile") {
         state.selectedStatsPlayerId = actionButton.dataset.playerId || null;
+        state.selectedProfileTab = "resumo";
         await switchSection("estatisticas");
       }
     };
@@ -8477,6 +8481,232 @@
   }
 
   function renderPlayerStatsProfile(stats, statsResult) {
+    const jogador = stats.jogador;
+    const activeDefinitions = getActiveAttributeDefinitions(jogador.tipoJogador, jogador.posicaoPrincipal);
+    const activeTab = getActiveProfileTab();
+
+    return `
+      <div class="stats-profile player-profile-premium">
+        <section class="player-profile-hero">
+          ${renderPlayerCard(jogador, activeDefinitions)}
+          <article class="player-profile-overview">
+            <span class="panel-kicker">${escapeHtml(jogador.posicaoPrincipal || "-")} · ${escapeHtml(jogador.tipoJogador || "Linha")}</span>
+            <h2>${escapeHtml(playerDisplayName(jogador))}</h2>
+            <p>${escapeHtml(jogador.nome || "Jogador da pelada")}</p>
+            <div class="profile-tags">
+              <span>${escapeHtml(jogador.peForte || "-")}</span>
+              <span>${escapeHtml(jogador.status || "-")}</span>
+              <span>${escapeHtml(starsText(jogador.estrelas || 1))}</span>
+            </div>
+            <div class="profile-hero-metrics">
+              ${renderProfileHeroMetric("Jogos", stats.jogos)}
+              ${renderProfileHeroMetric("Vitórias", stats.vitorias)}
+              ${renderProfileHeroMetric("G/A", stats.participacoesGol)}
+              ${renderProfileHeroMetric("Aproveitamento", formatPercent(stats.aproveitamento))}
+            </div>
+          </article>
+        </section>
+
+        ${renderPlayerProfileTabs(activeTab)}
+        ${renderPlayerProfileTabPanel(activeTab, stats, statsResult, activeDefinitions)}
+      </div>
+    `;
+  }
+
+  function getActiveProfileTab() {
+    const tabs = getPlayerProfileTabs().map((tab) => tab.id);
+    return tabs.includes(state.selectedProfileTab) ? state.selectedProfileTab : "resumo";
+  }
+
+  function getPlayerProfileTabs() {
+    return [
+      { id: "resumo", label: "Resumo" },
+      { id: "atributos", label: "Atributos" },
+      { id: "ataque", label: "Ataque" },
+      { id: "defesa", label: "Defesa" },
+      { id: "disciplina", label: "Disciplina" },
+      { id: "historico", label: "Histórico" },
+      { id: "evolucao", label: "Evolução" },
+    ];
+  }
+
+  function renderPlayerCard(jogador, activeDefinitions) {
+    return `
+      <article class="player-fut-card">
+        <div class="player-fut-card-top">
+          <strong>${escapeHtml(jogador.overall || "-")}</strong>
+          <span>${escapeHtml(jogador.posicaoPrincipal || "-")}</span>
+        </div>
+        ${renderPlayerAvatar(jogador, "player-avatar player-fut-card-avatar")}
+        <div class="player-fut-card-name">
+          <strong>${escapeHtml(playerDisplayName(jogador))}</strong>
+          <small>${escapeHtml(jogador.tipoJogador || "Linha")}</small>
+        </div>
+        <div class="player-fut-card-attrs">
+          ${activeDefinitions
+            .map((attribute) => {
+              const value = normalizeAttributeValue(jogador.attributes?.[attribute.key]);
+              return `
+                <span>
+                  <strong>${value}</strong>
+                  <small>${escapeHtml(attribute.label)}</small>
+                </span>
+              `;
+            })
+            .join("")}
+        </div>
+      </article>
+    `;
+  }
+
+  function renderProfileHeroMetric(label, value) {
+    return `
+      <span>
+        <small>${escapeHtml(label)}</small>
+        <strong>${escapeHtml(value)}</strong>
+      </span>
+    `;
+  }
+
+  function renderPlayerProfileTabs(activeTab) {
+    return `
+      <nav class="player-profile-tabs" aria-label="Seções do perfil">
+        ${getPlayerProfileTabs()
+          .map(
+            (tab) => `
+              <button class="${tab.id === activeTab ? "active" : ""}" type="button" data-profile-tab="${escapeHtml(tab.id)}">
+                ${escapeHtml(tab.label)}
+              </button>
+            `
+          )
+          .join("")}
+      </nav>
+    `;
+  }
+
+  function renderPlayerProfileTabPanel(activeTab, stats, statsResult, activeDefinitions) {
+    const jogador = stats.jogador;
+    const panels = {
+      resumo: () => `
+        <section class="profile-panel-card">
+          <div class="profile-panel-heading">
+            <span class="panel-kicker">Visão geral</span>
+            <h3>Resumo competitivo</h3>
+          </div>
+          ${renderProfileMetricGrid(stats, [
+            ["Jogos", "jogos"],
+            ["Vitórias", "vitorias"],
+            ["Empates", "empates"],
+            ["Derrotas", "derrotas"],
+            ["Aproveitamento", "aproveitamento"],
+            ["Gols", "gols"],
+            ["Assistências", "assistencias"],
+            ["G/A", "participacoesGol"],
+          ])}
+        </section>
+      `,
+      atributos: () => `
+        <section class="profile-panel-card">
+          <div class="profile-panel-heading">
+            <span class="panel-kicker">Cartinha</span>
+            <h3>Atributos atuais</h3>
+          </div>
+          <div class="attribute-bars profile-attribute-bars">
+            ${activeDefinitions
+              .map((attribute) => {
+                const value = normalizeAttributeValue(jogador.attributes?.[attribute.key]);
+                return `
+                  <div class="attribute-bar">
+                    <span>${escapeHtml(attribute.label)}</span>
+                    <meter min="1" max="99" value="${value}"></meter>
+                    <strong>${value}</strong>
+                  </div>
+                `;
+              })
+              .join("")}
+          </div>
+        </section>
+      `,
+      ataque: () => `
+        <section class="profile-panel-card">
+          <div class="profile-panel-heading">
+            <span class="panel-kicker">Produção ofensiva</span>
+            <h3>Ataque</h3>
+          </div>
+          ${renderProfileMetricGrid(stats, [
+            ["Gols", "gols"],
+            ["Assistências", "assistencias"],
+            ["Participações", "participacoesGol"],
+            ["Gols por jogo", "golsPorJogo"],
+            ["Assistências por jogo", "assistenciasPorJogo"],
+            ["G/A por jogo", "gaPorJogo"],
+            ["Gols de pênalti", "golsPenalti"],
+            ["Gols de falta", "golsFalta"],
+            ["Gols de cabeça", "golsCabeca"],
+          ])}
+        </section>
+      `,
+      defesa: () => `
+        <section class="profile-panel-card">
+          <div class="profile-panel-heading">
+            <span class="panel-kicker">Sem a bola</span>
+            <h3>Defesa e goleiro</h3>
+          </div>
+          ${renderProfileMetricGrid(stats, [
+            ["Ações defensivas", "acoesDefensivas"],
+            ["Desarmes", "desarmes"],
+            ["Interceptações", "interceptacoes"],
+            ["Bloqueios", "bloqueios"],
+            ["Cortes", "cortes"],
+            ["Defesas difíceis", "defesasDificeis"],
+            ["Defesas de pênalti", "defesasPenalti"],
+          ])}
+        </section>
+      `,
+      disciplina: () => `
+        <section class="profile-panel-card">
+          <div class="profile-panel-heading">
+            <span class="panel-kicker">Controle da pelada</span>
+            <h3>Disciplina e prêmios</h3>
+          </div>
+          ${renderProfileMetricGrid(stats, [
+            ["Faltas cometidas", "faltasCometidas"],
+            ["Faltas sofridas", "faltasSofridas"],
+            ["Amarelos", "cartoesAmarelos"],
+            ["Vermelhos", "cartoesVermelhos"],
+            ["Gols contra", "golsContra"],
+            ["MVPs da Pelada", "mvpsPelada"],
+            ["Bagres da Pelada", "bagresPelada"],
+          ])}
+        </section>
+      `,
+      historico: () => `
+        <section class="profile-panel-card">
+          <div class="profile-panel-heading">
+            <span class="panel-kicker">Linha do tempo</span>
+            <h3>Últimos jogos</h3>
+          </div>
+          ${renderPlayerGameHistory(stats)}
+        </section>
+        <section class="profile-panel-card">
+          <div class="profile-panel-heading">
+            <span class="panel-kicker">Peladas finalizadas</span>
+            <h3>Prêmios</h3>
+          </div>
+          ${renderPlayerAwardHistory(stats)}
+        </section>
+      `,
+      evolucao: () => renderManualEvolutionCard(statsResult.jogadores, jogador.id),
+    };
+
+    return `
+      <div class="player-profile-panel">
+        ${(panels[activeTab] || panels.resumo)()}
+      </div>
+    `;
+  }
+
+  function renderPlayerStatsProfileLegacy(stats, statsResult) {
     const jogador = stats.jogador;
     const activeDefinitions = getActiveAttributeDefinitions(jogador.tipoJogador, jogador.posicaoPrincipal);
 
@@ -8778,7 +9008,14 @@
     }
 
     root.onclick = async (event) => {
+      const profileTabButton = event.target.closest("[data-profile-tab]");
       const actionButton = event.target.closest("[data-stats-action]");
+
+      if (profileTabButton) {
+        state.selectedProfileTab = profileTabButton.dataset.profileTab || "resumo";
+        await renderCurrentSection();
+        return;
+      }
 
       if (!actionButton) {
         return;
@@ -8788,12 +9025,14 @@
 
       if (action === "profile") {
         state.selectedStatsPlayerId = actionButton.dataset.playerId || null;
+        state.selectedProfileTab = "resumo";
         await renderCurrentSection();
         return;
       }
 
       if (action === "back") {
         state.selectedStatsPlayerId = null;
+        state.selectedProfileTab = "resumo";
         await renderCurrentSection();
       }
     };
@@ -9059,6 +9298,7 @@
 
       if (action === "player-profile") {
         state.selectedStatsPlayerId = actionButton.dataset.playerId || null;
+        state.selectedProfileTab = "resumo";
         await switchSection("estatisticas");
       }
     });

@@ -7056,10 +7056,465 @@ body[data-section="ranking"] .ranking-rest-empty {
     grid-template-columns: 38px 38px minmax(0, 1fr);
   }
 
-  body[data-section="ranking"] .ranking-rest-row em {
+body[data-section="ranking"] .ranking-rest-row em {
     grid-column: 3;
     justify-self: start;
     padding: 5px 9px;
     font-size: 0.78rem;
+  }
+}
+
+/* Player profile premium refresh */
+body.stats-profile-mode .section-heading,
+body.stats-profile-mode #pending-count,
+body.stats-profile-mode #back-home {
+  display: none;
+}
+
+body.stats-profile-mode .workspace-panel {
+  overflow: hidden;
+  border: 0;
+  padding: 8px 0 0;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(255, 90, 0, 0.12), transparent 18rem),
+    radial-gradient(circle at 100% 72%, rgba(255, 90, 0, 0.07), transparent 24rem),
+    linear-gradient(180deg, rgba(8, 8, 8, 0.98), rgba(2, 2, 2, 0.98));
+  box-shadow: none;
+}
+
+body.stats-profile-mode #section-content,
+body.stats-profile-mode .player-profile-premium,
+body.stats-profile-mode .player-profile-premium * {
+  min-width: 0;
+}
+
+body.stats-profile-mode .player-profile-premium {
+  display: grid;
+  gap: 14px;
+}
+
+body.stats-profile-mode .player-profile-hero {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.64fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 14px;
+}
+
+body.stats-profile-mode .player-fut-card,
+body.stats-profile-mode .player-profile-overview,
+body.stats-profile-mode .profile-panel-card,
+body.stats-profile-mode .player-profile-tabs,
+body.stats-profile-mode .evolution-card {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.15), transparent 15rem),
+    linear-gradient(145deg, rgba(20, 20, 20, 0.98), rgba(7, 7, 7, 0.98));
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34);
+}
+
+body.stats-profile-mode .player-fut-card {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  overflow: hidden;
+  min-height: 408px;
+  border-color: rgba(255, 90, 0, 0.48);
+  border-radius: 28px;
+  padding: 18px 16px 20px;
+  color: #fff;
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 16%, rgba(255, 126, 34, 0.38), transparent 8rem),
+    radial-gradient(circle at 8% 100%, rgba(255, 90, 0, 0.18), transparent 15rem),
+    linear-gradient(155deg, #242424, #070707 58%, #1c110b);
+}
+
+body.stats-profile-mode .player-fut-card::before {
+  content: "";
+  position: absolute;
+  inset: 10px;
+  border: 1px solid rgba(255, 90, 0, 0.36);
+  border-radius: 22px;
+  pointer-events: none;
+}
+
+body.stats-profile-mode .player-fut-card::after {
+  content: "";
+  position: absolute;
+  inset: auto -20% -26% -20%;
+  height: 52%;
+  background: radial-gradient(ellipse at center, rgba(255, 90, 0, 0.24), transparent 66%);
+  pointer-events: none;
+}
+
+body.stats-profile-mode .player-fut-card-top {
+  position: relative;
+  z-index: 1;
+  justify-self: stretch;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body.stats-profile-mode .player-fut-card-top strong {
+  color: #fff;
+  font-size: 2.7rem;
+  line-height: 0.9;
+}
+
+body.stats-profile-mode .player-fut-card-top span {
+  border: 1px solid rgba(255, 90, 0, 0.42);
+  border-radius: 999px;
+  padding: 7px 11px;
+  color: var(--orange);
+  background: rgba(255, 90, 0, 0.1);
+  font-size: 0.9rem;
+  font-weight: 950;
+}
+
+body.stats-profile-mode .player-fut-card-avatar {
+  position: relative;
+  z-index: 1;
+  width: 132px;
+  height: 132px;
+  border-width: 3px;
+  border-color: rgba(255, 90, 0, 0.9);
+  color: #080808;
+  background: linear-gradient(135deg, #ff8a2a, #ff4d00);
+  box-shadow:
+    0 0 0 8px rgba(255, 90, 0, 0.1),
+    0 20px 38px rgba(0, 0, 0, 0.45);
+  font-size: 2.25rem;
+}
+
+body.stats-profile-mode .player-fut-card-avatar img {
+  object-fit: cover;
+}
+
+body.stats-profile-mode .player-fut-card-name {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 2px;
+}
+
+body.stats-profile-mode .player-fut-card-name strong {
+  max-width: 220px;
+  overflow: hidden;
+  color: #fff;
+  font-size: 1.8rem;
+  line-height: 1;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+body.stats-profile-mode .player-fut-card-name small {
+  color: #ffb27a;
+  font-weight: 900;
+}
+
+body.stats-profile-mode .player-fut-card-attrs {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 14px;
+  width: 100%;
+  margin-top: auto;
+}
+
+body.stats-profile-mode .player-fut-card-attrs span {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 8px 6px;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+body.stats-profile-mode .player-fut-card-attrs strong {
+  color: #fff;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+body.stats-profile-mode .player-fut-card-attrs small {
+  color: var(--orange);
+  font-size: 0.78rem;
+  font-weight: 950;
+}
+
+body.stats-profile-mode .player-profile-overview {
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  border-radius: 24px;
+  padding: 20px;
+}
+
+body.stats-profile-mode .player-profile-overview h2 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(2.2rem, 8vw, 4rem);
+  line-height: 0.98;
+}
+
+body.stats-profile-mode .player-profile-overview p {
+  margin: 0;
+  color: #aeb0b3;
+  font-size: 1.08rem;
+}
+
+body.stats-profile-mode .profile-tags span {
+  border-color: rgba(255, 90, 0, 0.24);
+  color: #e8e8e8;
+  background: rgba(255, 90, 0, 0.08);
+}
+
+body.stats-profile-mode .profile-hero-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+body.stats-profile-mode .profile-hero-metrics span,
+body.stats-profile-mode .profile-metric-grid span {
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 16px;
+  padding: 12px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.08), transparent 10rem),
+    rgba(255, 255, 255, 0.045);
+}
+
+body.stats-profile-mode .profile-hero-metrics small,
+body.stats-profile-mode .profile-metric-grid small {
+  display: block;
+  margin-bottom: 5px;
+  color: #aeb0b3;
+}
+
+body.stats-profile-mode .profile-hero-metrics strong,
+body.stats-profile-mode .profile-metric-grid strong {
+  color: var(--orange);
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+body.stats-profile-mode .player-profile-tabs {
+  display: flex;
+  gap: 9px;
+  overflow-x: auto;
+  border-radius: 18px;
+  padding: 8px;
+  scrollbar-width: thin;
+}
+
+body.stats-profile-mode .player-profile-tabs::-webkit-scrollbar {
+  height: 5px;
+}
+
+body.stats-profile-mode .player-profile-tabs::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 90, 0, 0.4);
+}
+
+body.stats-profile-mode .player-profile-tabs button {
+  flex: 0 0 auto;
+  min-height: 46px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  padding: 10px 15px;
+  color: #aeb0b3;
+  background: rgba(255, 255, 255, 0.04);
+  font-weight: 950;
+  cursor: pointer;
+}
+
+body.stats-profile-mode .player-profile-tabs button.active {
+  border-color: rgba(255, 90, 0, 0.72);
+  color: #fff;
+  background: linear-gradient(135deg, #ff7a1c, #ff4d00);
+  box-shadow: 0 14px 28px rgba(255, 90, 0, 0.18);
+}
+
+body.stats-profile-mode .player-profile-panel {
+  display: grid;
+  gap: 12px;
+}
+
+body.stats-profile-mode .profile-panel-card,
+body.stats-profile-mode .evolution-card {
+  display: grid;
+  gap: 14px;
+  border-radius: 22px;
+  padding: 16px;
+}
+
+body.stats-profile-mode .profile-panel-heading h3,
+body.stats-profile-mode .evolution-card h3 {
+  margin: 4px 0 0;
+  color: #fff;
+  font-size: 1.35rem;
+}
+
+body.stats-profile-mode .profile-metric-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+body.stats-profile-mode .profile-attribute-bars {
+  display: grid;
+  gap: 10px;
+}
+
+body.stats-profile-mode .attribute-bar {
+  border-color: rgba(255, 255, 255, 0.11);
+  border-radius: 15px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+body.stats-profile-mode .attribute-bar strong {
+  color: var(--orange);
+}
+
+body.stats-profile-mode .evolution-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+}
+
+body.stats-profile-mode .evolution-form .wide-field,
+body.stats-profile-mode .evolution-form .form-errors,
+body.stats-profile-mode .evolution-form .form-feedback,
+body.stats-profile-mode .evolution-form button {
+  grid-column: 1 / -1;
+}
+
+body.stats-profile-mode .field-label input,
+body.stats-profile-mode .field-label select,
+body.stats-profile-mode .field-label textarea {
+  border-color: rgba(255, 255, 255, 0.13);
+  border-radius: 13px;
+  color: #fff;
+  background: linear-gradient(180deg, rgba(18, 18, 18, 0.98), rgba(8, 8, 8, 0.98));
+}
+
+body.stats-profile-mode .player-history-list {
+  gap: 9px;
+}
+
+body.stats-profile-mode .player-history-row,
+body.stats-profile-mode .player-history-row.award-history-row {
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.9fr) 74px minmax(88px, auto) repeat(6, minmax(42px, auto));
+  border-color: rgba(255, 255, 255, 0.11);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+body.stats-profile-mode .player-history-row.award-history-row {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 80px minmax(0, 1.5fr);
+}
+
+@media (max-width: 920px) {
+  body.stats-profile-mode .player-profile-hero {
+    grid-template-columns: 1fr;
+  }
+
+  body.stats-profile-mode .player-fut-card {
+    width: min(100%, 360px);
+    justify-self: center;
+  }
+
+  body.stats-profile-mode .profile-hero-metrics,
+  body.stats-profile-mode .profile-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  body.stats-profile-mode .workspace-panel {
+    padding-top: 0;
+  }
+
+  body.stats-profile-mode .player-profile-premium {
+    gap: 12px;
+  }
+
+  body.stats-profile-mode .player-profile-hero {
+    gap: 12px;
+  }
+
+  body.stats-profile-mode .player-fut-card {
+    min-height: 352px;
+    border-radius: 24px;
+    padding: 16px 14px 18px;
+  }
+
+  body.stats-profile-mode .player-fut-card-top strong {
+    font-size: 2.25rem;
+  }
+
+  body.stats-profile-mode .player-fut-card-avatar {
+    width: 106px;
+    height: 106px;
+    font-size: 1.75rem;
+  }
+
+  body.stats-profile-mode .player-fut-card-name strong {
+    max-width: 190px;
+    font-size: 1.45rem;
+  }
+
+  body.stats-profile-mode .player-fut-card-attrs {
+    gap: 7px;
+  }
+
+  body.stats-profile-mode .player-fut-card-attrs span {
+    padding: 7px 5px;
+  }
+
+  body.stats-profile-mode .player-profile-overview,
+  body.stats-profile-mode .profile-panel-card,
+  body.stats-profile-mode .evolution-card {
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  body.stats-profile-mode .player-profile-overview h2 {
+    font-size: 2.25rem;
+  }
+
+  body.stats-profile-mode .profile-hero-metrics,
+  body.stats-profile-mode .profile-metric-grid,
+  body.stats-profile-mode .evolution-form {
+    grid-template-columns: 1fr;
+  }
+
+  body.stats-profile-mode .player-profile-tabs {
+    margin-inline: -10px;
+    border-radius: 0;
+    border-inline: 0;
+    padding-inline: 10px;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  body.stats-profile-mode .player-profile-tabs button {
+    min-height: 42px;
+    padding: 9px 13px;
+  }
+
+  body.stats-profile-mode .player-history-row,
+  body.stats-profile-mode .player-history-row.award-history-row {
+    grid-template-columns: 1fr;
+  }
+
+  body.stats-profile-mode .result-badge {
+    justify-self: start;
   }
 }
