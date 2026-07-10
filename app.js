@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.9.10";
+  const APP_VERSION = "0.9.11";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 15000;
@@ -5904,9 +5904,25 @@
       }
 
       if (action === "finish") {
-        await finalizeGame(jogoId, "Manual");
+        if (await confirmManualGameFinish(jogoId)) {
+          await finalizeGame(jogoId, "Manual");
+        }
       }
     };
+  }
+
+  async function confirmManualGameFinish(jogoId) {
+    const jogo = await getRecord("jogos", jogoId);
+
+    if (!jogo || jogo.status === "Finalizado") {
+      return false;
+    }
+
+    const score = `${teamNameFromGame(jogo, "A")} ${jogo.placarA ?? 0} x ${jogo.placarB ?? 0} ${teamNameFromGame(jogo, "B")}`;
+
+    return window.confirm(
+      `Finalizar este jogo agora?\n\n${score}\n\nEssa ação encerra a partida manualmente e salva o resultado atual.`
+    );
   }
 
   function stopLiveTimer() {
