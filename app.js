@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.9.3";
+  const APP_VERSION = "0.9.5";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 15000;
@@ -3712,7 +3712,7 @@
 
     if (!selectedPelada) {
       const activeView = state.peladasView === "criar" ? "criar" : "gerenciar";
-      setSectionTitle("Peladas", activeView === "criar" ? "Criar Pelada" : "Gerenciar Peladas");
+      setSectionTitle("Crie e gerencie suas peladas", "Peladas");
 
       $("#section-content").innerHTML = `
         <div class="peladas-screen">
@@ -3791,7 +3791,7 @@
           aria-selected="${activeView === "criar"}"
           data-pelada-action="show-create"
         >
-          Criar Pelada
+          Criar pelada
         </button>
         <button
           class="peladas-mode-button ${activeView === "gerenciar" ? "active" : ""}"
@@ -3800,7 +3800,7 @@
           aria-selected="${activeView === "gerenciar"}"
           data-pelada-action="show-manage"
         >
-          Gerenciar Peladas
+          Gerenciar
         </button>
       </div>
     `;
@@ -3821,17 +3821,23 @@
   }
 
   function renderManagePeladasPanel(peladas, gameCountByPeladaId, gamesByPeladaId) {
+    const featuredPelada = peladas[0] || null;
+
     return `
-      <section class="data-card pelada-workspace">
-        <div class="players-toolbar">
-          <div>
-            <h3>Gerenciar Peladas</h3>
-            <p>${peladas.length} pelada${peladas.length === 1 ? "" : "s"} salva${peladas.length === 1 ? "" : "s"} neste aparelho.</p>
-          </div>
-        </div>
+      <section class="pelada-workspace peladas-manage-shell">
         ${
-          peladas.length
-            ? `<div class="pelada-card-grid">${peladas
+          featuredPelada
+            ? `
+              ${renderPeladaHighlightCard(
+                featuredPelada,
+                gameCountByPeladaId.get(featuredPelada.id) || 0,
+                gamesByPeladaId.get(featuredPelada.id) || []
+              )}
+              <div class="peladas-created-heading">
+                <h3>Peladas criadas</h3>
+                <span>${peladas.length} salva${peladas.length === 1 ? "" : "s"}</span>
+              </div>
+              <div class="pelada-card-grid">${peladas
                 .map((pelada) =>
                   renderPeladaCard(
                     pelada,
@@ -3839,7 +3845,12 @@
                     gamesByPeladaId.get(pelada.id) || []
                   )
                 )
-                .join("")}</div>`
+                .join("")}</div>
+              <button class="peladas-new-floating" type="button" data-pelada-action="show-create">
+                <span aria-hidden="true">+</span>
+                Nova pelada
+              </button>
+            `
             : `
               <div class="empty-state">
                 <h3>Nenhuma pelada criada</h3>
@@ -3905,25 +3916,91 @@
     return "Aberta";
   }
 
+  function getPeladaDateParts(value) {
+    const months = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
+    const [year, month, day] = String(value || "").split("-");
+
+    if (!year || !month || !day) {
+      return { day: "--", month: "---" };
+    }
+
+    return {
+      day,
+      month: months[Number(month) - 1] || month,
+    };
+  }
+
+  function getPeladaHorarioLabel(pelada) {
+    return [pelada?.horarioInicio, pelada?.horarioFim].filter(Boolean).join(" - ") || "Horário aberto";
+  }
+
+  function getPeladaGameCountLabel(gameCount) {
+    return `${gameCount} jogo${gameCount === 1 ? "" : "s"} criado${gameCount === 1 ? "" : "s"}`;
+  }
+
+  function renderPeladaDateTile(pelada, extraClass = "") {
+    const dateParts = getPeladaDateParts(pelada?.data);
+
+    return `
+      <span class="pelada-date ${extraClass}">
+        <strong>${escapeHtml(dateParts.day)}</strong>
+        <small>${escapeHtml(dateParts.month)}</small>
+      </span>
+    `;
+  }
+
+  function renderPeladaStatusBadge(status) {
+    const statusClass = normalizeToken(status);
+
+    return `<span class="pelada-status-badge status-${escapeHtml(statusClass)}"><i></i>${escapeHtml(status)}</span>`;
+  }
+
+  function renderPeladaMetaRow(pelada, gameCount, includeGames = true) {
+    return `
+      <span class="pelada-meta-row">
+        <small>${escapeHtml(getPeladaHorarioLabel(pelada))}</small>
+        <small>${escapeHtml(formatCurrency(pelada?.valor))}</small>
+        ${includeGames ? `<small>${escapeHtml(getPeladaGameCountLabel(gameCount))}</small>` : ""}
+      </span>
+    `;
+  }
+
+  function renderPeladaHighlightCard(pelada, gameCount = 0, jogos = []) {
+    const status = getPeladaStatusLabel(pelada, jogos);
+
+    return `
+      <button class="peladas-featured-card" type="button" data-pelada-action="open-pelada" data-pelada-id="${escapeHtml(pelada.id)}">
+        <span class="peladas-featured-top">
+          <span class="peladas-featured-kicker">Próxima pelada</span>
+          ${renderPeladaStatusBadge(status)}
+        </span>
+        <span class="peladas-featured-main">
+          ${renderPeladaDateTile(pelada, "is-featured")}
+          <span class="pelada-card-info">
+            <strong>${escapeHtml(pelada.local || "Pelada")}</strong>
+            ${pelada.endereco ? `<small>${escapeHtml(pelada.endereco)}</small>` : `<small>Local não informado</small>`}
+          </span>
+        </span>
+        ${renderPeladaMetaRow(pelada, gameCount)}
+        <span class="peladas-featured-cta">Abrir pelada <b aria-hidden="true">&rsaquo;</b></span>
+      </button>
+    `;
+  }
+
   function renderPeladaCard(pelada, gameCount = 0, jogos = []) {
-    const horario = [pelada.horarioInicio, pelada.horarioFim].filter(Boolean).join(" - ") || "Horário aberto";
     const status = getPeladaStatusLabel(pelada, jogos);
 
     return `
       <article class="pelada-card">
         <button class="pelada-card-main" type="button" data-pelada-action="open-pelada" data-pelada-id="${escapeHtml(pelada.id)}">
-          <span class="pelada-date">${escapeHtml(formatDateLabel(pelada.data))}</span>
+          ${renderPeladaDateTile(pelada)}
           <span class="pelada-card-info">
             <strong>${escapeHtml(pelada.local || "Pelada")}</strong>
-            <small>${escapeHtml(horario)}</small>
-            ${pelada.endereco ? `<small>${escapeHtml(pelada.endereco)}</small>` : ""}
+            ${pelada.endereco ? `<small>${escapeHtml(pelada.endereco)}</small>` : `<small>Local não informado</small>`}
           </span>
-          <span class="pelada-card-meta">
-            <span class="status-pill">${escapeHtml(formatCurrency(pelada.valor))}</span>
-            <small>${escapeHtml(gameCount)} jogo${gameCount === 1 ? "" : "s"}</small>
-            <small>Status: ${escapeHtml(status)}</small>
-          </span>
-          <span class="primary-button compact-button pelada-open-cta">Abrir pelada</span>
+          ${renderPeladaMetaRow(pelada, gameCount, false)}
+          ${renderPeladaStatusBadge(status)}
+          <span class="pelada-open-cta">Ver detalhes <b aria-hidden="true">&rsaquo;</b></span>
         </button>
       </article>
     `;
