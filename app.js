@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.9.7";
+  const APP_VERSION = "0.9.8";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 15000;
@@ -5167,14 +5167,10 @@
       const latestBundle = latestGame ? await readGameBundle(latestGame.id) : null;
 
       $("#section-content").innerHTML = `
-        <div class="empty-state live-empty">
-          <h3>Nenhuma partida em andamento</h3>
-          <p>Crie uma pelada, monte os times e clique em Iniciar Jogo para abrir o placar ao vivo.</p>
-          <div class="form-actions">
-            <button class="primary-button" type="button" data-live-action="new-game">Criar jogo</button>
-          </div>
+        <div class="live-idle-screen">
+          ${renderLiveTopbar()}
+          ${renderLiveIdleCard(latestBundle)}
         </div>
-        ${latestBundle ? renderFinishedLiveSummary(latestBundle) : ""}
       `;
       bindLiveSectionEvents();
       return;
@@ -5196,6 +5192,62 @@
 
     bindLiveSectionEvents();
     startLiveTimer(jogo.id);
+  }
+
+  function renderLiveIdleCard(bundle) {
+    if (!bundle) {
+      return `
+        <section class="live-idle-card">
+          <span class="live-idle-kicker">Ao vivo</span>
+          <h3>Nenhuma partida em andamento</h3>
+          <p>Quando um jogo for iniciado em uma pelada, o placar ao vivo aparece aqui.</p>
+        </section>
+      `;
+    }
+
+    const { jogo, pelada, eventos, playerById } = bundle;
+    const goals = eventos.filter((evento) => normalizeToken(evento.tipo) === "gol");
+    const goalAuthors = goals.length
+      ? goals.slice(0, 4).map((evento) => formatLiveIdleGoal(evento, jogo, playerById)).join(", ")
+      : "Nenhum gol registrado";
+    const extraGoals = goals.length > 4 ? ` +${goals.length - 4}` : "";
+    const dateLabel = formatDateLabel(pelada?.data || jogo.inicio?.slice(0, 10) || jogo.createdAt?.slice(0, 10) || "");
+    const winner = jogo.vencedor || getGameWinner(jogo);
+
+    return `
+      <section class="live-idle-card has-summary">
+        <div class="live-idle-heading">
+          <span class="live-idle-kicker">Sem jogo ao vivo</span>
+          <strong>${escapeHtml(getGameStatusLabel(jogo))}</strong>
+        </div>
+        <p>Nenhuma partida está acontecendo agora. Último jogo registrado:</p>
+        <div class="live-idle-score">
+          <span>${escapeHtml(teamNameFromGame(jogo, "A"))}</span>
+          <strong>${escapeHtml(jogo.placarA ?? 0)} x ${escapeHtml(jogo.placarB ?? 0)}</strong>
+          <span>${escapeHtml(teamNameFromGame(jogo, "B"))}</span>
+        </div>
+        <div class="live-idle-meta">
+          <span>${escapeHtml(pelada?.local || "Pelada")}</span>
+          <span>${escapeHtml(dateLabel)}</span>
+          <span>Vencedor: ${escapeHtml(winner)}</span>
+        </div>
+        <div class="live-idle-goals">
+          <span>Gols</span>
+          <strong>${escapeHtml(goalAuthors)}${escapeHtml(extraGoals)}</strong>
+        </div>
+      </section>
+    `;
+  }
+
+  function formatLiveIdleGoal(evento, jogo, playerById) {
+    const author = playerNameFromMap(playerById, evento.jogadorId);
+
+    if (evento.golContra) {
+      const teamName = teamNameFromGame(jogo, evento.time || getEventTeamKey(evento, jogo));
+      return `GC ${author} para ${teamName}`;
+    }
+
+    return author;
   }
 
   function renderLiveTopbar() {
