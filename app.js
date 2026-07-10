@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.9.12";
+  const APP_VERSION = "0.9.13";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 15000;
@@ -5284,13 +5284,16 @@
     const { jogo } = bundle;
     const liveStatus = jogo.status === "Finalizado" ? "ENCERRADO" : jogo.pausadoEm ? "PAUSADO" : "AO VIVO";
     const pelada = bundle.pelada;
-    const peladaLabel = "Liga BagreScore";
+    const dateLabel = formatDateLabel(pelada?.data || jogo.inicio?.slice(0, 10) || jogo.createdAt?.slice(0, 10) || "");
 
     return `
       <section class="live-score-card">
         <div class="live-score-meta">
-          <span>${escapeHtml(peladaLabel)}</span>
-          <strong>${escapeHtml(pelada?.local || "Partida BagreScore")}</strong>
+          <span class="live-match-title">
+            <small>Partida ao vivo</small>
+            <strong>${escapeHtml(pelada?.local || "BagreScore")}</strong>
+            ${dateLabel ? `<em>${escapeHtml(dateLabel)}</em>` : ""}
+          </span>
           <span class="live-status-dot ${jogo.status === "Finalizado" ? "is-ended" : ""}">${escapeHtml(liveStatus)}</span>
         </div>
         <div class="live-score-board">
@@ -5369,21 +5372,21 @@
       A: {
         goalkeeper: { x: 7, y: 50 },
         line: [
-          { x: 24, y: 18 },
-          { x: 25, y: 38 },
-          { x: 25, y: 62 },
-          { x: 24, y: 82 },
-          { x: 42, y: 50 },
+          { x: 24, y: 14 },
+          { x: 25, y: 33 },
+          { x: 25, y: 67 },
+          { x: 24, y: 86 },
+          { x: 40, y: 50 },
         ],
       },
       B: {
         goalkeeper: { x: 93, y: 50 },
         line: [
-          { x: 76, y: 18 },
-          { x: 75, y: 38 },
-          { x: 75, y: 62 },
-          { x: 76, y: 82 },
-          { x: 58, y: 50 },
+          { x: 76, y: 14 },
+          { x: 75, y: 33 },
+          { x: 75, y: 67 },
+          { x: 76, y: 86 },
+          { x: 60, y: 50 },
         ],
       },
     };
@@ -5403,15 +5406,17 @@
         data-goalkeeper="${isGoalkeeper ? "true" : "false"}"
       >
         ${renderPlayerAvatar(player, "player-avatar pitch-avatar")}
-        <strong>${escapeHtml(shortPlayerName(player))}</strong>
-        <small>${escapeHtml(isGoalkeeper ? "GK" : player.posicaoPrincipal || "")}</small>
+        <span class="pitch-player-label">
+          <strong>${escapeHtml(shortPlayerName(player))}</strong>
+          <small>${escapeHtml(isGoalkeeper ? "GK" : player.posicaoPrincipal || "")}</small>
+        </span>
       </button>
     `;
   }
 
   function shortPlayerName(player) {
     const name = playerDisplayName(player);
-    return name.length > 10 ? `${name.slice(0, 9)}...` : name;
+    return name.length > 8 ? `${name.slice(0, 7)}...` : name;
   }
 
   function renderLiveEventsCard(bundle) {
@@ -5470,19 +5475,29 @@
           ["red-card", "Cartão vermelho", "CV"],
           ["own-goal", "Gol contra", "GC"],
         ];
+    const teamKey = getLineupTeamForPlayer(bundle, player.id);
+    const roleLabel = isGoalkeeper ? "Goleiro" : player.posicaoPrincipal || "Linha";
+    const teamName = teamNameFromGame(bundle.jogo, teamKey);
+    const teamColor = teamColorFromGame(bundle.jogo, teamKey);
     const modal = openLiveModal(
       `Ações - ${playerDisplayName(player)}`,
       `
-        <div class="player-action-panel" data-player-id="${escapeHtml(player.id)}">
-          ${renderPlayerAvatar(player, "player-avatar action-player-avatar")}
-          <p>${escapeHtml(teamNameFromGame(bundle.jogo, getLineupTeamForPlayer(bundle, player.id)))} • ${escapeHtml(isGoalkeeper ? "Goleiro" : player.posicaoPrincipal || "Linha")}</p>
+        <div class="player-action-panel player-action-panel-modern" data-player-id="${escapeHtml(player.id)}" style="--team-color: ${escapeHtml(teamColor)};">
+          <div class="player-action-hero">
+            ${renderPlayerAvatar(player, "player-avatar action-player-avatar")}
+            <span>
+              <small>Jogador selecionado</small>
+              <strong>${escapeHtml(playerDisplayName(player))}</strong>
+              <em>${escapeHtml(teamName)} • ${escapeHtml(roleLabel)}</em>
+            </span>
+          </div>
           <div class="player-action-grid">
             ${actions
               .map(
                 ([action, label, icon], index) => `
-                  <button class="${index === 0 ? "primary-button" : "ghost-button"}" type="button" data-player-event-action="${escapeHtml(action)}">
-                    <span aria-hidden="true">${escapeHtml(icon)}</span>
-                    ${escapeHtml(label)}
+                  <button class="player-action-button ${index === 0 ? "is-primary" : ""}" type="button" data-player-event-action="${escapeHtml(action)}">
+                    <span class="player-action-icon" aria-hidden="true">${escapeHtml(icon)}</span>
+                    <strong>${escapeHtml(label)}</strong>
                   </button>
                 `
               )
