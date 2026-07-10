@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.9.2";
+  const APP_VERSION = "0.9.3";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 15000;
@@ -1225,6 +1225,28 @@
           }
         }
 
+        if (eventType === "cartao" && evento.jogadorId === jogadorId) {
+          if (evento.cartao === "amarelo") {
+            addEvolutionChange(changes, createEventEvolutionChange({
+              sourceKey: `evento:${evento.id}:cartao-amarelo-def`,
+              evento,
+              atributo: "DEF",
+              variacao: -1,
+              motivo: "Cartão amarelo.",
+            }));
+          }
+
+          if (evento.cartao === "vermelho") {
+            addEvolutionChange(changes, createEventEvolutionChange({
+              sourceKey: `evento:${evento.id}:cartao-vermelho-def`,
+              evento,
+              atributo: "DEF",
+              variacao: -2,
+              motivo: "Cartão vermelho.",
+            }));
+          }
+        }
+
         if (typeToken === "acao_defensiva" && evento.jogadorId === jogadorId) {
           addEvolutionChange(changes, createEventEvolutionChange({
             sourceKey: `evento:${evento.id}:acao-defensiva-def`,
@@ -1507,8 +1529,31 @@
   }
 
   function renderEventListItem(evento, playerById = new Map(), jogo = null) {
-    const eventType = normalizeEventType(evento.tipo);
+    const eventType = normalizeToken(evento.tipo);
     const minute = evento.minuto ? `${escapeHtml(evento.minuto)}'` : "-";
+
+    if (eventType === "cartao") {
+      const player = playerNameFromMap(playerById, evento.jogadorId);
+      return `<li><strong>${minute}</strong><span>Cartão ${escapeHtml(getCardLabel(evento.cartao))} para ${escapeHtml(player)}</span></li>`;
+    }
+
+    if (eventType === "acao_defensiva") {
+      const player = playerNameFromMap(playerById, evento.jogadorId);
+      const actionLabel = getDefensiveActionLabel(evento.tipoAcaoDefensiva);
+      const suffix = evento.tipoAcaoDefensiva === "bloqueio" ? " importante" : "";
+      return `<li><strong>${minute}</strong><span>${escapeHtml(actionLabel)}${escapeHtml(suffix)} de ${escapeHtml(player)}</span></li>`;
+    }
+
+    if (eventType === "defesa_goleiro") {
+      const goalkeeper = playerNameFromMap(playerById, evento.jogadorId);
+      const saveLabel = getGoalkeeperSaveLabel(evento.tipoDefesaGoleiro);
+      const prefix = evento.tipoDefesaGoleiro === "dificil"
+        ? "Defesa difícil"
+        : evento.tipoDefesaGoleiro === "penalti"
+          ? "Defesa de pênalti"
+          : `Defesa ${saveLabel.toLowerCase()}`;
+      return `<li><strong>${minute}</strong><span>${escapeHtml(prefix)} de ${escapeHtml(goalkeeper)}</span></li>`;
+    }
 
     if (eventType === "gol") {
       const author = playerNameFromMap(playerById, evento.jogadorId);
@@ -1875,12 +1920,13 @@
       return null;
     }
 
-    const [jogo, times, escalacoes, jogadores, eventos] = await Promise.all([
+    const [jogo, times, escalacoes, jogadores, eventos, peladas] = await Promise.all([
       getRecord("jogos", jogoId),
       getAllRecords("times"),
       getAllRecords("escalacoes"),
       getAllRecords("jogadores"),
       getAllRecords("eventos"),
+      getAllRecords("peladas"),
     ]);
 
     if (!jogo) {
@@ -1901,6 +1947,7 @@
 
     return {
       jogo,
+      pelada: peladas.find((pelada) => pelada.id === jogo.peladaId) || null,
       times: gameTeams,
       escalacoes: gameLineups,
       playerById,
@@ -2990,6 +3037,7 @@
     const syncQueue = await getAllRecords("syncQueue");
     const pending = syncQueue.filter((item) => item.status !== "sincronizado").length;
     const isHome = state.currentSection === "inicio";
+    document.body.dataset.section = state.currentSection;
     document.body.classList.toggle("is-internal", !isHome);
     $(".workspace-panel")?.classList.toggle("is-home", isHome);
     const backHome = $("#back-home");
@@ -4495,7 +4543,11 @@
     const gols = eventos.filter((evento) => normalizeEventType(evento.tipo) === "gol");
     const assistencias = gols.filter((evento) => evento.assistenteId);
     const faltas = eventos.filter((evento) => normalizeEventType(evento.tipo) === "falta");
-    const cartoes = faltas.filter((evento) => evento.cartao && evento.cartao !== "nenhum");
+    const cartoes = eventos.filter((evento) => {
+      const eventType = normalizeToken(evento.tipo);
+      const cartao = normalizeToken(evento.cartao);
+      return (eventType === "falta" || eventType === "cartao") && cartao && cartao !== "nenhum";
+    });
     const golsContra = gols.filter((evento) => evento.golContra);
     const acoesDefensivas = eventos.filter((evento) => normalizeToken(evento.tipo) === "acao_defensiva");
     const defesasGoleiro = eventos.filter((evento) => normalizeToken(evento.tipo) === "defesa_goleiro");
@@ -5029,38 +5081,12 @@
 
     $("#section-content").innerHTML = `
       <div class="live-screen" data-game-id="${escapeHtml(jogo.id)}">
-        <div class="live-shell live-shell-strong">
-          <div class="team-box live-team-box" style="--team-color: ${escapeHtml(teamColorFromGame(jogo, "A"))};">
-            <strong>${escapeHtml(teamNameFromGame(jogo, "A"))}</strong>
-            <span class="score-number" id="live-score-a">${escapeHtml(jogo.placarA ?? 0)}</span>
-            ${renderLiveRoster(playersA)}
-          </div>
-          <div class="timer-box">
-            <span class="timer" id="live-timer">${escapeHtml(formatClock(remaining))}</span>
-            <span class="status-pill ${jogo.pausadoEm ? "offline" : "online"}" id="live-status">${escapeHtml(getGameStatusLabel(jogo))}</span>
-            <small id="live-message">${escapeHtml(state.liveMessage || "")}</small>
-          </div>
-          <div class="team-box live-team-box" style="--team-color: ${escapeHtml(teamColorFromGame(jogo, "B"))};">
-            <strong>${escapeHtml(teamNameFromGame(jogo, "B"))}</strong>
-            <span class="score-number" id="live-score-b">${escapeHtml(jogo.placarB ?? 0)}</span>
-            ${renderLiveRoster(playersB)}
-          </div>
-        </div>
-
-        <div class="live-actions">
-          <button class="primary-button big-touch" type="button" data-live-action="open-goal-modal">Adicionar Gol</button>
-          <button class="ghost-button big-touch" type="button" data-live-action="open-foul-modal">Adicionar Falta</button>
-          <button class="ghost-button big-touch" type="button" data-live-action="open-defensive-modal">Desarme</button>
-          <button class="ghost-button big-touch" type="button" data-live-action="open-save-modal">Defesa Difícil</button>
-          <button class="ghost-button big-touch" type="button" data-live-action="pause" ${jogo.pausadoEm ? "disabled" : ""}>Pausar</button>
-          <button class="ghost-button big-touch" type="button" data-live-action="resume" ${jogo.pausadoEm ? "" : "disabled"}>Retomar</button>
-          <button class="danger-button big-touch" type="button" data-live-action="finish">Finalizar Jogo</button>
-        </div>
-
-        <section class="data-card live-events-card">
-          <h3>Eventos do jogo</h3>
-          ${renderEventTimeline(bundle)}
-        </section>
+        ${renderLiveTopbar()}
+        ${renderLiveScoreCard(bundle, remaining)}
+        ${renderLivePitch(bundle)}
+        ${state.liveMessage ? `<p class="live-message-bar" id="live-message">${escapeHtml(state.liveMessage)}</p>` : `<p class="live-message-bar" id="live-message" hidden></p>`}
+        ${renderLiveEventsCard(bundle)}
+        ${renderLiveControlBar(jogo)}
       </div>
     `;
 
@@ -5068,16 +5094,544 @@
     startLiveTimer(jogo.id);
   }
 
-  function renderLiveRoster(players) {
-    if (!players.length) {
-      return `<p class="live-roster-empty">Sem jogadores.</p>`;
-    }
+  function renderLiveTopbar() {
+    return `
+      <div class="live-topbar">
+        <button class="live-icon-button" type="button" data-live-action="back-home" aria-label="Voltar">←</button>
+        <div class="live-brand-mini">
+          <img src="assets/icons/icon.svg" alt="" aria-hidden="true" />
+          <strong>Bagre<span>Score</span></strong>
+        </div>
+        <button class="live-icon-button" type="button" data-live-action="settings" aria-label="Abrir configurações">⚙</button>
+      </div>
+    `;
+  }
+
+  function renderLiveScoreCard(bundle, remaining) {
+    const { jogo } = bundle;
+    const liveStatus = jogo.status === "Finalizado" ? "ENCERRADO" : jogo.pausadoEm ? "PAUSADO" : "AO VIVO";
+    const pelada = bundle.pelada;
+    const peladaLabel = "Liga BagreScore";
 
     return `
-      <ul class="live-roster">
-        ${players.map((player) => `<li>${escapeHtml(playerDisplayName(player))}</li>`).join("")}
-      </ul>
+      <section class="live-score-card">
+        <div class="live-score-meta">
+          <span>${escapeHtml(peladaLabel)}</span>
+          <strong>${escapeHtml(pelada?.local || "Partida BagreScore")}</strong>
+          <span class="live-status-dot ${jogo.status === "Finalizado" ? "is-ended" : ""}">${escapeHtml(liveStatus)}</span>
+        </div>
+        <div class="live-score-board">
+          ${renderLiveTeamBadge(bundle, "A")}
+          <div class="live-score-center">
+            <strong><span id="live-score-a">${escapeHtml(jogo.placarA ?? 0)}</span> : <span id="live-score-b">${escapeHtml(jogo.placarB ?? 0)}</span></strong>
+            <span class="timer" id="live-timer">${escapeHtml(formatClock(remaining))}</span>
+            <small class="live-period"><i></i><span id="live-status">${escapeHtml(getGameStatusLabel(jogo))}</span></small>
+          </div>
+          ${renderLiveTeamBadge(bundle, "B")}
+        </div>
+      </section>
     `;
+  }
+
+  function renderLiveTeamBadge(bundle, teamKey) {
+    const jogo = bundle.jogo;
+    const name = teamNameFromGame(jogo, teamKey);
+    const initials = name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || teamKey;
+
+    return `
+      <div class="live-team-badge" style="--team-color: ${escapeHtml(teamColorFromGame(jogo, teamKey))};">
+        <span>${escapeHtml(initials)}</span>
+        <strong>${escapeHtml(name)}</strong>
+      </div>
+    `;
+  }
+
+  function renderLivePitch(bundle) {
+    return `
+      <section class="live-pitch-card" aria-label="Campo de futebol">
+        <div class="pitch-lines" aria-hidden="true"></div>
+        ${renderPitchPlayers(bundle, "A")}
+        ${renderPitchPlayers(bundle, "B")}
+      </section>
+    `;
+  }
+
+  function renderPitchPlayers(bundle, teamKey) {
+    const players = getLineupPlayers(bundle, teamKey);
+    const layout = getLiveTeamLayoutPlayers(players);
+    const color = teamColorFromGame(bundle.jogo, teamKey);
+    const positions = getPitchPositions(teamKey);
+    const nodes = [];
+
+    if (layout.goalkeeper) {
+      nodes.push(renderPitchPlayerNode(layout.goalkeeper, teamKey, positions.goalkeeper, color, true));
+    }
+
+    layout.linePlayers.forEach((player, index) => {
+      nodes.push(renderPitchPlayerNode(player, teamKey, positions.line[index] || positions.line[positions.line.length - 1], color, false));
+    });
+
+    return nodes.join("");
+  }
+
+  function getLiveTeamLayoutPlayers(players) {
+    const goalkeeper = players.find(isGoalkeeperCandidate) || null;
+    const linePlayers = players
+      .filter((player) => !goalkeeper || player.id !== goalkeeper.id)
+      .slice(0, 5);
+
+    return {
+      goalkeeper,
+      linePlayers,
+    };
+  }
+
+  function getPitchPositions(teamKey) {
+    const positions = {
+      A: {
+        goalkeeper: { x: 7, y: 50 },
+        line: [
+          { x: 24, y: 18 },
+          { x: 25, y: 38 },
+          { x: 25, y: 62 },
+          { x: 24, y: 82 },
+          { x: 42, y: 50 },
+        ],
+      },
+      B: {
+        goalkeeper: { x: 93, y: 50 },
+        line: [
+          { x: 76, y: 18 },
+          { x: 75, y: 38 },
+          { x: 75, y: 62 },
+          { x: 76, y: 82 },
+          { x: 58, y: 50 },
+        ],
+      },
+    };
+
+    return positions[teamKey] || positions.A;
+  }
+
+  function renderPitchPlayerNode(player, teamKey, position, color, isGoalkeeper) {
+    return `
+      <button
+        class="pitch-player ${isGoalkeeper ? "is-goalkeeper" : ""}"
+        type="button"
+        style="--x: ${position.x}; --y: ${position.y}; --team-color: ${escapeHtml(color)};"
+        data-live-action="player-actions"
+        data-player-id="${escapeHtml(player.id)}"
+        data-team="${escapeHtml(teamKey)}"
+        data-goalkeeper="${isGoalkeeper ? "true" : "false"}"
+      >
+        ${renderPlayerAvatar(player, "player-avatar pitch-avatar")}
+        <strong>${escapeHtml(shortPlayerName(player))}</strong>
+        <small>${escapeHtml(isGoalkeeper ? "GK" : player.posicaoPrincipal || "")}</small>
+      </button>
+    `;
+  }
+
+  function shortPlayerName(player) {
+    const name = playerDisplayName(player);
+    return name.length > 10 ? `${name.slice(0, 9)}...` : name;
+  }
+
+  function renderLiveEventsCard(bundle) {
+    return `
+      <section class="live-events-card">
+        <div class="live-card-heading">
+          <h3>Eventos da partida</h3>
+          <span>Tempo real</span>
+        </div>
+        ${renderEventTimeline(bundle)}
+      </section>
+    `;
+  }
+
+  function renderLiveControlBar(jogo) {
+    const paused = Boolean(jogo.pausadoEm);
+
+    return `
+      <div class="live-control-bar">
+        <button class="ghost-button big-touch" type="button" data-live-action="${paused ? "resume" : "pause"}">
+          ${paused ? "Retomar" : "Pausar"}
+        </button>
+        <button class="ghost-button big-touch" type="button" data-live-action="undo">Desfazer</button>
+        <button class="danger-button big-touch" type="button" data-live-action="finish">Finalizar jogo</button>
+      </div>
+    `;
+  }
+
+  async function openPlayerActionsPanel(jogoId, playerId) {
+    const bundle = await readGameBundle(jogoId);
+    const player = [...(bundle?.playersA || []), ...(bundle?.playersB || [])].find((item) => item.id === playerId);
+
+    if (!bundle || !player || bundle.jogo.status === "Finalizado") {
+      state.liveMessage = "Não é possível registrar evento neste jogo.";
+      await renderCurrentSection();
+      return;
+    }
+
+    const isGoalkeeper = isGoalkeeperCandidate(player);
+    const actions = isGoalkeeper
+      ? [
+          ["save", "Defesa difícil", "DD"],
+          ["assist", "Assistência", "A"],
+          ["foul-suffered", "Falta sofrida", "FS"],
+          ["foul-committed", "Falta cometida", "FC"],
+          ["yellow-card", "Cartão amarelo", "CA"],
+          ["red-card", "Cartão vermelho", "CV"],
+        ]
+      : [
+          ["goal", "Gol", "G"],
+          ["assist", "Assistência", "A"],
+          ["foul-suffered", "Falta sofrida", "FS"],
+          ["foul-committed", "Falta cometida", "FC"],
+          ["defensive", "Desarme", "D"],
+          ["yellow-card", "Cartão amarelo", "CA"],
+          ["red-card", "Cartão vermelho", "CV"],
+          ["own-goal", "Gol contra", "GC"],
+        ];
+    const modal = openLiveModal(
+      `Ações - ${playerDisplayName(player)}`,
+      `
+        <div class="player-action-panel" data-player-id="${escapeHtml(player.id)}">
+          ${renderPlayerAvatar(player, "player-avatar action-player-avatar")}
+          <p>${escapeHtml(teamNameFromGame(bundle.jogo, getLineupTeamForPlayer(bundle, player.id)))} • ${escapeHtml(isGoalkeeper ? "Goleiro" : player.posicaoPrincipal || "Linha")}</p>
+          <div class="player-action-grid">
+            ${actions
+              .map(
+                ([action, label, icon], index) => `
+                  <button class="${index === 0 ? "primary-button" : "ghost-button"}" type="button" data-player-event-action="${escapeHtml(action)}">
+                    <span aria-hidden="true">${escapeHtml(icon)}</span>
+                    ${escapeHtml(label)}
+                  </button>
+                `
+              )
+              .join("")}
+          </div>
+        </div>
+      `
+    );
+
+    modal.querySelectorAll("[data-player-event-action]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        closeLiveModal();
+        await routePlayerEventAction(bundle, player, button.dataset.playerEventAction);
+      });
+    });
+  }
+
+  async function routePlayerEventAction(bundle, player, action) {
+    if (action === "goal") {
+      openPlayerGoalModal(bundle, player);
+      return;
+    }
+
+    if (action === "own-goal") {
+      openPlayerOwnGoalModal(bundle, player);
+      return;
+    }
+
+    if (action === "assist") {
+      openPlayerAssistModal(bundle, player);
+      return;
+    }
+
+    if (action === "foul-suffered" || action === "foul-committed") {
+      openPlayerFoulQuickModal(bundle, player, action);
+      return;
+    }
+
+    if (action === "defensive") {
+      openPlayerDefensiveQuickModal(bundle, player);
+      return;
+    }
+
+    if (action === "save") {
+      openPlayerGoalkeeperSaveQuickModal(bundle, player);
+      return;
+    }
+
+    if (action === "yellow-card" || action === "red-card") {
+      await saveCardEvent({
+        jogo: bundle.jogo,
+        bundle,
+        jogadorId: player.id,
+        cartao: action === "yellow-card" ? "amarelo" : "vermelho",
+      });
+    }
+  }
+
+  function renderYesNoRadios(name, selectedValue = "nao") {
+    return `
+      <div class="segmented-options compact-segment">
+        <label><input type="radio" name="${escapeHtml(name)}" value="sim" ${selectedValue === "sim" ? "checked" : ""} /> Sim</label>
+        <label><input type="radio" name="${escapeHtml(name)}" value="nao" ${selectedValue === "nao" ? "checked" : ""} /> Não</label>
+      </div>
+    `;
+  }
+
+  function goalTypeFromQuickForm(form) {
+    if (form.elements.isPenalty?.value === "sim") return "penalti";
+    if (form.elements.isFreeKick?.value === "sim") return "falta";
+    if (form.elements.isHeader?.value === "sim") return "cabeca";
+    return "normal";
+  }
+
+  function openPlayerGoalModal(bundle, player) {
+    const teamKey = getLineupTeamForPlayer(bundle, player.id);
+    const assistPlayers = getLineupPlayers(bundle, teamKey).filter((item) => item.id !== player.id);
+    const modal = openLiveModal(
+      `Gol - ${playerDisplayName(player)}`,
+      `
+        <form class="event-form player-goal-form" id="player-goal-form" novalidate>
+          <div class="form-errors" id="player-goal-errors" hidden></div>
+          <label class="quick-question">
+            <span>Teve assistência?</span>
+            ${renderYesNoRadios("hasAssist", "nao")}
+          </label>
+          <label class="field-label" id="quick-assist-wrap" hidden>
+            <span>Quem deu a assistência?</span>
+            <select name="assistenteId">${renderPlayerOptions(assistPlayers, "", "Escolha o assistente")}</select>
+          </label>
+          <label class="quick-question"><span>Foi pênalti?</span>${renderYesNoRadios("isPenalty", "nao")}</label>
+          <label class="quick-question"><span>Foi falta?</span>${renderYesNoRadios("isFreeKick", "nao")}</label>
+          <label class="quick-question"><span>Foi de cabeça?</span>${renderYesNoRadios("isHeader", "nao")}</label>
+          <label class="field-label">
+            <span>Observação</span>
+            <textarea name="observacoes" rows="2"></textarea>
+          </label>
+          <div class="form-actions">
+            <button class="primary-button big-touch" type="submit">Confirmar gol</button>
+            <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
+          </div>
+        </form>
+      `
+    );
+    const form = modal.querySelector("#player-goal-form");
+    const assistWrap = modal.querySelector("#quick-assist-wrap");
+
+    form.addEventListener("change", () => {
+      assistWrap.hidden = form.elements.hasAssist?.value !== "sim";
+    });
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const hasAssist = form.elements.hasAssist?.value === "sim";
+      const assistenteId = hasAssist ? form.elements.assistenteId?.value || "" : "";
+      const errors = [];
+
+      if (hasAssist && !assistenteId) errors.push("Escolha quem deu a assistência.");
+      showFormErrors("player-goal-errors", errors);
+      if (errors.length) return;
+
+      await saveGoalEvent({
+        jogo: bundle.jogo,
+        teamKey,
+        jogadorId: player.id,
+        assistenteId,
+        tipoGol: goalTypeFromQuickForm(form),
+        golContra: false,
+        observacoes: String(form.elements.observacoes?.value || "").trim(),
+      });
+    });
+  }
+
+  function openPlayerOwnGoalModal(bundle, player) {
+    const playerTeam = getLineupTeamForPlayer(bundle, player.id);
+    const beneficiaryTeam = oppositeTeam(playerTeam);
+    const modal = openLiveModal(
+      `Gol contra - ${playerDisplayName(player)}`,
+      `
+        <form class="event-form" id="own-goal-form" novalidate>
+          <p>O gol será somado para ${escapeHtml(teamNameFromGame(bundle.jogo, beneficiaryTeam))}.</p>
+          <label class="field-label">
+            <span>Observação</span>
+            <textarea name="observacoes" rows="2"></textarea>
+          </label>
+          <div class="form-actions">
+            <button class="primary-button big-touch" type="submit">Confirmar gol contra</button>
+            <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
+          </div>
+        </form>
+      `
+    );
+
+    modal.querySelector("#own-goal-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      await saveGoalEvent({
+        jogo: bundle.jogo,
+        teamKey: beneficiaryTeam,
+        jogadorId: player.id,
+        assistenteId: "",
+        tipoGol: "gol_contra",
+        golContra: true,
+        observacoes: String(event.currentTarget.elements.observacoes?.value || "").trim(),
+      });
+    });
+  }
+
+  function openPlayerAssistModal(bundle, player) {
+    const teamKey = getLineupTeamForPlayer(bundle, player.id);
+    const scorers = getLineupPlayers(bundle, teamKey).filter((item) => item.id !== player.id);
+    const modal = openLiveModal(
+      `Assistência - ${playerDisplayName(player)}`,
+      `
+        <form class="event-form player-goal-form" id="player-assist-form" novalidate>
+          <div class="form-errors" id="player-assist-errors" hidden></div>
+          <label class="field-label">
+            <span>Quem fez o gol?</span>
+            <select name="jogadorId">${renderPlayerOptions(scorers, "", "Escolha quem fez o gol")}</select>
+          </label>
+          <label class="quick-question"><span>Foi pênalti?</span>${renderYesNoRadios("isPenalty", "nao")}</label>
+          <label class="quick-question"><span>Foi falta?</span>${renderYesNoRadios("isFreeKick", "nao")}</label>
+          <label class="quick-question"><span>Foi de cabeça?</span>${renderYesNoRadios("isHeader", "nao")}</label>
+          <div class="form-actions">
+            <button class="primary-button big-touch" type="submit">Confirmar assistência</button>
+            <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
+          </div>
+        </form>
+      `
+    );
+    const form = modal.querySelector("#player-assist-form");
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const scorerId = form.elements.jogadorId?.value || "";
+      const errors = [];
+      if (!scorerId) errors.push("Escolha quem fez o gol.");
+      showFormErrors("player-assist-errors", errors);
+      if (errors.length) return;
+
+      await saveGoalEvent({
+        jogo: bundle.jogo,
+        teamKey,
+        jogadorId: scorerId,
+        assistenteId: player.id,
+        tipoGol: goalTypeFromQuickForm(form),
+        golContra: false,
+        observacoes: "",
+      });
+    });
+  }
+
+  function openPlayerFoulQuickModal(bundle, player, mode) {
+    const allPlayers = [...bundle.playersA, ...bundle.playersB].filter((item) => item.id !== player.id);
+    const committed = mode === "foul-committed";
+    const modal = openLiveModal(
+      committed ? `Falta cometida - ${playerDisplayName(player)}` : `Falta sofrida - ${playerDisplayName(player)}`,
+      `
+        <form class="event-form" id="player-foul-form" novalidate>
+          <div class="form-errors" id="player-foul-errors" hidden></div>
+          <label class="field-label">
+            <span>${committed ? "Quem sofreu?" : "Quem fez a falta?"}</span>
+            <select name="otherPlayerId">${renderPlayerOptions(allPlayers, "", "Escolha o jogador")}</select>
+          </label>
+          <label class="field-label">
+            <span>Cartão</span>
+            <select name="cartao">${renderModalOptions(CARD_TYPES, "nenhum", "Selecione")}</select>
+          </label>
+          <div class="form-actions">
+            <button class="primary-button big-touch" type="submit">Salvar falta</button>
+            <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
+          </div>
+        </form>
+      `
+    );
+    const form = modal.querySelector("#player-foul-form");
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const otherPlayerId = form.elements.otherPlayerId?.value || "";
+      const errors = [];
+      if (!otherPlayerId) errors.push("Escolha o outro jogador do lance.");
+      showFormErrors("player-foul-errors", errors);
+      if (errors.length) return;
+
+      await saveFoulEvent({
+        jogo: bundle.jogo,
+        bundle,
+        jogadorId: committed ? player.id : otherPlayerId,
+        jogadorSofreuId: committed ? otherPlayerId : player.id,
+        cartao: form.elements.cartao?.value || "nenhum",
+        observacoes: "",
+      });
+    });
+  }
+
+  function openPlayerDefensiveQuickModal(bundle, player) {
+    const teamKey = getLineupTeamForPlayer(bundle, player.id);
+    const modal = openLiveModal(
+      `Ação defensiva - ${playerDisplayName(player)}`,
+      `
+        <form class="event-form" id="player-defensive-form" novalidate>
+          <label class="field-label">
+            <span>Tipo da ação</span>
+            <select name="tipoAcaoDefensiva">${renderModalOptions(DEFENSIVE_ACTION_TYPES, "desarme", "Selecione")}</select>
+          </label>
+          <label class="field-label">
+            <span>Observação</span>
+            <textarea name="observacoes" rows="2"></textarea>
+          </label>
+          <div class="form-actions">
+            <button class="primary-button big-touch" type="submit">Salvar ação</button>
+            <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
+          </div>
+        </form>
+      `
+    );
+
+    modal.querySelector("#player-defensive-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      await saveDefensiveActionEvent({
+        jogo: bundle.jogo,
+        teamKey,
+        jogadorId: player.id,
+        tipoAcaoDefensiva: form.elements.tipoAcaoDefensiva?.value || "desarme",
+        observacoes: String(form.elements.observacoes?.value || "").trim(),
+      });
+    });
+  }
+
+  function openPlayerGoalkeeperSaveQuickModal(bundle, player) {
+    const teamKey = getLineupTeamForPlayer(bundle, player.id);
+    const modal = openLiveModal(
+      `Defesa difícil - ${playerDisplayName(player)}`,
+      `
+        <form class="event-form" id="player-save-form" novalidate>
+          <label class="field-label">
+            <span>Tipo da defesa</span>
+            <select name="tipoDefesaGoleiro">${renderModalOptions(GOALKEEPER_SAVE_TYPES, "dificil", "Selecione")}</select>
+          </label>
+          <label class="field-label">
+            <span>Observação</span>
+            <textarea name="observacoes" rows="2"></textarea>
+          </label>
+          <div class="form-actions">
+            <button class="primary-button big-touch" type="submit">Salvar defesa</button>
+            <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
+          </div>
+        </form>
+      `
+    );
+
+    modal.querySelector("#player-save-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      await saveGoalkeeperSaveEvent({
+        jogo: bundle.jogo,
+        teamKey,
+        jogadorId: player.id,
+        tipoDefesaGoleiro: form.elements.tipoDefesaGoleiro?.value || "dificil",
+        observacoes: String(form.elements.observacoes?.value || "").trim(),
+      });
+    });
   }
 
   function renderFinishedLiveSummary(bundle) {
@@ -5125,6 +5679,16 @@
       const action = actionButton.dataset.liveAction;
       const jogoId = $(".live-screen")?.dataset.gameId || state.activeGameId;
 
+      if (action === "back-home") {
+        await switchSection("inicio", { historyMode: "replace" });
+        return;
+      }
+
+      if (action === "settings") {
+        openSettingsDrawer();
+        return;
+      }
+
       if (action === "new-game") {
         await switchSection("peladas");
         return;
@@ -5157,6 +5721,11 @@
         return;
       }
 
+      if (action === "player-actions") {
+        await openPlayerActionsPanel(jogoId, actionButton.dataset.playerId || "");
+        return;
+      }
+
       if (action === "open-foul-modal") {
         await openFoulModal(jogoId);
         return;
@@ -5179,6 +5748,11 @@
 
       if (action === "resume") {
         await resumeGame(jogoId);
+        return;
+      }
+
+      if (action === "undo") {
+        await undoLastLiveEvent(jogoId);
         return;
       }
 
@@ -5628,6 +6202,104 @@
 
     closeLiveModal();
     state.liveMessage = "Falta salva.";
+    await syncNow();
+    await renderCurrentSection();
+  }
+
+  async function saveCardEvent({ jogo, bundle, jogadorId, cartao }) {
+    const savedAt = nowIso();
+    const teamKey = getLineupTeamForPlayer(bundle, jogadorId);
+    const evento = {
+      id: uid(),
+      jogoId: jogo.id,
+      tipo: "Cartão",
+      timeId: teamKey === "A" ? jogo.timeA?.id : jogo.timeB?.id,
+      time: teamKey,
+      jogadorId,
+      assistenteId: "",
+      jogadorSofreuId: "",
+      minuto: getEventMinute(jogo),
+      tipoGol: "",
+      cartao,
+      golContra: false,
+      observacoes: "",
+      detalhe: `Cartão ${getCardLabel(cartao)}`,
+      criadoPor: getDeviceId(),
+      createdAt: savedAt,
+      updatedAt: savedAt,
+      revision: 1,
+      cancelado: false,
+    };
+
+    await putRecords({
+      eventos: [evento],
+      syncQueue: [createSyncQueueRecord("eventos", "upsert", evento.id, evento)],
+      auditLog: [createAuditRecord("eventos", evento.id, "criar-cartao", null, evento)],
+    });
+
+    await aplicarEvolucaoPorEventos(jogadorId);
+
+    closeLiveModal();
+    state.liveMessage = `${getCardLabel(cartao)} salvo.`;
+    await syncNow();
+    await renderCurrentSection();
+  }
+
+  async function undoLastLiveEvent(jogoId) {
+    const [jogo, eventos] = await Promise.all([
+      getRecord("jogos", jogoId),
+      getAllRecords("eventos"),
+    ]);
+
+    if (!jogo || jogo.status === "Finalizado") {
+      state.liveMessage = "Não é possível desfazer evento de jogo finalizado.";
+      await renderCurrentSection();
+      return;
+    }
+
+    const lastEvent = eventos
+      .filter((evento) => evento.jogoId === jogoId && !evento.cancelado)
+      .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))[0];
+
+    if (!lastEvent) {
+      state.liveMessage = "Nenhum evento para desfazer.";
+      await renderCurrentSection();
+      return;
+    }
+
+    const savedAt = nowIso();
+    const canceledEvent = {
+      ...lastEvent,
+      cancelado: true,
+      canceladoPor: getDeviceId(),
+      canceladoEm: savedAt,
+      motivoCancelamento: "Desfeito na Partida ao Vivo.",
+      updatedAt: savedAt,
+      revision: (lastEvent.revision || 0) + 1,
+    };
+    const records = {
+      eventos: [canceledEvent],
+      syncQueue: [createSyncQueueRecord("eventos", "upsert", canceledEvent.id, canceledEvent)],
+      auditLog: [createAuditRecord("eventos", canceledEvent.id, "desfazer-evento", lastEvent, canceledEvent)],
+    };
+
+    if (normalizeToken(lastEvent.tipo) === "gol") {
+      const teamKey = lastEvent.time || getEventTeamKey(lastEvent, jogo);
+      const placarField = teamKey === "B" ? "placarB" : "placarA";
+      const updatedJogo = {
+        ...jogo,
+        [placarField]: Math.max(0, Number(jogo[placarField] || 0) - 1),
+        updatedAt: savedAt,
+        revision: (jogo.revision || 0) + 1,
+      };
+
+      records.jogos = [updatedJogo];
+      records.syncQueue.push(createSyncQueueRecord("jogos", "upsert", jogo.id, updatedJogo));
+      records.auditLog.push(createAuditRecord("jogos", jogo.id, "desfazer-gol", jogo, updatedJogo));
+    }
+
+    await putRecords(records);
+    state.liveMessage = "Último evento desfeito.";
     await syncNow();
     await renderCurrentSection();
   }
