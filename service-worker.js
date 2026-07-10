@@ -6,6 +6,7 @@ const PRECACHE_URLS = [
   "./app.js",
   "./manifest.json",
   "./assets/icons/icon.svg",
+  "./assets/icons/bagrescore-logo.png",
 ];
 
 self.addEventListener("install", (event) => {

@@ -2776,6 +2776,7 @@
     const topScorerStats = topStats(statsResult.playersStats, "gols");
     const topAssistStats = topStats(statsResult.playersStats, "assistencias");
     const mvpStats = topStats(statsResult.playersStats, "mvpsPelada");
+    const latestBagreStats = getLatestPeladaAwardEntry(statsResult, "bagre_pelada")?.stats || topStats(statsResult.playersStats, "bagresPelada");
     const bestOverallStats = statsResult.playersStats
       .filter((stats) => stats.jogador)
       .sort((a, b) =>
@@ -2802,6 +2803,7 @@
         topScorer: topScorerStats,
         topAssists: topAssistStats,
         mvp: mvpStats,
+        bagre: latestBagreStats,
         bestOverall: bestOverallStats,
       },
       topScorer,
@@ -2904,8 +2906,7 @@
       <div class="home-premium">
         ${renderFeaturedPeladaCard(stats)}
         ${renderWeeklyHighlights(stats)}
-        ${renderLastMatchHomeCard(stats)}
-        ${renderRankingGeneralHomeCard()}
+        ${renderRankingGeneralHomeCard(stats)}
       </div>
     `;
   }
@@ -2998,7 +2999,7 @@
       ["Artilheiro", stats.highlights.topScorer, "gols", "gols"],
       ["Garçom", stats.highlights.topAssists, "assistencias", "assistências"],
       ["MVP", stats.highlights.mvp, "mvpsPelada", "MVPs"],
-      ["Melhor Overall", stats.highlights.bestOverall, "overall", "OVR"],
+      ["Bagre da última rodada", stats.highlights.bagre, "bagresPelada", "bagres"],
     ];
 
     return `
@@ -3029,6 +3030,17 @@
     const value = metric === "overall"
       ? Number(entry.jogador.overall || 0)
       : Number(entry[metric] || 0);
+
+    if (metric !== "overall" && value <= 0) {
+      return `
+        <article class="home-highlight-card is-empty">
+          <span class="highlight-kicker">${escapeHtml(title)}</span>
+          <div class="highlight-empty-medal" aria-hidden="true">?</div>
+          <strong>Sem dados</strong>
+          <small>Jogue partidas para revelar esse destaque</small>
+        </article>
+      `;
+    }
 
     return `
       <button class="home-highlight-card" type="button" data-home-action="player-profile" data-player-id="${escapeHtml(entry.jogadorId)}">
@@ -3125,16 +3137,47 @@
     `;
   }
 
-  function renderRankingGeneralHomeCard() {
+  function renderRankingGeneralHomeCard(stats) {
+    const podiumEntries = getOverallRankingEntries(stats.statsResult, 3);
+    const podium = [
+      { place: 2, entry: podiumEntries[1], className: "is-second" },
+      { place: 1, entry: podiumEntries[0], className: "is-first" },
+      { place: 3, entry: podiumEntries[2], className: "is-third" },
+    ];
+
     return `
-      <button class="ranking-general-card" type="button" data-home-section="ranking">
-        <span class="ranking-visual" aria-hidden="true"></span>
-        <span>
+      <button class="ranking-general-card home-ranking-podium-card" type="button" data-home-section="ranking">
+        <span class="ranking-general-heading">
           <strong>Ranking Geral</strong>
-          <small>Acompanhe os melhores jogadores da temporada</small>
+          <small>Os maiores overalls da pelada</small>
+          <em>Ver ranking</em>
         </span>
-        <em>Ver ranking</em>
+        <span class="home-ranking-podium">
+          ${podium.map((item) => renderHomeRankingPodiumPlace(item)).join("")}
+        </span>
       </button>
+    `;
+  }
+
+  function renderHomeRankingPodiumPlace({ place, entry, className }) {
+    if (!entry?.stats?.jogador) {
+      return `
+        <span class="home-ranking-place ${escapeHtml(className)} is-empty">
+          <i>${place}</i>
+          <b>Sem jogador</b>
+        </span>
+      `;
+    }
+
+    const jogador = entry.stats.jogador;
+
+    return `
+      <span class="home-ranking-place ${escapeHtml(className)}">
+        <i>${place}</i>
+        ${renderPlayerAvatar(jogador, "player-avatar home-ranking-avatar")}
+        <b>${escapeHtml(playerDisplayName(jogador))}</b>
+        <small>${escapeHtml(entry.value)}</small>
+      </span>
     `;
   }
 
