@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.9.20";
+  const APP_VERSION = "0.9.21";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 15000;
@@ -570,6 +570,7 @@
     editingPlayerId: null,
     playerFormOpen: false,
     playerFormStep: "basicos",
+    playerSaving: false,
     playersListOpen: false,
     selectedPeladaId: null,
     selectedGameSummaryId: null,
@@ -3231,11 +3232,17 @@
   function renderPlayerFormStepActions(isEditing, activeStep) {
     const isFirstStep = activeStep === PLAYER_FORM_STEPS[0].id;
     const isLastStep = activeStep === PLAYER_FORM_STEPS[PLAYER_FORM_STEPS.length - 1].id;
+    const submitLabel = state.playerSaving
+      ? "Salvando..."
+      : isEditing
+        ? "Salvar alterações"
+        : "Finalizar cadastro";
+    const disabled = state.playerSaving ? `disabled aria-disabled="true"` : "";
 
     return `
       <div class="form-actions player-wizard-actions">
         ${isFirstStep ? `<button class="ghost-button" type="button" data-player-action="cancel-form">${isEditing ? "Cancelar edição" : "Cancelar"}</button>` : `<button class="ghost-button" type="button" data-player-action="prev-step">Voltar</button>`}
-        ${isLastStep ? `<button class="primary-button" type="submit">${isEditing ? "Salvar alterações" : "Finalizar cadastro"}</button>` : `<button class="primary-button" type="button" data-player-action="next-step">Continuar</button>`}
+        ${isLastStep ? `<button class="primary-button" type="submit" ${disabled}>${escapeHtml(submitLabel)}</button>` : `<button class="primary-button" type="button" data-player-action="next-step" ${disabled}>Continuar</button>`}
       </div>
     `;
   }
@@ -3490,6 +3497,12 @@
     `;
   }
 
+  function scrollToPlayersRoster() {
+    window.requestAnimationFrame(() => {
+      $(".players-list-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   async function renderPlayersSection() {
     const jogadores = await readPlayersWithAttributes();
     const selectedPlayer =
@@ -3573,6 +3586,7 @@
       }
 
       if (action === "start-create" || action === "new") {
+        state.playerSaving = false;
         state.playerFormOpen = true;
         state.playerFormStep = "basicos";
         state.playersListOpen = false;
@@ -3584,12 +3598,16 @@
       }
 
       if (action === "toggle-roster") {
+        state.playerSaving = false;
         state.playersListOpen = !state.playersListOpen;
         state.playerFormOpen = false;
         state.playerFormStep = "basicos";
         state.editingPlayerId = null;
         state.selectedPlayerId = null;
         await renderCurrentSection();
+        if (state.playersListOpen) {
+          scrollToPlayersRoster();
+        }
         return;
       }
 
@@ -3604,6 +3622,7 @@
       }
 
       if (action === "cancel-form") {
+        state.playerSaving = false;
         state.playerFormOpen = false;
         state.playerFormStep = "basicos";
         state.editingPlayerId = null;
@@ -3620,6 +3639,7 @@
       }
 
       if (action === "edit" && playerId) {
+        state.playerSaving = false;
         state.selectedPlayerId = playerId;
         state.editingPlayerId = playerId;
         state.playerFormOpen = true;
@@ -3640,6 +3660,7 @@
       }
 
       if (action === "reset-form") {
+        state.playerSaving = false;
         state.playerFormOpen = false;
         state.playerFormStep = "basicos";
         state.editingPlayerId = null;
@@ -3999,6 +4020,11 @@
     event.preventDefault();
 
     const form = event.currentTarget;
+
+    if (state.playerSaving || form.dataset.submitting === "true") {
+      return;
+    }
+
     const currentStep = normalizePlayerFormStep(form.dataset.playerStep || state.playerFormStep);
 
     if (currentStep !== "atributos") {
@@ -4017,57 +4043,82 @@
       return;
     }
 
-    const existingPlayer = formData.playerId ? await getRecord("jogadores", formData.playerId) : null;
-    const existingAttributes = formData.playerId ? await getRecord("atributos", formData.playerId) : null;
-    const savedAt = nowIso();
-    const jogadorId = existingPlayer?.id || uid();
-    const revision = (existingPlayer?.revision || 0) + 1;
-    const card = recalcularOverallJogador({
-      ...formData.player,
-      attributes: formData.attributes,
+    state.playerSaving = true;
+    form.dataset.submitting = "true";
+    form.querySelectorAll("button").forEach((button) => {
+      button.disabled = true;
     });
-    const jogadorRecord = {
-      id: jogadorId,
-      ...formData.player,
-      overall: card.overall,
-      estrelas: card.estrelas,
-      createdAt: existingPlayer?.createdAt || savedAt,
-      updatedAt: savedAt,
-      revision,
-    };
-    const atributosRecord = {
-      jogadorId,
-      ...card.attributes,
-      overall: card.overall,
-      estrelas: card.estrelas,
-      updatedAt: savedAt,
-      revision: (existingAttributes?.revision || 0) + 1,
-    };
-    const auditRecord = createAuditRecord(
-      "jogadores",
-      jogadorId,
-      existingPlayer ? "editar" : "criar",
-      existingPlayer ? { jogador: existingPlayer, atributos: existingAttributes } : null,
-      { jogador: jogadorRecord, atributos: atributosRecord }
-    );
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton) {
+      submitButton.textContent = "Salvando...";
+    }
 
-    await putRecords({
-      jogadores: [jogadorRecord],
-      atributos: [atributosRecord],
-      syncQueue: [
-        createSyncQueueRecord("jogadores", "upsert", jogadorId, jogadorRecord),
-        createSyncQueueRecord("atributos", "upsert", jogadorId, atributosRecord),
-      ],
-      auditLog: [auditRecord],
-    });
+    try {
+      const existingPlayer = formData.playerId ? await getRecord("jogadores", formData.playerId) : null;
+      const existingAttributes = formData.playerId ? await getRecord("atributos", formData.playerId) : null;
+      const savedAt = nowIso();
+      const jogadorId = existingPlayer?.id || uid();
+      const revision = (existingPlayer?.revision || 0) + 1;
+      const card = recalcularOverallJogador({
+        ...formData.player,
+        attributes: formData.attributes,
+      });
+      const jogadorRecord = {
+        id: jogadorId,
+        ...formData.player,
+        overall: card.overall,
+        estrelas: card.estrelas,
+        createdAt: existingPlayer?.createdAt || savedAt,
+        updatedAt: savedAt,
+        revision,
+      };
+      const atributosRecord = {
+        jogadorId,
+        ...card.attributes,
+        overall: card.overall,
+        estrelas: card.estrelas,
+        updatedAt: savedAt,
+        revision: (existingAttributes?.revision || 0) + 1,
+      };
+      const auditRecord = createAuditRecord(
+        "jogadores",
+        jogadorId,
+        existingPlayer ? "editar" : "criar",
+        existingPlayer ? { jogador: existingPlayer, atributos: existingAttributes } : null,
+        { jogador: jogadorRecord, atributos: atributosRecord }
+      );
 
-    state.selectedPlayerId = jogadorId;
-    state.editingPlayerId = null;
-    state.playerFormOpen = false;
-    state.playerFormStep = "basicos";
-    state.playersListOpen = true;
-    await refreshCurrentView();
-    await syncNow();
+      await putRecords({
+        jogadores: [jogadorRecord],
+        atributos: [atributosRecord],
+        syncQueue: [
+          createSyncQueueRecord("jogadores", "upsert", jogadorId, jogadorRecord),
+          createSyncQueueRecord("atributos", "upsert", jogadorId, atributosRecord),
+        ],
+        auditLog: [auditRecord],
+      });
+
+      state.selectedPlayerId = jogadorId;
+      state.editingPlayerId = null;
+      state.playerFormOpen = false;
+      state.playerFormStep = "basicos";
+      state.playersListOpen = true;
+      await refreshCurrentView();
+      scrollToPlayersRoster();
+      await syncNow();
+    } catch (error) {
+      console.error(error);
+      showPlayerFormErrors(["Não foi possível salvar o jogador. Tente novamente."]);
+      form.dataset.submitting = "false";
+      form.querySelectorAll("button").forEach((button) => {
+        button.disabled = false;
+      });
+      if (submitButton) {
+        submitButton.textContent = formData.playerId ? "Salvar alterações" : "Finalizar cadastro";
+      }
+    } finally {
+      state.playerSaving = false;
+    }
   }
 
   async function updatePlayerStatus(playerId, status) {
@@ -8488,7 +8539,7 @@
     return `
       <div class="stats-profile player-profile-premium">
         <section class="player-profile-hero">
-          ${renderPlayerCard(jogador, activeDefinitions)}
+          ${renderPlayerFutCard(jogador, activeDefinitions)}
           <article class="player-profile-overview">
             <span class="panel-kicker">${escapeHtml(jogador.posicaoPrincipal || "-")} · ${escapeHtml(jogador.tipoJogador || "Linha")}</span>
             <h2>${escapeHtml(playerDisplayName(jogador))}</h2>
@@ -8530,7 +8581,7 @@
     ];
   }
 
-  function renderPlayerCard(jogador, activeDefinitions) {
+  function renderPlayerFutCard(jogador, activeDefinitions) {
     return `
       <article class="player-fut-card">
         <div class="player-fut-card-top">
