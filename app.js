@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.9.8";
+  const APP_VERSION = "0.9.9";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 15000;
@@ -4588,16 +4588,16 @@
     return `
       <article class="game-history-card-item">
         <button type="button" data-pelada-action="view-game" data-game-id="${escapeHtml(jogo.id)}">
-          <span class="game-score-small">Jogo ${escapeHtml(gameNumber)}</span>
+          <span class="game-score-small">
+            <small>Jogo</small>
+            <strong>${escapeHtml(gameNumber)}</strong>
+          </span>
           <span class="game-history-main">
-            <strong>
-              Jogo ${escapeHtml(gameNumber)} — ${escapeHtml(teamNameFromGame(jogo, "A"))}
-              ${escapeHtml(jogo.placarA ?? 0)} x ${escapeHtml(jogo.placarB ?? 0)}
-              ${escapeHtml(teamNameFromGame(jogo, "B"))}
-            </strong>
+            <strong>${escapeHtml(teamNameFromGame(jogo, "A"))} <em>${escapeHtml(jogo.placarA ?? 0)} x ${escapeHtml(jogo.placarB ?? 0)}</em> ${escapeHtml(teamNameFromGame(jogo, "B"))}</strong>
             <small>${escapeHtml(getGameStatusLabel(jogo))}${escapeHtml(formatGameEnding(jogo))}</small>
             ${renderGameGoalsSummary(jogo, events, playerById)}
           </span>
+          <span class="game-history-cta">Ver resumo</span>
         </button>
       </article>
     `;
