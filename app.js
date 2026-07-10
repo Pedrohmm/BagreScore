@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.9.17";
+  const APP_VERSION = "0.9.18";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 15000;
@@ -575,6 +575,8 @@
     selectedGameSummaryId: null,
     peladasView: "gerenciar",
     selectedStatsPlayerId: null,
+    rankingMode: "geral",
+    rankingCategory: "overall",
     evolutionMessage: "",
     gameDraft: {
       A: { nome: "Time A", cor: "#ff5a00", linha: [], goleiro: "" },
@@ -7723,8 +7725,338 @@
     });
 
     setSectionTitle("Ranking", "Ranking");
-    $("#section-content").innerHTML = renderRankingOverview(statsResult);
+    $("#section-content").innerHTML = renderRankingPremiumOverview(statsResult);
     bindRankingSectionEvents();
+  }
+
+  function renderRankingPremiumOverview(statsResult) {
+    const groups = buildRankingCategoryGroups(statsResult);
+    const activeMode = groups[state.rankingMode] ? state.rankingMode : "geral";
+    const categories = groups[activeMode] || [];
+    const activeCategoryId = categories.some((category) => category.id === state.rankingCategory)
+      ? state.rankingCategory
+      : categories[0]?.id || "";
+    const activeCategory = categories.find((category) => category.id === activeCategoryId) || categories[0] || null;
+
+    state.rankingMode = activeMode;
+    state.rankingCategory = activeCategoryId;
+
+    return `
+      <div class="ranking-premium-page">
+        ${renderRankingPremiumHero(statsResult)}
+
+        <section class="ranking-tabs-card">
+          <div class="ranking-tabs-header">
+            <div>
+              <span class="panel-kicker">Pódios</span>
+              <h3>${escapeHtml(getRankingModeTitle(activeMode))}</h3>
+              <p>Escolha uma categoria para ver os três melhores em formato de pódio.</p>
+            </div>
+          </div>
+          ${renderRankingModeTabs(activeMode)}
+          ${renderRankingCategoryPicker(categories, activeCategoryId)}
+          ${activeCategory ? renderRankingCategoryPodium(activeCategory) : renderEmptyRankingPodium()}
+        </section>
+      </div>
+    `;
+  }
+
+  function buildRankingCategoryGroups(statsResult) {
+    return {
+      geral: [
+        {
+          id: "overall",
+          title: "Maior Overall",
+          description: "Cartas com maior nota geral.",
+          entries: getOverallRankingEntries(statsResult),
+        },
+        {
+          id: "artilharia",
+          title: "Artilharia",
+          description: "Quem mais marcou gols.",
+          entries: getMetricRankingEntries(statsResult.playersStats, "gols"),
+        },
+        {
+          id: "assistencias",
+          title: "Assistências",
+          description: "Os garçons da pelada.",
+          entries: getMetricRankingEntries(statsResult.playersStats, "assistencias"),
+        },
+        {
+          id: "participacoes",
+          title: "Participações em gol",
+          description: "Gols + assistências.",
+          entries: getMetricRankingEntries(statsResult.playersStats, "participacoesGol"),
+        },
+        {
+          id: "vitorias",
+          title: "Mais vitórias",
+          description: "Jogadores com mais jogos vencidos.",
+          entries: getMetricRankingEntries(statsResult.playersStats, "vitorias"),
+        },
+        {
+          id: "aproveitamento",
+          title: "Melhor aproveitamento",
+          description: "Percentual por vitórias, empates e derrotas.",
+          entries: getMetricRankingEntries(statsResult.playersStats, "aproveitamento", { requireGames: true }),
+        },
+        {
+          id: "jogos",
+          title: "Mais jogos",
+          description: "Quem mais entrou em campo.",
+          entries: getMetricRankingEntries(statsResult.playersStats, "jogos"),
+        },
+        {
+          id: "media-gols",
+          title: "Melhor média de gols",
+          description: "Gols por jogo disputado.",
+          entries: getMetricRankingEntries(statsResult.playersStats, "golsPorJogo", { requireGames: true }),
+        },
+        {
+          id: "faltas-cometidas",
+          title: "Mais faltas cometidas",
+          description: "Ranking de faltas feitas.",
+          entries: getMetricRankingEntries(statsResult.playersStats, "faltasCometidas"),
+        },
+        {
+          id: "faltas-sofridas",
+          title: "Mais faltas sofridas",
+          description: "Quem mais sofreu faltas.",
+          entries: getMetricRankingEntries(statsResult.playersStats, "faltasSofridas"),
+        },
+        {
+          id: "mvp",
+          title: "MVPs da Pelada",
+          description: "Mais vezes escolhido MVP.",
+          entries: getMetricRankingEntries(statsResult.playersStats, "mvpsPelada"),
+        },
+        {
+          id: "bagre",
+          title: "Bagres da Pelada",
+          description: "Mais marcações de Bagre.",
+          entries: getMetricRankingEntries(statsResult.playersStats, "bagresPelada"),
+        },
+      ],
+      atributos: LINE_ATTRIBUTES.map((attribute) => ({
+        id: `atributo-${attribute.key}`,
+        title: `Maior ${attribute.label}`,
+        description: attribute.description,
+        entries: getAttributeRankingEntries(statsResult, attribute.key),
+      })),
+      goleiros: GOALKEEPER_ATTRIBUTES.map((attribute) => ({
+        id: `goleiro-${attribute.key}`,
+        title: `Maior ${attribute.label}`,
+        description: attribute.description,
+        entries: getAttributeRankingEntries(statsResult, attribute.key),
+      })),
+    };
+  }
+
+  function getRankingModeTitle(mode) {
+    const titles = {
+      geral: "Ranking Top 3",
+      atributos: "Ranking por atributos",
+      goleiros: "Ranking dos goleiros",
+    };
+
+    return titles[mode] || titles.geral;
+  }
+
+  function renderRankingPremiumHero(statsResult) {
+    const summary = [
+      {
+        label: "Maior overall",
+        entry: getOverallRankingEntries(statsResult, 1)[0],
+      },
+      {
+        label: "Mais MVP",
+        entry: getMetricRankingEntries(statsResult.playersStats, "mvpsPelada", { limit: 1 })[0],
+      },
+      {
+        label: "Melhor aproveitamento",
+        entry: getMetricRankingEntries(statsResult.playersStats, "aproveitamento", {
+          limit: 1,
+          requireGames: true,
+        })[0],
+      },
+      {
+        label: "Bagre da última pelada",
+        entry: getLatestPeladaAwardEntry(statsResult, "bagre_pelada"),
+      },
+    ];
+
+    return `
+      <section class="ranking-premium-hero">
+        <div class="ranking-hero-copy">
+          <span>BagreScore Ranking</span>
+          <h2>Ranking</h2>
+          <p>Os líderes da pelada em cards, estatísticas e atributos. Tudo calculado automaticamente pelo que aconteceu em campo.</p>
+        </div>
+        <div class="ranking-hero-summary">
+          ${summary.map((item) => renderRankingHeroSummaryCard(item.label, item.entry)).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  function getLatestPeladaAwardEntry(statsResult, awardType) {
+    const awardToken = normalizeToken(awardType);
+    const event = [...statsResult.eventos]
+      .filter((evento) => normalizeToken(evento.tipo) === awardToken && evento.jogadorId)
+      .sort((a, b) => getPeladaAwardTimestamp(b, statsResult) - getPeladaAwardTimestamp(a, statsResult))[0];
+
+    if (!event) {
+      return null;
+    }
+
+    const stats = statsResult.playersStats.find((item) => item.jogadorId === event.jogadorId);
+    const pelada = statsResult.peladaById.get(event.peladaId);
+
+    if (!stats) {
+      return null;
+    }
+
+    return {
+      stats,
+      value: pelada?.local ? `Última: ${pelada.local}` : "Última pelada",
+    };
+  }
+
+  function getPeladaAwardTimestamp(evento, statsResult) {
+    const pelada = statsResult.peladaById.get(evento.peladaId);
+    const value = pelada?.finalizadaEm || pelada?.data || evento.updatedAt || evento.createdAt || "";
+    const timestamp = new Date(value).getTime();
+
+    return Number.isFinite(timestamp) ? timestamp : 0;
+  }
+
+  function renderRankingHeroSummaryCard(label, entry) {
+    if (!entry) {
+      return `
+        <article class="ranking-hero-stat is-empty">
+          <span>${escapeHtml(label)}</span>
+          <strong>Sem dados</strong>
+          <small>Aguardando registros</small>
+        </article>
+      `;
+    }
+
+    const jogador = entry.stats.jogador;
+
+    return `
+      <button class="ranking-hero-stat" type="button" data-ranking-action="profile" data-player-id="${escapeHtml(entry.stats.jogadorId)}">
+        ${renderPlayerAvatar(jogador, "player-avatar small")}
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(playerDisplayName(jogador))}</strong>
+        <small>${escapeHtml(entry.value)}</small>
+      </button>
+    `;
+  }
+
+  function renderRankingModeTabs(activeMode) {
+    const modes = [
+      ["geral", "Top 3"],
+      ["atributos", "Atributos"],
+      ["goleiros", "Goleiros"],
+    ];
+
+    return `
+      <div class="ranking-mode-tabs" role="tablist" aria-label="Tipos de ranking">
+        ${modes
+          .map(
+            ([mode, label]) => `
+              <button class="${mode === activeMode ? "active" : ""}" type="button" data-ranking-mode="${escapeHtml(mode)}">
+                ${escapeHtml(label)}
+              </button>
+            `
+          )
+          .join("")}
+      </div>
+    `;
+  }
+
+  function renderRankingCategoryPicker(categories, activeCategoryId) {
+    return `
+      <div class="ranking-category-grid">
+        ${categories.map((category) => renderRankingCategoryButton(category, activeCategoryId)).join("")}
+      </div>
+    `;
+  }
+
+  function renderRankingCategoryButton(category, activeCategoryId) {
+    const leader = category.entries[0];
+
+    return `
+      <button class="ranking-category-button ${category.id === activeCategoryId ? "active" : ""}" type="button" data-ranking-category="${escapeHtml(category.id)}">
+        <span>${escapeHtml(category.title)}</span>
+        <strong>${leader ? escapeHtml(playerDisplayName(leader.stats.jogador)) : "Sem dados"}</strong>
+        <small>${leader ? escapeHtml(leader.value) : escapeHtml(category.description || "Aguardando jogos")}</small>
+      </button>
+    `;
+  }
+
+  function renderRankingCategoryPodium(category) {
+    const entries = category.entries.slice(0, 3);
+
+    if (!entries.length) {
+      return renderEmptyRankingPodium(category);
+    }
+
+    const podium = [
+      { place: 2, entry: entries[1], className: "is-second" },
+      { place: 1, entry: entries[0], className: "is-first" },
+      { place: 3, entry: entries[2], className: "is-third" },
+    ];
+
+    return `
+      <section class="ranking-podium-stage">
+        <div class="ranking-podium-heading">
+          <div>
+            <span class="panel-kicker">Categoria selecionada</span>
+            <h3>${escapeHtml(category.title)}</h3>
+            <p>${escapeHtml(category.description || "Top 3 da categoria.")}</p>
+          </div>
+        </div>
+        <div class="ranking-podium-places">
+          ${podium.map((item) => renderRankingPodiumPlace(item.entry, item.place, item.className)).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderEmptyRankingPodium(category = null) {
+    return `
+      <section class="ranking-podium-stage">
+        <div class="empty-state compact-empty">
+          <h3>${escapeHtml(category?.title || "Sem ranking")}</h3>
+          <p>Ainda não há dados suficientes para montar esse pódio.</p>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderRankingPodiumPlace(entry, place, className) {
+    if (!entry) {
+      return `
+        <article class="ranking-podium-place ${escapeHtml(className)} is-empty">
+          <span class="ranking-medal">${place}º</span>
+          <strong>Sem jogador</strong>
+        </article>
+      `;
+    }
+
+    const { stats, value } = entry;
+    const jogador = stats.jogador;
+
+    return `
+      <button class="ranking-podium-place ${escapeHtml(className)}" type="button" data-ranking-action="profile" data-player-id="${escapeHtml(stats.jogadorId)}">
+        <span class="ranking-medal">${place}º</span>
+        ${renderPlayerAvatar(jogador, "player-avatar ranking-podium-avatar")}
+        <span class="ranking-podium-name">${escapeHtml(playerDisplayName(jogador))}</span>
+        <span class="ranking-podium-meta">${escapeHtml(jogador.posicaoPrincipal || "-")} · ${escapeHtml(jogador.overall || "-")} OVR</span>
+        <strong>${escapeHtml(value)}</strong>
+      </button>
+    `;
   }
 
   function renderRankingOverview(statsResult) {
@@ -7946,7 +8278,22 @@
     }
 
     root.onclick = async (event) => {
+      const modeButton = event.target.closest("[data-ranking-mode]");
+      const categoryButton = event.target.closest("[data-ranking-category]");
       const actionButton = event.target.closest("[data-ranking-action]");
+
+      if (modeButton) {
+        state.rankingMode = modeButton.dataset.rankingMode || "geral";
+        state.rankingCategory = "";
+        await renderRankingSection();
+        return;
+      }
+
+      if (categoryButton) {
+        state.rankingCategory = categoryButton.dataset.rankingCategory || "";
+        await renderRankingSection();
+        return;
+      }
 
       if (!actionButton) {
         return;
