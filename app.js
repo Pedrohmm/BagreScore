@@ -1,7 +1,8 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.11.1";
+  const APP_VERSION = "0.12.0";
+  const MIN_SYNC_API_VERSION = "1.2.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 5000;
@@ -458,6 +459,7 @@
   const SECTION_NAMES = ["inicio", "jogadores", "peladas", "ao-vivo", "ranking", "estatisticas", "historico", "configuracoes"];
   const GAME_DURATION_SECONDS = DEFAULT_RULES.duracaoJogoMinutos * 60;
   const GOALS_TO_END_GAME = DEFAULT_RULES.golsParaEncerrar;
+  const pendingGoalGameIds = new Set();
   const GOAL_TYPES = [
     { value: "normal", label: "Normal" },
     { value: "penalti", label: "Pênalti" },
@@ -6951,62 +6953,95 @@
   }
 
   async function saveGoalEvent({ jogo, teamKey, jogadorId, assistenteId, tipoGol, golContra, observacoes }) {
-    const savedAt = nowIso();
-    const placarField = teamKey === "A" ? "placarA" : "placarB";
-    const updatedJogo = {
-      ...jogo,
-      [placarField]: Number(jogo[placarField] || 0) + 1,
-      updatedAt: savedAt,
-      revision: (jogo.revision || 0) + 1,
-    };
-    const evento = {
-      id: uid(),
-      jogoId: jogo.id,
-      tipo: "Gol",
-      timeId: teamKey === "A" ? jogo.timeA?.id : jogo.timeB?.id,
-      time: teamKey,
-      jogadorId,
-      assistenteId,
-      jogadorSofreuId: "",
-      minuto: getEventMinute(jogo),
-      tipoGol,
-      cartao: "",
-      golContra,
-      observacoes,
-      detalhe: `${getGoalTypeLabel(tipoGol)} - ${teamNameFromGame(jogo, teamKey)}`,
-      criadoPor: getActorId(),
-      createdAt: savedAt,
-      updatedAt: savedAt,
-      revision: 1,
-      cancelado: false,
-    };
-
-    await putRecords({
-      jogos: [updatedJogo],
-      eventos: [evento],
-      syncQueue: [
-        createSyncQueueRecord("jogos", "upsert", jogo.id, updatedJogo),
-        createSyncQueueRecord("eventos", "upsert", evento.id, evento),
-      ],
-      auditLog: [createAuditRecord("eventos", evento.id, "criar-gol", null, evento)],
-    });
-
-    const playersToEvolve = [...new Set([jogadorId, assistenteId].filter(Boolean))];
-
-    for (const playerId of playersToEvolve) {
-      await aplicarEvolucaoPorEventos(playerId);
-    }
-
-    closeLiveModal();
-    state.liveMessage = `Gol salvo para ${teamNameFromGame(updatedJogo, teamKey)}.`;
-    await syncNow();
-
-    if (Number(updatedJogo[placarField] || 0) >= GOALS_TO_END_GAME) {
-      await finalizeGame(jogo.id, "2 gols");
+    if (!jogo?.id || pendingGoalGameIds.has(jogo.id)) {
+      state.liveMessage = "Este gol jÃ¡ estÃ¡ sendo processado.";
       return;
     }
 
-    await renderCurrentSection();
+    pendingGoalGameIds.add(jogo.id);
+
+    try {
+      const latestJogo = await getRecord("jogos", jogo.id);
+
+      if (!latestJogo || latestJogo.status === "Finalizado") {
+        closeLiveModal();
+        state.liveMessage = "A partida jÃ¡ foi finalizada em outro dispositivo.";
+        await renderCurrentSection();
+        return;
+      }
+
+      jogo = latestJogo;
+      const savedAt = nowIso();
+      const placarField = teamKey === "A" ? "placarA" : "placarB";
+      const updatedJogo = {
+        ...jogo,
+        [placarField]: Number(jogo[placarField] || 0) + 1,
+        updatedAt: savedAt,
+        revision: (jogo.revision || 0) + 1,
+      };
+      const evento = {
+        id: uid(),
+        jogoId: jogo.id,
+        tipo: "Gol",
+        timeId: teamKey === "A" ? jogo.timeA?.id : jogo.timeB?.id,
+        time: teamKey,
+        jogadorId,
+        assistenteId,
+        jogadorSofreuId: "",
+        minuto: getEventMinute(jogo),
+        tipoGol,
+        cartao: "",
+        golContra,
+        observacoes,
+        detalhe: `${getGoalTypeLabel(tipoGol)} - ${teamNameFromGame(jogo, teamKey)}`,
+        criadoPor: getActorId(),
+        createdAt: savedAt,
+        updatedAt: savedAt,
+        revision: 1,
+        cancelado: false,
+      };
+
+      await putRecords({
+        jogos: [updatedJogo],
+        eventos: [evento],
+        syncQueue: [
+          createSyncQueueRecord("jogos", "upsert", jogo.id, updatedJogo),
+          createSyncQueueRecord("eventos", "upsert", evento.id, evento),
+        ],
+        auditLog: [createAuditRecord("eventos", evento.id, "criar-gol", null, evento)],
+      });
+
+      closeLiveModal();
+      state.liveMessage = `Gol salvo para ${teamNameFromGame(updatedJogo, teamKey)}.`;
+      await syncLatestMutations();
+
+      const syncedEvent = await getRecord("eventos", evento.id);
+      if (syncedEvent?.cancelado) {
+        state.liveMessage = "Gol descartado: a partida jÃ¡ havia sido finalizada em outro dispositivo.";
+        await renderCurrentSection();
+        return;
+      }
+
+      const playersToEvolve = [...new Set([jogadorId, assistenteId].filter(Boolean))];
+
+      for (const playerId of playersToEvolve) {
+        await aplicarEvolucaoPorEventos(playerId);
+      }
+
+      await syncLatestMutations();
+
+      const syncedJogo = await getRecord("jogos", jogo.id);
+      const usesRemoteAuthority = navigator.onLine && Boolean(state.backendUrl) && Boolean(state.authToken);
+
+      if (!usesRemoteAuthority && syncedJogo?.status !== "Finalizado" && Number(updatedJogo[placarField] || 0) >= GOALS_TO_END_GAME) {
+        await finalizeGame(jogo.id, "2 gols");
+        return;
+      }
+
+      await renderCurrentSection();
+    } finally {
+      pendingGoalGameIds.delete(jogo.id);
+    }
   }
 
   async function openFoulModal(jogoId) {
@@ -7547,61 +7582,77 @@
 
   async function addProvisionalGoal(jogoId, teamKey) {
     if (!requirePermission("eventos:criar")) return;
-    if (!["A", "B"].includes(teamKey)) {
+    if (!["A", "B"].includes(teamKey) || pendingGoalGameIds.has(jogoId)) {
       return;
     }
 
-    const jogo = await getRecord("jogos", jogoId);
+    pendingGoalGameIds.add(jogoId);
 
-    if (!jogo || jogo.status !== "Em andamento") {
-      return;
+    try {
+      const jogo = await getRecord("jogos", jogoId);
+
+      if (!jogo || jogo.status !== "Em andamento") {
+        return;
+      }
+
+      const savedAt = nowIso();
+      const placarField = teamKey === "A" ? "placarA" : "placarB";
+      const updatedJogo = {
+        ...jogo,
+        [placarField]: Number(jogo[placarField] || 0) + 1,
+        updatedAt: savedAt,
+        revision: (jogo.revision || 0) + 1,
+      };
+      const evento = {
+        id: uid(),
+        jogoId,
+        tipo: "gol",
+        jogadorId: "",
+        assistenteId: "",
+        timeId: teamKey === "A" ? jogo.timeA?.id : jogo.timeB?.id,
+        time: teamKey,
+        minuto: Math.min(DEFAULT_RULES.duracaoJogoMinutos, Math.floor(getElapsedGameSeconds(jogo) / 60) + 1),
+        detalhe: `Gol provisorio - ${teamNameFromGame(jogo, teamKey)}`,
+        criadoPor: getActorId(),
+        createdAt: savedAt,
+        updatedAt: savedAt,
+        revision: 1,
+        provisorio: true,
+        cancelado: false,
+      };
+
+      await putRecords({
+        jogos: [updatedJogo],
+        eventos: [evento],
+        syncQueue: [
+          createSyncQueueRecord("jogos", "upsert", jogoId, updatedJogo),
+          createSyncQueueRecord("eventos", "upsert", evento.id, evento),
+        ],
+        auditLog: [createAuditRecord("jogos", jogoId, "gol-provisorio", jogo, { jogo: updatedJogo, evento })],
+      });
+
+      state.liveMessage = `Gol para ${teamNameFromGame(updatedJogo, teamKey)}.`;
+      await syncLatestMutations();
+
+      const syncedEvent = await getRecord("eventos", evento.id);
+      if (syncedEvent?.cancelado) {
+        state.liveMessage = "Gol descartado: a partida jÃ¡ havia sido finalizada em outro dispositivo.";
+        await renderCurrentSection();
+        return;
+      }
+
+      const syncedJogo = await getRecord("jogos", jogoId);
+      const usesRemoteAuthority = navigator.onLine && Boolean(state.backendUrl) && Boolean(state.authToken);
+
+      if (!usesRemoteAuthority && syncedJogo?.status !== "Finalizado" && Number(updatedJogo[placarField] || 0) >= GOALS_TO_END_GAME) {
+        await finalizeGame(jogoId, "2 gols");
+        return;
+      }
+
+      await renderCurrentSection();
+    } finally {
+      pendingGoalGameIds.delete(jogoId);
     }
-
-    const savedAt = nowIso();
-    const placarField = teamKey === "A" ? "placarA" : "placarB";
-    const updatedJogo = {
-      ...jogo,
-      [placarField]: Number(jogo[placarField] || 0) + 1,
-      updatedAt: savedAt,
-      revision: (jogo.revision || 0) + 1,
-    };
-    const evento = {
-      id: uid(),
-      jogoId,
-      tipo: "gol",
-      jogadorId: "",
-      assistenteId: "",
-      timeId: teamKey === "A" ? jogo.timeA?.id : jogo.timeB?.id,
-      time: teamKey,
-      minuto: Math.min(DEFAULT_RULES.duracaoJogoMinutos, Math.floor(getElapsedGameSeconds(jogo) / 60) + 1),
-      detalhe: `Gol provisorio - ${teamNameFromGame(jogo, teamKey)}`,
-      criadoPor: getActorId(),
-      createdAt: savedAt,
-      updatedAt: savedAt,
-      revision: 1,
-      provisorio: true,
-      cancelado: false,
-    };
-
-    await putRecords({
-      jogos: [updatedJogo],
-      eventos: [evento],
-      syncQueue: [
-        createSyncQueueRecord("jogos", "upsert", jogoId, updatedJogo),
-        createSyncQueueRecord("eventos", "upsert", evento.id, evento),
-      ],
-      auditLog: [createAuditRecord("jogos", jogoId, "gol-provisorio", jogo, { jogo: updatedJogo, evento })],
-    });
-
-    state.liveMessage = `Gol para ${teamNameFromGame(updatedJogo, teamKey)}.`;
-    await syncNow();
-
-    if (Number(updatedJogo[placarField] || 0) >= GOALS_TO_END_GAME) {
-      await finalizeGame(jogoId, "2 gols");
-      return;
-    }
-
-    await renderCurrentSection();
   }
 
   async function pauseGame(jogoId) {
@@ -10283,7 +10334,10 @@
         hour: "2-digit",
         minute: "2-digit",
       });
-      await updateSyncStatus(`${remaining} pendente(s) · sincronizado às ${timeLabel}`);
+      const backendOutdated = !isApiVersionAtLeast(response.version, MIN_SYNC_API_VERSION);
+      await updateSyncStatus(backendOutdated
+        ? `Apps Script desatualizado (${response.version || "versão antiga"}) · publique o Code.gs ${MIN_SYNC_API_VERSION}`
+        : `${remaining} pendente(s) · sincronizado às ${timeLabel}`);
 
       if (changedRecords) {
         await renderCurrentSection();
@@ -10302,6 +10356,14 @@
     } finally {
       state.syncInProgress = false;
     }
+  }
+
+  async function syncLatestMutations() {
+    while (state.syncInProgress) {
+      await new Promise((resolve) => window.setTimeout(resolve, 50));
+    }
+
+    await syncNow();
   }
 
   async function forceUpdate() {

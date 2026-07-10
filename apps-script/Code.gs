@@ -1,4 +1,4 @@
-var BAGRESCORE_API_VERSION = "1.1.0";
+var BAGRESCORE_API_VERSION = "1.2.0";
 var BAGRESCORE_DB_PROPERTY = "BAGRESCORE_SPREADSHEET_ID";
 var BAGRESCORE_SECRET_PROPERTY = "BAGRESCORE_AUTH_SECRET";
 var BAGRESCORE_REVISION_PROPERTY = "BAGRESCORE_GLOBAL_REVISION";
@@ -11,6 +11,7 @@ var BAGRESCORE_MAX_SYNC_OPERATIONS = 150;
 var BAGRESCORE_MAX_PULL_CHANGES = 500;
 var BAGRESCORE_PAYLOAD_CHUNK_SIZE = 45000;
 var BAGRESCORE_PAYLOAD_CHUNKS = 12;
+var BAGRESCORE_GOALS_TO_END_GAME = 2;
 
 var BAGRESCORE_SYNC_STORES = [
   "jogadores",
@@ -502,7 +503,8 @@ function bagreScoreHandleSync_(request) {
       epoch: serverEpoch,
       user: auth.user,
       serverTime: new Date().toISOString(),
-      serverRevision: bagreScoreCurrentGlobalRevision_()
+      serverRevision: bagreScoreCurrentGlobalRevision_(),
+      version: BAGRESCORE_API_VERSION
     };
   }
 
@@ -549,6 +551,9 @@ function bagreScoreHandleSync_(request) {
 
       try {
         var payload = operation.payload && typeof operation.payload === "object" ? operation.payload : {};
+        if (storeName === "eventos" && operationType !== "delete") {
+          payload = bagreScorePrepareIncomingEvent_(spreadsheet, entityId, payload);
+        }
         var result = bagreScoreWriteEntity_(spreadsheet, storeName, entityId, operationType, payload, auth.user.id, deviceId);
         bagreScoreAppendObject_(operationSheet, {
           operationId: operationId,
@@ -563,6 +568,9 @@ function bagreScoreHandleSync_(request) {
 
         if (storeName === "eventos" && payload.jogoId) {
           affectedGames[String(payload.jogoId)] = true;
+        }
+        if (storeName === "jogos") {
+          affectedGames[entityId] = true;
         }
       } catch (operationError) {
         acknowledgements.push({
@@ -587,11 +595,35 @@ function bagreScoreHandleSync_(request) {
       epoch: serverEpoch,
       user: auth.user,
       serverTime: new Date().toISOString(),
-      serverRevision: bagreScoreCurrentGlobalRevision_()
+      serverRevision: bagreScoreCurrentGlobalRevision_(),
+      version: BAGRESCORE_API_VERSION
     };
   } finally {
     lock.releaseLock();
   }
+}
+
+function bagreScorePrepareIncomingEvent_(spreadsheet, eventId, payload) {
+  var incoming = JSON.parse(JSON.stringify(payload || {}));
+  var eventType = bagreScoreNormalizeToken_(incoming.tipo);
+  var isGoal = eventType === "gol" || eventType === "gol_provisorio";
+
+  if (!isGoal || !incoming.jogoId) return incoming;
+
+  var existingEvent = bagreScoreFindRowByValue_(spreadsheet.getSheetByName("eventos"), "entityId", eventId);
+  if (existingEvent && !bagreScoreBoolean_(existingEvent.record.deleted)) return incoming;
+
+  var gameFound = bagreScoreFindRowByValue_(spreadsheet.getSheetByName("jogos"), "entityId", String(incoming.jogoId));
+  if (!gameFound || bagreScoreBoolean_(gameFound.record.deleted)) return incoming;
+
+  var gamePayload = bagreScoreParseEntityPayload_(gameFound.record);
+  if (bagreScoreNormalizeToken_(gamePayload.status) !== "finalizado") return incoming;
+
+  incoming.cancelado = true;
+  incoming.canceladoEm = new Date().toISOString();
+  incoming.canceladoPor = "server";
+  incoming.motivoCancelamento = "Partida ja finalizada em outro dispositivo.";
+  return incoming;
 }
 
 function bagreScoreWriteEntity_(spreadsheet, storeName, entityId, operationType, payload, userId, deviceId) {
@@ -604,6 +636,14 @@ function bagreScoreWriteEntity_(spreadsheet, storeName, entityId, operationType,
   var entityRevision = Number(found && found.record.entityRevision || 0) + 1;
   var deleted = operationType === "delete";
   var storedPayload = JSON.parse(JSON.stringify(payload || {}));
+
+  if (storeName === "jogos" && found && !deleted) {
+    storedPayload = bagreScoreMergeGamePayload_(
+      bagreScoreParseEntityPayload_(found.record),
+      storedPayload,
+      String(userId || "") === "server"
+    );
+  }
 
   storedPayload.serverCreatedAt = found && found.record.serverCreatedAt || now;
   storedPayload.serverUpdatedAt = now;
@@ -637,6 +677,23 @@ function bagreScoreWriteEntity_(spreadsheet, storeName, entityId, operationType,
   bagreScoreAppendChange_(spreadsheet, storeName, record);
   bagreScoreAppendAudit_(spreadsheet, userId, deviceId, deleted ? "delete" : "upsert", storeName, entityId, { entityRevision: entityRevision }, globalRevision);
   return record;
+}
+
+function bagreScoreMergeGamePayload_(existingPayload, incomingPayload, trustedServerWrite) {
+  var existing = existingPayload && typeof existingPayload === "object" ? existingPayload : {};
+  var incoming = incomingPayload && typeof incomingPayload === "object" ? incomingPayload : {};
+  var merged = Object.assign({}, existing, incoming);
+  var existingIsFinal = bagreScoreNormalizeToken_(existing.status) === "finalizado";
+
+  if (existingIsFinal && !trustedServerWrite) {
+    merged.status = "Finalizado";
+    merged.fim = existing.fim || merged.fim || "";
+    merged.formaEncerramento = existing.formaEncerramento || merged.formaEncerramento || "";
+    merged.vencedor = existing.vencedor || merged.vencedor || "";
+    merged.pausadoEm = "";
+  }
+
+  return merged;
 }
 
 function bagreScoreListChanges_(spreadsheet, sinceRevision, limit) {
@@ -688,10 +745,35 @@ function bagreScoreRecalculateGameScore_(spreadsheet, gameId) {
   });
 
   var gamePayload = bagreScoreParseEntityPayload_(gameFound.record);
-  if (Number(gamePayload.placarA || 0) === scoreA && Number(gamePayload.placarB || 0) === scoreB) return;
+  var scoreChanged = Number(gamePayload.placarA || 0) !== scoreA || Number(gamePayload.placarB || 0) !== scoreB;
+  var isFinal = bagreScoreNormalizeToken_(gamePayload.status) === "finalizado";
+  var shouldFinalize = !isFinal && (scoreA >= BAGRESCORE_GOALS_TO_END_GAME || scoreB >= BAGRESCORE_GOALS_TO_END_GAME);
+
+  if (!scoreChanged && !shouldFinalize) return;
+
   gamePayload.placarA = scoreA;
   gamePayload.placarB = scoreB;
+
+  if (shouldFinalize) {
+    gamePayload.status = "Finalizado";
+    gamePayload.fim = new Date().toISOString();
+    gamePayload.formaEncerramento = BAGRESCORE_GOALS_TO_END_GAME + " gols";
+    gamePayload.vencedor = bagreScoreGameWinner_(gamePayload, scoreA, scoreB);
+    gamePayload.pausadoEm = "";
+  } else if (isFinal && scoreChanged) {
+    gamePayload.vencedor = bagreScoreGameWinner_(gamePayload, scoreA, scoreB);
+  }
+
   bagreScoreWriteEntity_(spreadsheet, "jogos", gameId, "upsert", gamePayload, "server", "server");
+}
+
+function bagreScoreGameWinner_(gamePayload, scoreA, scoreB) {
+  if (scoreA === scoreB) return "Empate";
+  var teamKey = scoreA > scoreB ? "timeA" : "timeB";
+  var team = gamePayload && gamePayload[teamKey] && typeof gamePayload[teamKey] === "object"
+    ? gamePayload[teamKey]
+    : {};
+  return String(team.nome || (teamKey === "timeA" ? "Time A" : "Time B"));
 }
 
 function bagreScoreCanSyncStore_(permissions, storeName, operationType) {
