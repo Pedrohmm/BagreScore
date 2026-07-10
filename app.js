@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.9.9";
+  const APP_VERSION = "0.9.10";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 15000;
@@ -4035,10 +4035,14 @@
     const finishTitle = peladaSummary?.finishDisabledReason || "Encerrar a pelada e escolher MVP/Bagre.";
 
     return `
-      <div class="pelada-open-toolbar">
-        <h3>${escapeHtml(pelada.local || "Pelada")}</h3>
+      <section class="pelada-open-toolbar pelada-open-hero">
+        <div class="pelada-open-title">
+          <span>Pelada aberta</span>
+          <h3>${escapeHtml(pelada.local || "Pelada")}</h3>
+          <p>${escapeHtml(formatDateLabel(pelada.data))} • ${escapeHtml(horario)} • ${escapeHtml(formatCurrency(pelada.valor))}</p>
+        </div>
         <div class="pelada-open-actions">
-          <button class="ghost-button compact-button" type="button" data-pelada-action="back-list">Voltar para Peladas</button>
+          <span class="pelada-open-status">${escapeHtml(status)}</span>
           <button
             class="primary-button compact-button"
             type="button"
@@ -4048,20 +4052,8 @@
           >
             Finalizar Pelada
           </button>
-          <details class="pelada-details-disclosure">
-            <summary>Detalhes da Pelada</summary>
-            <div class="pelada-details-mini">
-              <span><strong>Data</strong>${escapeHtml(formatDateLabel(pelada.data))}</span>
-              <span><strong>Local</strong>${escapeHtml(pelada.local || "-")}</span>
-              <span><strong>Endereço</strong>${escapeHtml(pelada.endereco || "-")}</span>
-              <span><strong>Horário</strong>${escapeHtml(horario)}</span>
-              <span><strong>Valor</strong>${escapeHtml(formatCurrency(pelada.valor))}</span>
-              <span><strong>Status</strong>${escapeHtml(status)}</span>
-              <span class="wide"><strong>Observações</strong>${escapeHtml(pelada.observacoes || "-")}</span>
-            </div>
-          </details>
         </div>
-      </div>
+      </section>
     `;
   }
 
@@ -4565,7 +4557,6 @@
             <p>${jogos.length} jogo${jogos.length === 1 ? "" : "s"} criado${jogos.length === 1 ? "" : "s"} nesta pelada.</p>
           </div>
         </div>
-        ${peladaSummary ? renderPeladaHistoryOverview(peladaSummary) : ""}
         ${
           jogos.length
             ? `<div class="game-history-grid">${jogos
