@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.9.23";
+  const APP_VERSION = "0.9.24";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 15000;
@@ -2928,6 +2928,8 @@
     const activeGame = games.find((jogo) => jogo.status === "Em andamento");
     const horario = [pelada.horarioInicio, pelada.horarioFim].filter(Boolean).join(" - ") || "Horário aberto";
     const confirmados = getPeladaConfirmedCount(pelada, games);
+    const dateParts = getFeaturedDateParts(pelada.data);
+    const statusLabel = activeGame ? "Ao vivo" : pelada.status || "Aberta";
 
     return `
       <section class="featured-match-card">
@@ -2945,11 +2947,37 @@
             Abrir pelada
           </button>
         </div>
-        <div class="featured-shield" aria-hidden="true">
-          <img src="assets/icons/icon.svg" alt="" />
+        <div class="featured-side-panel" aria-hidden="true">
+          <span class="featured-status-chip">${escapeHtml(statusLabel)}</span>
+          <div class="featured-date-tile">
+            <strong>${escapeHtml(dateParts.day)}</strong>
+            <small>${escapeHtml(dateParts.month)}</small>
+          </div>
+          <div class="featured-side-metric">
+            <strong>${escapeHtml(games.length)}</strong>
+            <small>jogo${games.length === 1 ? "" : "s"} criado${games.length === 1 ? "" : "s"}</small>
+          </div>
+          <div class="featured-side-metric">
+            <strong>${escapeHtml(confirmados || "-")}</strong>
+            <small>confirmados</small>
+          </div>
         </div>
       </section>
     `;
+  }
+
+  function getFeaturedDateParts(value) {
+    const [year, month, day] = String(value || "").split("-");
+    const months = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
+
+    if (!year || !month || !day) {
+      return { day: "--", month: "DATA" };
+    }
+
+    return {
+      day,
+      month: months[Math.max(0, Math.min(11, Number(month) - 1))] || "DATA",
+    };
   }
 
   function getPeladaConfirmedCount(pelada, games) {
@@ -2990,9 +3018,10 @@
     if (!entry?.jogador) {
       return `
         <article class="home-highlight-card is-empty">
-          <span>${escapeHtml(title)}</span>
+          <span class="highlight-kicker">${escapeHtml(title)}</span>
+          <div class="highlight-empty-medal" aria-hidden="true">?</div>
           <strong>Sem dados</strong>
-          <small>Jogue partidas para atualizar</small>
+          <small>Jogue partidas para revelar esse destaque</small>
         </article>
       `;
     }
@@ -3000,16 +3029,16 @@
     const value = metric === "overall"
       ? Number(entry.jogador.overall || 0)
       : Number(entry[metric] || 0);
-    const valueLabel = metric === "overall"
-      ? `${value} ${suffix}`
-      : `${value} ${suffix}`;
 
     return `
       <button class="home-highlight-card" type="button" data-home-action="player-profile" data-player-id="${escapeHtml(entry.jogadorId)}">
-        <span>${escapeHtml(title)}</span>
-        ${renderPlayerAvatar(entry.jogador, "player-avatar home-avatar")}
-        <strong>${escapeHtml(playerDisplayName(entry.jogador))}</strong>
-        <small>${escapeHtml(valueLabel)}</small>
+        <span class="highlight-kicker">${escapeHtml(title)}</span>
+        <div class="highlight-photo-stage">
+          ${renderPlayerAvatar(entry.jogador, "player-avatar home-avatar")}
+        </div>
+        <span class="highlight-player-name">${escapeHtml(playerDisplayName(entry.jogador))}</span>
+        <strong class="highlight-stat-value">${escapeHtml(String(value))}</strong>
+        <small class="highlight-stat-label">${escapeHtml(suffix)}</small>
       </button>
     `;
   }
@@ -3041,21 +3070,44 @@
           <button type="button" data-home-action="open-game-summary" data-pelada-id="${escapeHtml(jogo.peladaId)}" data-game-id="${escapeHtml(jogo.id)}">Ver resumo</button>
         </div>
         <article class="last-match-card">
-          <div class="last-match-score">
-            <span>${escapeHtml(teamNameFromGame(jogo, "A"))}</span>
-            <strong>${escapeHtml(jogo.placarA ?? 0)} x ${escapeHtml(jogo.placarB ?? 0)}</strong>
-            <span>${escapeHtml(teamNameFromGame(jogo, "B"))}</span>
+          <div class="last-match-card-top">
+            <span>Placar final</span>
+            <strong>${escapeHtml(pelada?.local || "Pelada")}</strong>
           </div>
-          <small>${escapeHtml(formatDateLabel(pelada?.data || jogo.inicio?.slice(0, 10) || ""))} ${jogo.inicio ? `- ${escapeHtml(jogo.inicio.slice(11, 16))}` : ""}</small>
+          <div class="last-match-score">
+            <span class="last-team">
+              <i>${escapeHtml(teamInitials(teamNameFromGame(jogo, "A")))}</i>
+              <b>${escapeHtml(teamNameFromGame(jogo, "A"))}</b>
+            </span>
+            <strong>${escapeHtml(jogo.placarA ?? 0)} x ${escapeHtml(jogo.placarB ?? 0)}</strong>
+            <span class="last-team">
+              <i>${escapeHtml(teamInitials(teamNameFromGame(jogo, "B")))}</i>
+              <b>${escapeHtml(teamNameFromGame(jogo, "B"))}</b>
+            </span>
+          </div>
+          <div class="last-match-chips">
+            <span>${escapeHtml(formatDateLabel(pelada?.data || jogo.inicio?.slice(0, 10) || ""))}</span>
+            ${jogo.inicio ? `<span>${escapeHtml(jogo.inicio.slice(11, 16))}</span>` : ""}
+            <span>${escapeHtml(getGameWinner(jogo) === "Empate" ? "Empate" : `Vencedor: ${getGameWinner(jogo)}`)}</span>
+          </div>
           ${renderHomeGoalAuthors(goals, stats.playerById)}
         </article>
       </section>
     `;
   }
 
+  function teamInitials(name) {
+    return String(name || "T")
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("");
+  }
+
   function renderHomeGoalAuthors(goals, playerById) {
     if (!goals.length) {
-      return `<p class="last-match-goals">Gols: nenhum</p>`;
+      return `<p class="last-match-goals"><span>Gols: nenhum</span></p>`;
     }
 
     return `
@@ -3081,7 +3133,7 @@
           <strong>Ranking Geral</strong>
           <small>Acompanhe os melhores jogadores da temporada</small>
         </span>
-        <em>Top 100</em>
+        <em>Ver ranking</em>
       </button>
     `;
   }
