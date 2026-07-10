@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.9.5";
+  const APP_VERSION = "0.9.6";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 15000;
@@ -3716,6 +3716,7 @@
 
       $("#section-content").innerHTML = `
         <div class="peladas-screen">
+          ${renderPeladasPageHeader()}
           ${renderPeladasModeNav(activeView)}
           ${
             activeView === "criar"
@@ -3779,6 +3780,27 @@
     `;
 
     bindPeladaSectionEvents();
+  }
+
+  function renderPeladasPageHeader() {
+    return `
+      <header class="peladas-page-header">
+        <div class="peladas-brand-row">
+          <div class="peladas-brand">
+            <img src="assets/icons/icon.svg" alt="" aria-hidden="true" />
+            <strong>Bagre<span>Score</span></strong>
+          </div>
+          <button class="settings-button peladas-settings-button" type="button" data-pelada-action="open-settings" aria-label="Abrir configurações">
+            <span aria-hidden="true">&#9881;</span>
+          </button>
+        </div>
+        <div class="peladas-title-card">
+          <span>Área de peladas</span>
+          <h2>Peladas</h2>
+          <p>Crie rodadas, acompanhe jogos e abra rapidamente cada pelada.</p>
+        </div>
+      </header>
+    `;
   }
 
   function renderPeladasModeNav(activeView) {
@@ -4678,6 +4700,11 @@
       }
 
       const action = actionButton.dataset.peladaAction;
+
+      if (action === "open-settings") {
+        openSettingsDrawer();
+        return;
+      }
 
       if (action === "show-create") {
         state.selectedPeladaId = null;
