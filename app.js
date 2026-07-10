@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.9.11";
+  const APP_VERSION = "0.9.12";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 15000;
@@ -4190,21 +4190,35 @@
     const candidates = jogadores.filter(isGoalkeeperSelection ? isGoalkeeperCandidate : isLineupPlayer);
     const selectedLine = new Set(state.gameDraft[teamKey].linha);
     const selectedGoalkeeper = state.gameDraft[teamKey].goleiro;
+    const selectedCount = isGoalkeeperSelection ? (selectedGoalkeeper ? 1 : 0) : selectedLine.size;
+    const selectionTitle = isGoalkeeperSelection ? "Escolha o goleiro" : "Monte a escalação";
+    const selectionDescription = isGoalkeeperSelection
+      ? "Mostrando atletas GK ou cadastrados como goleiros. Escolha apenas um para o time."
+      : "Mostrando jogadores de linha ativos ou convidados. Marque todos que vão jogar neste time.";
 
     return `
-      <form class="team-selection-form" id="team-selection-form" data-team="${escapeHtml(teamKey)}" data-selection-type="${escapeHtml(selectionType)}" novalidate>
+      <form class="team-selection-form team-selection-form-${escapeHtml(selectionType)}" id="team-selection-form" data-team="${escapeHtml(teamKey)}" data-selection-type="${escapeHtml(selectionType)}" novalidate>
+        <div class="selection-modal-intro">
+          <span class="selection-team-pill">Time ${escapeHtml(teamKey)}</span>
+          <span class="selection-modal-copy">
+            <strong>${escapeHtml(selectionTitle)}</strong>
+            <small>${escapeHtml(selectionDescription)}</small>
+          </span>
+          <span class="selection-count-pill">${escapeHtml(selectedCount)} selecionado${selectedCount === 1 ? "" : "s"}</span>
+        </div>
         <div class="selection-search">
           <label class="field-label">
-            <span>Pesquisar jogador</span>
-            <input type="search" name="search" placeholder="Digite o nome..." autocomplete="off" />
+            <span>Buscar jogador</span>
+            <input type="search" name="search" placeholder="Digite nome ou apelido..." autocomplete="off" />
           </label>
         </div>
         <div class="player-selection-list">
           ${
             isGoalkeeperSelection
               ? `
-                <label class="player-selection-option">
+                <label class="player-selection-option is-clear-option">
                   <input type="radio" name="goalkeeperId" value="" ${selectedGoalkeeper ? "" : "checked"} />
+                  <span class="selection-avatar-placeholder">?</span>
                   <span>
                     <strong>Sem goleiro definido</strong>
                     <small>Goleiro opcional nesta etapa.</small>
@@ -4223,9 +4237,16 @@
                       : selectedLine.has(player.id);
                     const inputType = isGoalkeeperSelection ? "radio" : "checkbox";
                     const inputName = isGoalkeeperSelection ? "goalkeeperId" : "playerIds";
+                    const optionClass = [
+                      "player-selection-option",
+                      checked ? "is-selected" : "",
+                      blockReason ? "is-disabled" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ");
 
                     return `
-                      <label class="player-selection-option ${blockReason ? "is-disabled" : ""}" data-player-name="${escapeHtml(normalizeToken(playerDisplayName(player)))}">
+                      <label class="${escapeHtml(optionClass)}" data-player-name="${escapeHtml(normalizeToken(playerDisplayName(player)))}">
                         <input
                           type="${inputType}"
                           name="${inputName}"
@@ -4236,7 +4257,12 @@
                         ${renderPlayerAvatar(player, "player-avatar small")}
                         <span>
                           <strong>${escapeHtml(playerDisplayName(player))}</strong>
-                          <small>${escapeHtml(player.posicaoPrincipal || "-")} - ${escapeHtml(player.overall || "-")} OVR${blockReason ? ` - ${blockReason}` : ""}</small>
+                          <small>
+                            <b>${escapeHtml(player.posicaoPrincipal || "-")}</b>
+                            <em>${escapeHtml(player.overall || "-")} OVR</em>
+                            <i>${escapeHtml(player.peForte || "Pé não informado")}</i>
+                          </small>
+                          ${blockReason ? `<small class="selection-block-reason">${escapeHtml(blockReason)}</small>` : ""}
                         </span>
                       </label>
                     `;
