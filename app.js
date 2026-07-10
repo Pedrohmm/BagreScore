@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.9.24";
+  const APP_VERSION = "0.9.25";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 15000;
@@ -2833,18 +2833,23 @@
     );
 
     return [...peladas]
+      .filter((pelada) => {
+        const hasActiveGame = activePeladaIds.has(pelada.id);
+        const isOpen = normalizeToken(pelada.status || "Aberta") !== "finalizada";
+        const isUpcoming = !pelada.data || String(pelada.data) >= today;
+
+        return hasActiveGame || (isOpen && isUpcoming);
+      })
       .sort((a, b) => {
         const activeDiff = Number(activePeladaIds.has(b.id)) - Number(activePeladaIds.has(a.id));
         if (activeDiff) return activeDiff;
 
-        const openDiff = Number(b.status !== "Finalizada") - Number(a.status !== "Finalizada");
-        if (openDiff) return openDiff;
+        const dateA = String(a.data || "9999-12-31");
+        const dateB = String(b.data || "9999-12-31");
+        const dateDiff = dateA.localeCompare(dateB);
+        if (dateDiff) return dateDiff;
 
-        const futureA = String(a.data || "") >= today ? 1 : 0;
-        const futureB = String(b.data || "") >= today ? 1 : 0;
-        if (futureA !== futureB) return futureB - futureA;
-
-        return String(b.data || b.createdAt || "").localeCompare(String(a.data || a.createdAt || ""));
+        return String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
       })[0] || null;
   }
 
@@ -2916,10 +2921,11 @@
 
     if (!pelada) {
       return `
-        <section class="featured-match-card is-empty">
+        <section class="featured-match-card is-empty" aria-labelledby="home-title">
           <span class="feature-badge">Pelada em destaque</span>
-          <h2 id="home-title">Nenhuma pelada criada ainda</h2>
-          <p>Crie a primeira pelada para acompanhar jogos, escalações e rankings.</p>
+          <span class="featured-empty-icon" aria-hidden="true">+</span>
+          <h2 id="home-title">Nenhuma pelada marcada ainda</h2>
+          <p>Crie a próxima rodada e comece a resenha.</p>
           <button class="primary-button home-primary-action" type="button" data-home-section="peladas">Criar pelada</button>
         </section>
       `;
@@ -2928,101 +2934,68 @@
     const games = stats.jogos.filter((jogo) => jogo.peladaId === pelada.id);
     const activeGame = games.find((jogo) => jogo.status === "Em andamento");
     const horario = [pelada.horarioInicio, pelada.horarioFim].filter(Boolean).join(" - ") || "Horário aberto";
-    const confirmados = getPeladaConfirmedCount(pelada, games);
-    const dateParts = getFeaturedDateParts(pelada.data);
     const statusLabel = activeGame ? "Ao vivo" : pelada.status || "Aberta";
+    const statusClass = activeGame ? "is-live" : "is-open";
+    const peladaName = pelada.nome || pelada.titulo || pelada.local || "Pelada";
+    const locationLabel = pelada.endereco || pelada.local || "Local não informado";
 
     return `
-      <section class="featured-match-card">
-        <div class="featured-card-glow" aria-hidden="true"></div>
+      <section class="featured-match-card" aria-labelledby="home-title">
+        <div class="featured-card-head">
+          <span class="feature-badge">Pelada em destaque</span>
+          <span class="featured-status-chip ${statusClass}">${escapeHtml(statusLabel)}</span>
+        </div>
         <div class="featured-card-content">
-          <span class="feature-badge">${activeGame ? "Pelada ao vivo" : "Pelada em destaque"}</span>
-          <h2 id="home-title">${escapeHtml(pelada.local || "Pelada")}</h2>
-          <div class="featured-meta">
-            <span>Local: ${escapeHtml(pelada.endereco || pelada.local || "-")}</span>
-            <span>Data: ${escapeHtml(formatDateLabel(pelada.data))}</span>
-            <span>Horário: ${escapeHtml(horario)}</span>
-            <span>${escapeHtml(confirmados ? `+${confirmados} confirmados` : `${games.length} jogo${games.length === 1 ? "" : "s"}`)}</span>
+          <h2 id="home-title">${escapeHtml(peladaName)}</h2>
+          <div class="featured-meta" aria-label="Informações da pelada">
+            <span><small>Local</small><strong>${escapeHtml(locationLabel)}</strong></span>
+            <span><small>Data</small><strong>${escapeHtml(formatDateLabel(pelada.data))}</strong></span>
+            <span><small>Horário</small><strong>${escapeHtml(horario)}</strong></span>
+            <span><small>Valor</small><strong>${escapeHtml(formatCurrency(pelada.valor))}</strong></span>
           </div>
           <button class="primary-button home-primary-action" type="button" data-home-action="open-pelada" data-pelada-id="${escapeHtml(pelada.id)}">
             Abrir pelada
           </button>
         </div>
-        <div class="featured-side-panel" aria-hidden="true">
-          <span class="featured-status-chip">${escapeHtml(statusLabel)}</span>
-          <div class="featured-date-tile">
-            <strong>${escapeHtml(dateParts.day)}</strong>
-            <small>${escapeHtml(dateParts.month)}</small>
-          </div>
-          <div class="featured-side-metric">
-            <strong>${escapeHtml(games.length)}</strong>
-            <small>jogo${games.length === 1 ? "" : "s"} criado${games.length === 1 ? "" : "s"}</small>
-          </div>
-          <div class="featured-side-metric">
-            <strong>${escapeHtml(confirmados || "-")}</strong>
-            <small>confirmados</small>
-          </div>
-        </div>
       </section>
     `;
   }
 
-  function getFeaturedDateParts(value) {
-    const [year, month, day] = String(value || "").split("-");
-    const months = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
-
-    if (!year || !month || !day) {
-      return { day: "--", month: "DATA" };
-    }
-
-    return {
-      day,
-      month: months[Math.max(0, Math.min(11, Number(month) - 1))] || "DATA",
-    };
-  }
-
-  function getPeladaConfirmedCount(pelada, games) {
-    if (Number.isFinite(Number(pelada.confirmados))) {
-      return Number(pelada.confirmados);
-    }
-
-    const uniquePlayers = new Set();
-    games.forEach((jogo) => {
-      [...(jogo.timeA?.jogadores || []), ...(jogo.timeB?.jogadores || [])].forEach((id) => uniquePlayers.add(id));
-    });
-
-    return uniquePlayers.size;
-  }
-
   function renderWeeklyHighlights(stats) {
     const cards = [
-      ["Artilheiro", stats.highlights.topScorer, "gols", "gols"],
-      ["Garçom", stats.highlights.topAssists, "assistencias", "assistências"],
-      ["MVP", stats.highlights.mvp, "mvpsPelada", "MVPs"],
-      ["Bagre da última rodada", stats.highlights.bagre, "bagresPelada", "bagres"],
+      ["Artilheiro", stats.highlights.topScorer, "gols", "gol", "gols"],
+      ["Garçom", stats.highlights.topAssists, "assistencias", "assistência", "assistências"],
+      ["MVP", stats.highlights.mvp, "mvpsPelada", "MVP", "MVPs"],
+      ["Bagre da rodada", stats.highlights.bagre, "bagresPelada", "bagre", "bagres"],
     ];
 
     return `
       <section class="home-section-block">
         <div class="home-section-heading">
-          <h3>Destaques da semana</h3>
-          <button type="button" data-home-section="ranking">Ver todos</button>
+          <div>
+            <h3>Destaques da semana</h3>
+            <p>Quem fez a diferença nas últimas rodadas.</p>
+          </div>
         </div>
         <div class="home-highlight-grid">
-          ${cards.map(([title, entry, metric, suffix]) => renderHomeHighlightCard(title, entry, metric, suffix)).join("")}
+          ${cards.map(([title, entry, metric, singular, plural]) => renderHomeHighlightCard(title, entry, metric, singular, plural)).join("")}
         </div>
       </section>
     `;
   }
 
-  function renderHomeHighlightCard(title, entry, metric, suffix) {
+  function renderHomeHighlightCard(title, entry, metric, singular, plural) {
     if (!entry?.jogador) {
       return `
         <article class="home-highlight-card is-empty">
           <span class="highlight-kicker">${escapeHtml(title)}</span>
-          <div class="highlight-empty-medal" aria-hidden="true">?</div>
-          <strong>Sem dados</strong>
-          <small>Jogue partidas para revelar esse destaque</small>
+          <span class="highlight-card-body">
+            <span class="highlight-empty-medal" aria-hidden="true">—</span>
+            <span class="highlight-card-copy">
+              <strong>Aguardando dados</strong>
+              <small>Sem registro ainda</small>
+            </span>
+          </span>
         </article>
       `;
     }
@@ -3035,22 +3008,32 @@
       return `
         <article class="home-highlight-card is-empty">
           <span class="highlight-kicker">${escapeHtml(title)}</span>
-          <div class="highlight-empty-medal" aria-hidden="true">?</div>
-          <strong>Sem dados</strong>
-          <small>Jogue partidas para revelar esse destaque</small>
+          <span class="highlight-card-body">
+            <span class="highlight-empty-medal" aria-hidden="true">—</span>
+            <span class="highlight-card-copy">
+              <strong>Aguardando dados</strong>
+              <small>Sem registro ainda</small>
+            </span>
+          </span>
         </article>
       `;
     }
 
+    const unit = value === 1 ? singular : plural;
+
     return `
       <button class="home-highlight-card" type="button" data-home-action="player-profile" data-player-id="${escapeHtml(entry.jogadorId)}">
         <span class="highlight-kicker">${escapeHtml(title)}</span>
-        <div class="highlight-photo-stage">
+        <span class="highlight-card-body">
           ${renderPlayerAvatar(entry.jogador, "player-avatar home-avatar")}
-        </div>
-        <span class="highlight-player-name">${escapeHtml(playerDisplayName(entry.jogador))}</span>
-        <strong class="highlight-stat-value">${escapeHtml(String(value))}</strong>
-        <small class="highlight-stat-label">${escapeHtml(suffix)}</small>
+          <span class="highlight-card-copy">
+            <strong class="highlight-player-name">${escapeHtml(playerDisplayName(entry.jogador))}</strong>
+            <span class="highlight-stat-line">
+              <b class="highlight-stat-value">${escapeHtml(String(value))}</b>
+              <small class="highlight-stat-label">${escapeHtml(unit)}</small>
+            </span>
+          </span>
+        </span>
       </button>
     `;
   }
@@ -3146,16 +3129,20 @@
     ];
 
     return `
-      <button class="ranking-general-card home-ranking-podium-card" type="button" data-home-section="ranking">
-        <span class="ranking-general-heading">
-          <strong>Ranking Geral</strong>
-          <small>Os maiores overalls da pelada</small>
-          <em>Ver ranking</em>
-        </span>
-        <span class="home-ranking-podium">
-          ${podium.map((item) => renderHomeRankingPodiumPlace(item)).join("")}
-        </span>
-      </button>
+      <section class="home-section-block home-ranking-section">
+        <div class="home-section-heading">
+          <div>
+            <h3>Ranking geral</h3>
+            <p>Os maiores overalls da pelada.</p>
+          </div>
+          <button type="button" data-home-section="ranking">Ver ranking completo</button>
+        </div>
+        <div class="ranking-general-card home-ranking-podium-card">
+          <div class="home-ranking-podium" aria-label="Top 3 do ranking geral">
+            ${podium.map((item) => renderHomeRankingPodiumPlace(item)).join("")}
+          </div>
+        </div>
+      </section>
     `;
   }
 
@@ -3163,8 +3150,11 @@
     if (!entry?.stats?.jogador) {
       return `
         <span class="home-ranking-place ${escapeHtml(className)} is-empty">
-          <i>${place}</i>
-          <b>Sem jogador</b>
+          <i>${place}º</i>
+          <span class="home-ranking-empty-avatar" aria-hidden="true">—</span>
+          <b>Aguardando</b>
+          <small>Sem jogador</small>
+          <span class="home-ranking-plinth" aria-hidden="true">${place}</span>
         </span>
       `;
     }
@@ -3172,12 +3162,14 @@
     const jogador = entry.stats.jogador;
 
     return `
-      <span class="home-ranking-place ${escapeHtml(className)}">
-        <i>${place}</i>
+      <button class="home-ranking-place ${escapeHtml(className)}" type="button" data-home-action="player-profile" data-player-id="${escapeHtml(entry.stats.jogadorId)}" aria-label="${escapeHtml(`${place}º lugar, ${playerDisplayName(jogador)}, ${entry.value}`)}">
+        <i>${place}º</i>
         ${renderPlayerAvatar(jogador, "player-avatar home-ranking-avatar")}
         <b>${escapeHtml(playerDisplayName(jogador))}</b>
-        <small>${escapeHtml(entry.value)}</small>
-      </span>
+        <strong>${escapeHtml(entry.value)}</strong>
+        <small>${escapeHtml(jogador.posicaoPrincipal || "Sem posição")}</small>
+        <span class="home-ranking-plinth" aria-hidden="true">${place}</span>
+      </button>
     `;
   }
 
