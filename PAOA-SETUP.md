@@ -72,3 +72,17 @@ Ao criar uma conta sem informar PIN, o servidor gera um PIN temporário e o most
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.
 
+## Atualização 0.11 e limpeza dos testes
+
+Esta versão adiciona a planilha `mudancas`, sincronização mais rápida e uma geração da base que impede aparelhos antigos de reenviar registros apagados.
+
+Para aplicar:
+
+1. substitua o `Code.gs` publicado pelo arquivo atualizado;
+2. execute novamente `setupBagreScore` uma vez, para criar e preencher a planilha `mudancas`;
+3. edite a implantação do Aplicativo da Web e selecione **Nova versão**;
+4. force a atualização do BagreScore nos aparelhos;
+5. entre como administrador e abra **Configurações**;
+6. em **Zerar dados de teste**, digite `ZERAR BAGRESCORE` e confirme.
+
+A limpeza preserva somente a conta administrativa atual e os perfis. Jogadores, peladas, jogos, eventos, contas de teste, filas e sessões são apagados. Todos os aparelhos serão desconectados e, no próximo login, descartarão automaticamente os dados antigos antes de baixar a base limpa.

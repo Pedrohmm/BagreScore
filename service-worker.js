@@ -1,4 +1,4 @@
-const CACHE_VERSION = "bagrescore-v0.10.0";
+const CACHE_VERSION = "bagrescore-v0.11.0";
 const PRECACHE_URLS = [
   "./",
   "./index.html",

@@ -1,10 +1,10 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.10.0";
+  const APP_VERSION = "0.11.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
-  const SYNC_INTERVAL_MS = 15000;
+  const SYNC_INTERVAL_MS = 5000;
   const SYNC_BATCH_SIZE = 100;
   const AUTH_TOKEN_STORAGE_KEY = "bagrescore:auth-token";
   const AUTH_USER_STORAGE_KEY = "bagrescore:auth-user";
@@ -322,7 +322,7 @@
     perfis: ["id", "nome", "permissoes"],
     temporadas: ["id", "nome", "tipo", "inicio", "fim", "status"],
     estatisticasCache: ["id", "jogadorId", "temporadaId", "metricas", "updatedAt", "revision"],
-    configs: ["id", "appVersion", "appsScriptUrl", "lastServerRevision", "regras", "updatedAt"],
+    configs: ["id", "appVersion", "appsScriptUrl", "serverEpoch", "lastServerRevision", "lastSyncAt", "regras", "updatedAt"],
   };
 
   const FIELD_LABELS = {
@@ -407,7 +407,9 @@
     metricas: "Métricas",
     appVersion: "Versão do app",
     appsScriptUrl: "URL do Apps Script",
+    serverEpoch: "Geração da base remota",
     lastServerRevision: "Última revisão do servidor",
+    lastSyncAt: "Última sincronização",
     regras: "Regras",
   };
 
@@ -2699,6 +2701,7 @@
       id: "app",
       appVersion: APP_VERSION,
       appsScriptUrl: "",
+      serverEpoch: "",
       lastServerRevision: 0,
       syncIntervalMs: SYNC_INTERVAL_MS,
       regras: DEFAULT_RULES,
@@ -9392,6 +9395,7 @@
       getAllRecords("auditLog"),
     ]);
     const pendingSync = syncQueue.filter((item) => item.status !== "sincronizado");
+    const syncErrors = pendingSync.filter((item) => item.status === "erro");
     let accountPlayers = [];
 
     if (canManageUsers()) {
@@ -9458,6 +9462,24 @@
 
       ${canManageUsers() ? renderUserManagement(accountPlayers) : ""}
 
+      ${canManageUsers() ? `
+        <section class="data-card server-reset-card">
+          <div>
+            <span class="panel-kicker">Zona de segurança</span>
+            <h3>Zerar dados de teste</h3>
+            <p>Apaga jogadores, peladas, jogos, eventos, filas e contas de teste. A conta administrativa atual e os perfis são preservados.</p>
+          </div>
+          <form class="server-reset-form" id="server-reset-form" novalidate>
+            <label class="field-label">
+              <span>Digite ZERAR BAGRESCORE</span>
+              <input type="text" name="confirmation" autocomplete="off" autocapitalize="characters" required />
+            </label>
+            <button class="danger-button" type="submit">Zerar todos os dados</button>
+            <p class="form-feedback" id="server-reset-feedback" role="alert" hidden></p>
+          </form>
+        </section>
+      ` : ""}
+
       <div class="content-grid">
         <article class="data-card">
           <h3>Regras do jogo</h3>
@@ -9467,6 +9489,8 @@
           <h3>Sincronização</h3>
           <p>Apps Script: ${config?.appsScriptUrl ? escapeHtml(config.appsScriptUrl) : "URL pendente"}</p>
           <p>${pendingSync.length} registro${pendingSync.length === 1 ? "" : "s"} pendente${pendingSync.length === 1 ? "" : "s"}.</p>
+          <p>Revisão remota: ${escapeHtml(config?.lastServerRevision || 0)} · Última sincronização: ${escapeHtml(config?.lastSyncAt ? new Date(config.lastSyncAt).toLocaleString("pt-BR") : "ainda não concluída")}</p>
+          ${syncErrors.length ? `<p class="sync-error-summary">${syncErrors.length} operação${syncErrors.length === 1 ? "" : "ões"} com erro. ${escapeHtml(syncErrors[0]?.syncError || "Verifique as permissões da conta.")}</p>` : ""}
         </article>
       </div>
 
@@ -9548,6 +9572,7 @@
     $("#change-pin-form")?.addEventListener("submit", handleChangePinSubmit);
     $("#user-admin-form")?.addEventListener("submit", handleUserAdminSubmit);
     $(".user-admin-card")?.addEventListener("click", handleUserAdminClick);
+    $("#server-reset-form")?.addEventListener("submit", handleServerResetSubmit);
   }
 
   function updateNetworkStatus() {
@@ -9706,7 +9731,7 @@
     if (!url) throw new Error("Servidor do Apps Script não configurado.");
 
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 20000);
+    const timeoutId = window.setTimeout(() => controller.abort(), 30000);
 
     try {
       const response = await fetch(url, {
@@ -9758,6 +9783,14 @@
 
     try {
       const result = await callAppsScript("login", { login, pin, deviceId: getDeviceId() });
+      const config = await getRecord("configs", "app");
+      if (!config?.serverEpoch && Number(config?.lastServerRevision || 0) === 0 && result.epoch) {
+        await putRecord("configs", {
+          ...config,
+          serverEpoch: result.epoch,
+          updatedAt: nowIso(),
+        });
+      }
       persistAuthSession(result.token, result.user);
       form.reset();
       closeAuthGate();
@@ -9797,6 +9830,7 @@
     await putRecord("configs", {
       ...config,
       appsScriptUrl: "",
+      serverEpoch: "",
       lastServerRevision: 0,
       updatedAt: nowIso(),
     });
@@ -9826,6 +9860,7 @@
       await putRecord("configs", {
         ...config,
         appsScriptUrl: nextUrl,
+        serverEpoch: changedServer ? "" : String(config?.serverEpoch || ""),
         lastServerRevision: changedServer ? 0 : Number(config?.lastServerRevision || 0),
         updatedAt: nowIso(),
       });
@@ -10026,6 +10061,81 @@
     form.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  async function resetLocalData(serverEpoch = "", options = {}) {
+    const preserveAuth = options.preserveAuth !== false;
+    const config = await getRecord("configs", "app");
+    const storesToClear = STORE_SCHEMAS
+      .map((schema) => schema.name)
+      .filter((storeName) => storeName !== "configs");
+    const transaction = state.db.transaction(storesToClear, "readwrite");
+
+    storesToClear.forEach((storeName) => transaction.objectStore(storeName).clear());
+    await transactionDone(transaction);
+
+    await putRecord("configs", {
+      ...config,
+      appVersion: APP_VERSION,
+      serverEpoch: String(serverEpoch || ""),
+      lastServerRevision: 0,
+      lastSyncAt: "",
+      updatedAt: nowIso(),
+    });
+
+    localStorage.removeItem("bagrescore:active-game-id");
+    state.activeGameId = null;
+    state.selectedPeladaId = null;
+    state.selectedGameSummaryId = null;
+    state.selectedPlayerId = null;
+    state.editingPlayerId = null;
+    state.remoteUsers = [];
+    state.remoteProfiles = [];
+    state.accountMessage = "";
+    state.gameDraft = createEmptyGameDraft();
+    stopLiveTimer();
+
+    if (!preserveAuth) clearAuthSession();
+    await seedDefaults();
+  }
+
+  async function handleServerResetSubmit(event) {
+    event.preventDefault();
+    if (!canManageUsers()) return;
+
+    const form = event.currentTarget;
+    const confirmation = String(form.elements.confirmation?.value || "").trim();
+    const feedback = $("#server-reset-feedback");
+    const submitButton = form.querySelector('button[type="submit"]');
+
+    if (confirmation.toUpperCase() !== "ZERAR BAGRESCORE") {
+      feedback.textContent = "Digite exatamente ZERAR BAGRESCORE para confirmar.";
+      feedback.hidden = false;
+      return;
+    }
+
+    const confirmed = window.confirm("Esta ação apagará jogadores, peladas, jogos, eventos e todas as contas, exceto o administrador. Deseja continuar?");
+    if (!confirmed) return;
+
+    submitButton.disabled = true;
+    submitButton.textContent = "Zerando base...";
+
+    try {
+      const result = await callAppsScript("resetData", {
+        token: state.authToken,
+        deviceId: getDeviceId(),
+        confirmation,
+      });
+      await resetLocalData(result.epoch, { preserveAuth: false });
+      await updateSyncStatus("Base zerada. Entre novamente como administrador.");
+      await switchSection("inicio", { historyMode: "replace" });
+      openAuthGate("Base zerada com sucesso. Entre novamente.");
+    } catch (error) {
+      feedback.textContent = error.message;
+      feedback.hidden = false;
+      submitButton.disabled = false;
+      submitButton.textContent = "Zerar todos os dados";
+    }
+  }
+
   async function applySyncResponse(response, batch, config) {
     const acknowledgements = new Map((response.acks || []).map((ack) => [String(ack.id || ""), ack]));
     const blockedEntities = new Set();
@@ -10088,6 +10198,7 @@
 
     await putRecord("configs", {
       ...config,
+      serverEpoch: String(response.epoch || config?.serverEpoch || ""),
       lastServerRevision: Number(response.cursor || config?.lastServerRevision || 0),
       lastSyncAt: response.serverTime || nowIso(),
       updatedAt: nowIso(),
@@ -10133,9 +10244,19 @@
       const response = await callAppsScript("sync", {
         token: state.authToken,
         deviceId: getDeviceId(),
+        epoch: String(config?.serverEpoch || ""),
         sinceRevision: Number(config?.lastServerRevision || 0),
         operations: activePending,
       });
+
+      if (response.resetRequired) {
+        await resetLocalData(response.epoch, { preserveAuth: true });
+        await updateSyncStatus("Base remota renovada · dados locais de teste removidos");
+        await renderCurrentSection();
+        window.setTimeout(syncNow, 350);
+        return;
+      }
+
       const changedRecords = await applySyncResponse(response, activePending, config);
       const remaining = (await getAllRecords("syncQueue")).filter((item) => item.status !== "sincronizado").length;
       const timeLabel = new Date(response.serverTime || Date.now()).toLocaleTimeString("pt-BR", {
@@ -10297,6 +10418,10 @@
       syncNow();
     });
     window.addEventListener("offline", updateNetworkStatus);
+    window.addEventListener("focus", () => syncNow());
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") syncNow();
+    });
     window.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
         closeSettingsDrawer();

@@ -1,7 +1,8 @@
-var BAGRESCORE_API_VERSION = "1.0.0";
+var BAGRESCORE_API_VERSION = "1.1.0";
 var BAGRESCORE_DB_PROPERTY = "BAGRESCORE_SPREADSHEET_ID";
 var BAGRESCORE_SECRET_PROPERTY = "BAGRESCORE_AUTH_SECRET";
 var BAGRESCORE_REVISION_PROPERTY = "BAGRESCORE_GLOBAL_REVISION";
+var BAGRESCORE_EPOCH_PROPERTY = "BAGRESCORE_DATA_EPOCH";
 var BAGRESCORE_ADMIN_PIN_PROPERTY = "BAGRESCORE_BOOTSTRAP_ADMIN_PIN";
 var BAGRESCORE_SESSION_DAYS = 30;
 var BAGRESCORE_MAX_LOGIN_FAILURES = 5;
@@ -85,6 +86,7 @@ var BAGRESCORE_AUDIT_HEADERS = [
   "serverCreatedAt",
   "serverRevision"
 ];
+var BAGRESCORE_CHANGE_HEADERS = ["storeName"].concat(BAGRESCORE_ENTITY_HEADERS);
 
 var BAGRESCORE_DEFAULT_PROFILES = [
   { id: "administrador", nome: "Administrador", permissoes: ["*"] },
@@ -112,6 +114,7 @@ function doGet() {
     service: "BagreScore PAOA API",
     version: BAGRESCORE_API_VERSION,
     serverTime: new Date().toISOString(),
+    epoch: bagreScoreCurrentEpoch_(),
     configured: Boolean(PropertiesService.getScriptProperties().getProperty(BAGRESCORE_DB_PROPERTY))
   });
 }
@@ -128,6 +131,7 @@ function doPost(e) {
     if (action === "changePin") return bagreScoreJsonOutput_(bagreScoreHandleChangePin_(request));
     if (action === "listUsers") return bagreScoreJsonOutput_(bagreScoreHandleListUsers_(request));
     if (action === "saveUser") return bagreScoreJsonOutput_(bagreScoreHandleSaveUser_(request));
+    if (action === "resetData") return bagreScoreJsonOutput_(bagreScoreHandleResetData_(request));
     if (action === "sync") return bagreScoreJsonOutput_(bagreScoreHandleSync_(request));
 
     throw new Error("Ação de API inválida.");
@@ -158,12 +162,16 @@ function setupBagreScore() {
     if (!properties.getProperty(BAGRESCORE_REVISION_PROPERTY)) {
       properties.setProperty(BAGRESCORE_REVISION_PROPERTY, "0");
     }
+    if (!properties.getProperty(BAGRESCORE_EPOCH_PROPERTY)) {
+      properties.setProperty(BAGRESCORE_EPOCH_PROPERTY, bagreScoreRandomToken_());
+    }
 
     bagreScoreEnsureSheet_(spreadsheet, "usuarios", BAGRESCORE_USER_HEADERS);
     bagreScoreEnsureSheet_(spreadsheet, "perfis", BAGRESCORE_PROFILE_HEADERS);
     bagreScoreEnsureSheet_(spreadsheet, "sessoes", BAGRESCORE_SESSION_HEADERS);
     bagreScoreEnsureSheet_(spreadsheet, "operacoes", BAGRESCORE_OPERATION_HEADERS);
     bagreScoreEnsureSheet_(spreadsheet, "auditoria", BAGRESCORE_AUDIT_HEADERS);
+    bagreScoreEnsureSheet_(spreadsheet, "mudancas", BAGRESCORE_CHANGE_HEADERS);
 
     BAGRESCORE_SYNC_STORES.forEach(function (storeName) {
       bagreScoreEnsureSheet_(spreadsheet, storeName, BAGRESCORE_ENTITY_HEADERS);
@@ -172,12 +180,14 @@ function setupBagreScore() {
     bagreScoreSeedProfiles_(spreadsheet);
     var bootstrap = bagreScoreSeedAdmin_(spreadsheet);
     bagreScoreSeedCurrentSeason_(spreadsheet);
+    bagreScoreBackfillChangeLog_(spreadsheet);
     var result = {
       ok: true,
       spreadsheetId: spreadsheet.getId(),
       spreadsheetUrl: spreadsheet.getUrl(),
       adminLogin: "admin",
       temporaryPin: bootstrap.temporaryPin || properties.getProperty(BAGRESCORE_ADMIN_PIN_PROPERTY) || "já definido",
+      dataEpoch: bagreScoreCurrentEpoch_(),
       message: "Base criada. Agora implante este projeto como Aplicativo da Web."
     };
 
@@ -195,7 +205,8 @@ function getBagreScoreSetupInfo() {
     configured: Boolean(spreadsheetId),
     spreadsheetUrl: spreadsheetId ? SpreadsheetApp.openById(spreadsheetId).getUrl() : "",
     adminLogin: "admin",
-    temporaryPin: properties.getProperty(BAGRESCORE_ADMIN_PIN_PROPERTY) || "não disponível"
+    temporaryPin: properties.getProperty(BAGRESCORE_ADMIN_PIN_PROPERTY) || "não disponível",
+    dataEpoch: properties.getProperty(BAGRESCORE_EPOCH_PROPERTY) || ""
   };
   Logger.log(JSON.stringify(result, null, 2));
   return result;
@@ -231,6 +242,7 @@ function bagreScoreHandlePing_() {
     service: "BagreScore PAOA API",
     version: BAGRESCORE_API_VERSION,
     serverTime: new Date().toISOString(),
+    epoch: bagreScoreCurrentEpoch_(),
     serverRevision: bagreScoreCurrentGlobalRevision_()
   });
 }
@@ -300,6 +312,7 @@ function bagreScoreHandleLogin_(request) {
     token: rawToken,
     expiresAt: expiresAt,
     user: user,
+    epoch: bagreScoreCurrentEpoch_(),
     serverTime: now.toISOString(),
     serverRevision: bagreScoreCurrentGlobalRevision_()
   };
@@ -311,6 +324,7 @@ function bagreScoreHandleMe_(request) {
     ok: true,
     user: auth.user,
     expiresAt: auth.session.expiresAt,
+    epoch: bagreScoreCurrentEpoch_(),
     serverTime: new Date().toISOString(),
     serverRevision: bagreScoreCurrentGlobalRevision_()
   };
@@ -426,18 +440,79 @@ function bagreScoreHandleSaveUser_(request) {
   };
 }
 
+function bagreScoreHandleResetData_(request) {
+  var auth = bagreScoreRequireSession_(request.token, "configs:editar");
+  if (auth.user.perfilId !== "administrador") throw new Error("Somente um administrador pode zerar a base.");
+  if (String(request.confirmation || "").trim().toUpperCase() !== "ZERAR BAGRESCORE") {
+    throw new Error("Confirmação inválida.");
+  }
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+
+  try {
+    var spreadsheet = auth.spreadsheet;
+    var adminRecord = auth.userRecord;
+
+    BAGRESCORE_SYNC_STORES.forEach(function (storeName) {
+      bagreScoreClearSheetData_(spreadsheet.getSheetByName(storeName));
+    });
+    ["operacoes", "mudancas", "auditoria", "sessoes"].forEach(function (sheetName) {
+      bagreScoreClearSheetData_(spreadsheet.getSheetByName(sheetName));
+    });
+
+    var userSheet = spreadsheet.getSheetByName("usuarios");
+    bagreScoreClearSheetData_(userSheet);
+    bagreScoreAppendObject_(userSheet, adminRecord);
+
+    var properties = PropertiesService.getScriptProperties();
+    properties.setProperty(BAGRESCORE_REVISION_PROPERTY, "0");
+    properties.setProperty(BAGRESCORE_EPOCH_PROPERTY, bagreScoreRandomToken_());
+    bagreScoreSeedCurrentSeason_(spreadsheet);
+    bagreScoreAppendAudit_(spreadsheet, auth.user.id, String(request.deviceId || ""), "reset-completo", "sistema", "bagrescore", {}, bagreScoreCurrentGlobalRevision_());
+
+    return {
+      ok: true,
+      reset: true,
+      sessionInvalidated: true,
+      epoch: bagreScoreCurrentEpoch_(),
+      serverRevision: bagreScoreCurrentGlobalRevision_(),
+      serverTime: new Date().toISOString()
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function bagreScoreHandleSync_(request) {
   var auth = bagreScoreRequireSession_(request.token, "");
   var operations = Array.isArray(request.operations) ? request.operations.slice(0, BAGRESCORE_MAX_SYNC_OPERATIONS) : [];
   var sinceRevision = Math.max(0, Number(request.sinceRevision || 0));
   var deviceId = String(request.deviceId || auth.session.deviceId || "");
+  var serverEpoch = bagreScoreCurrentEpoch_();
+
+  if (String(request.epoch || "") !== serverEpoch) {
+    return {
+      ok: true,
+      resetRequired: true,
+      acks: [],
+      changes: [],
+      cursor: 0,
+      hasMore: false,
+      epoch: serverEpoch,
+      user: auth.user,
+      serverTime: new Date().toISOString(),
+      serverRevision: bagreScoreCurrentGlobalRevision_()
+    };
+  }
+
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
 
   try {
     var spreadsheet = auth.spreadsheet;
     var operationSheet = spreadsheet.getSheetByName("operacoes");
-    var existingOperations = bagreScoreReadObjects_(operationSheet);
+    var existingOperations = operations.length ? bagreScoreReadObjects_(operationSheet) : [];
     var operationMap = {};
     existingOperations.forEach(function (item) {
       operationMap[String(item.record.operationId)] = item.record;
@@ -509,6 +584,7 @@ function bagreScoreHandleSync_(request) {
       changes: pull.changes,
       cursor: pull.cursor,
       hasMore: pull.hasMore,
+      epoch: serverEpoch,
       user: auth.user,
       serverTime: new Date().toISOString(),
       serverRevision: bagreScoreCurrentGlobalRevision_()
@@ -558,6 +634,7 @@ function bagreScoreWriteEntity_(spreadsheet, storeName, entityId, operationType,
     bagreScoreAppendObject_(sheet, record);
   }
 
+  bagreScoreAppendChange_(spreadsheet, storeName, record);
   bagreScoreAppendAudit_(spreadsheet, userId, deviceId, deleted ? "delete" : "upsert", storeName, entityId, { entityRevision: entityRevision }, globalRevision);
   return record;
 }
@@ -565,24 +642,20 @@ function bagreScoreWriteEntity_(spreadsheet, storeName, entityId, operationType,
 function bagreScoreListChanges_(spreadsheet, sinceRevision, limit) {
   var changes = [];
 
-  BAGRESCORE_SYNC_STORES.forEach(function (storeName) {
-    var sheet = spreadsheet.getSheetByName(storeName);
-    bagreScoreReadObjects_(sheet).forEach(function (item) {
-      var record = item.record;
-      var serverRevision = Number(record.serverRevision || 0);
-      if (serverRevision <= sinceRevision) return;
+  bagreScoreReadObjects_(spreadsheet.getSheetByName("mudancas")).forEach(function (item) {
+    var record = item.record;
+    var serverRevision = Number(record.serverRevision || 0);
+    if (serverRevision <= sinceRevision) return;
 
-      var payload = bagreScoreParseEntityPayload_(record);
-      changes.push({
-        storeName: storeName,
-        entityId: String(record.entityId),
-        deleted: bagreScoreBoolean_(record.deleted),
-        entityRevision: Number(record.entityRevision || 0),
-        serverRevision: serverRevision,
-        serverCreatedAt: String(record.serverCreatedAt || ""),
-        serverUpdatedAt: String(record.serverUpdatedAt || ""),
-        payload: payload
-      });
+    changes.push({
+      storeName: String(record.storeName || ""),
+      entityId: String(record.entityId || ""),
+      deleted: bagreScoreBoolean_(record.deleted),
+      entityRevision: Number(record.entityRevision || 0),
+      serverRevision: serverRevision,
+      serverCreatedAt: String(record.serverCreatedAt || ""),
+      serverUpdatedAt: String(record.serverUpdatedAt || ""),
+      payload: bagreScoreParseEntityPayload_(record)
     });
   });
 
@@ -772,6 +845,29 @@ function bagreScoreAppendAudit_(spreadsheet, userId, deviceId, action, storeName
   });
 }
 
+function bagreScoreAppendChange_(spreadsheet, storeName, entityRecord) {
+  var change = { storeName: storeName };
+  BAGRESCORE_ENTITY_HEADERS.forEach(function (header) {
+    change[header] = entityRecord[header] === undefined ? "" : entityRecord[header];
+  });
+  bagreScoreAppendObject_(spreadsheet.getSheetByName("mudancas"), change);
+}
+
+function bagreScoreBackfillChangeLog_(spreadsheet) {
+  var changeSheet = spreadsheet.getSheetByName("mudancas");
+  var existing = {};
+  bagreScoreReadObjects_(changeSheet).forEach(function (item) {
+    existing[String(item.record.storeName) + ":" + String(item.record.entityId) + ":" + String(item.record.serverRevision)] = true;
+  });
+
+  BAGRESCORE_SYNC_STORES.forEach(function (storeName) {
+    bagreScoreReadObjects_(spreadsheet.getSheetByName(storeName)).forEach(function (item) {
+      var key = storeName + ":" + String(item.record.entityId) + ":" + String(item.record.serverRevision);
+      if (item.record.entityId && !existing[key]) bagreScoreAppendChange_(spreadsheet, storeName, item.record);
+    });
+  });
+}
+
 function bagreScoreChunkPayload_(json) {
   var chunks = [];
   for (var offset = 0; offset < json.length; offset += BAGRESCORE_PAYLOAD_CHUNK_SIZE) {
@@ -821,11 +917,19 @@ function bagreScoreReadObjects_(sheet) {
 
 function bagreScoreFindRowByValue_(sheet, field, value) {
   var expected = String(value || "");
-  var rows = bagreScoreReadObjects_(sheet);
-  for (var index = 0; index < rows.length; index += 1) {
-    if (String(rows[index].record[field] || "") === expected) return rows[index];
-  }
-  return null;
+  if (!sheet || sheet.getLastRow() < 2) return null;
+  var lastColumn = sheet.getLastColumn();
+  var headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
+  var fieldIndex = headers.map(String).indexOf(String(field));
+  if (fieldIndex < 0) return null;
+  var range = sheet.getRange(2, fieldIndex + 1, sheet.getLastRow() - 1, 1);
+  var cell = range.createTextFinder(expected).matchEntireCell(true).findNext();
+  if (!cell) return null;
+  var rowNumber = cell.getRow();
+  var values = sheet.getRange(rowNumber, 1, 1, lastColumn).getValues()[0];
+  var record = {};
+  headers.forEach(function (header, index) { record[String(header)] = values[index]; });
+  return { record: record, rowNumber: rowNumber };
 }
 
 function bagreScoreAppendObject_(sheet, record) {
@@ -850,6 +954,16 @@ function bagreScoreUpdateRowObject_(sheet, rowNumber, changes) {
 
 function bagreScoreCurrentGlobalRevision_() {
   return Number(PropertiesService.getScriptProperties().getProperty(BAGRESCORE_REVISION_PROPERTY) || 0);
+}
+
+function bagreScoreCurrentEpoch_() {
+  var properties = PropertiesService.getScriptProperties();
+  var epoch = properties.getProperty(BAGRESCORE_EPOCH_PROPERTY);
+  if (!epoch) {
+    epoch = bagreScoreRandomToken_();
+    properties.setProperty(BAGRESCORE_EPOCH_PROPERTY, epoch);
+  }
+  return epoch;
 }
 
 function bagreScoreNextGlobalRevision_() {
@@ -914,4 +1028,10 @@ function bagreScoreJsonOutput_(payload) {
   return ContentService
     .createTextOutput(JSON.stringify(payload))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+function bagreScoreClearSheetData_(sheet) {
+  if (sheet && sheet.getLastRow() > 1) {
+    sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clearContent();
+  }
 }

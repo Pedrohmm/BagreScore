@@ -10117,6 +10117,51 @@ body.auth-required {
   font-size: 0.84rem;
 }
 
+.server-reset-card {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 16px;
+  border-color: rgba(227, 93, 93, 0.28);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(227, 93, 93, 0.1), transparent 14rem),
+    linear-gradient(145deg, rgba(24, 14, 14, 0.98), rgba(7, 7, 7, 0.98));
+}
+
+.server-reset-card h3 {
+  margin: 4px 0 6px;
+  color: #fff;
+}
+
+.server-reset-card p {
+  margin-bottom: 0;
+}
+
+.sync-error-summary {
+  border: 1px solid rgba(227, 93, 93, 0.24);
+  border-radius: 12px;
+  padding: 9px 10px;
+  color: #ffc2c2 !important;
+  background: rgba(227, 93, 93, 0.07);
+}
+
+.server-reset-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+  border-top: 1px solid rgba(227, 93, 93, 0.15);
+  padding-top: 16px;
+}
+
+.server-reset-form .danger-button {
+  min-height: 50px;
+  white-space: nowrap;
+}
+
+.server-reset-form .form-feedback {
+  grid-column: 1 / -1;
+}
+
 #account-button .drawer-icon {
   color: var(--orange);
   box-shadow: 0 0 16px rgba(255, 90, 0, 0.22);
@@ -10124,14 +10169,107 @@ body.auth-required {
 
 @media (max-width: 620px) {
   .sync-config-form,
+  .server-reset-form,
   .change-pin-form .form-grid,
   .user-admin-form .form-grid {
     grid-template-columns: 1fr;
   }
 
   .sync-config-form .primary-button,
+  .server-reset-form .danger-button,
   .change-pin-form > .ghost-button {
     width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  body[data-section="configuracoes"] .app-shell,
+  body[data-section="configuracoes"] .workspace-panel,
+  body[data-section="configuracoes"] #section-content,
+  body[data-section="configuracoes"] .data-card,
+  body[data-section="configuracoes"] form,
+  body[data-section="configuracoes"] .form-grid,
+  body[data-section="configuracoes"] .content-grid,
+  body[data-section="configuracoes"] .collection-grid {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  body[data-section="configuracoes"] .section-heading {
+    align-items: flex-start;
+    border-radius: 20px;
+    padding: 14px;
+  }
+
+  body[data-section="configuracoes"] #section-title {
+    font-size: 2rem;
+  }
+
+  body[data-section="configuracoes"] .data-card {
+    overflow: hidden;
+    border-radius: 19px;
+    padding: 14px;
+  }
+
+  body[data-section="configuracoes"] .section-heading-inline {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  body[data-section="configuracoes"] .section-heading-inline .status-pill,
+  body[data-section="configuracoes"] .section-heading-inline .count-badge {
+    align-self: flex-start;
+  }
+
+  body[data-section="configuracoes"] p,
+  body[data-section="configuracoes"] strong,
+  body[data-section="configuracoes"] small,
+  body[data-section="configuracoes"] .field-label,
+  body[data-section="configuracoes"] .field-label input,
+  body[data-section="configuracoes"] .field-label select {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  body[data-section="configuracoes"] .diagnostics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  body[data-section="configuracoes"] .diagnostics-grid article {
+    min-width: 0;
+    padding: 11px;
+  }
+
+  body[data-section="configuracoes"] .diagnostics-lists,
+  body[data-section="configuracoes"] .diagnostics-collections {
+    width: 100%;
+    max-height: none;
+    overflow: hidden;
+    padding-right: 0;
+  }
+
+  body[data-section="configuracoes"] .diagnostics-collections {
+    grid-template-columns: 1fr;
+    border-radius: 18px;
+    padding: 8px;
+  }
+
+  body[data-section="configuracoes"] .field-list {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  body[data-section="configuracoes"] .remote-user-row {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  body[data-section="configuracoes"] .remote-user-row em {
+    grid-column: 2;
+    justify-self: start;
   }
 }
 
