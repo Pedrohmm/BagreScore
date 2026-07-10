@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.9.15";
+  const APP_VERSION = "0.9.16";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 15000;
@@ -474,6 +474,11 @@
   const PLAYER_PHOTO_MAX_INPUT_BYTES = 8 * 1024 * 1024;
   const PLAYER_PHOTO_MAX_SIZE = 720;
   const PLAYER_PHOTO_QUALITY = 0.84;
+  const PLAYER_FORM_STEPS = [
+    { id: "basicos", label: "Dados básicos" },
+    { id: "futebol", label: "Informações futebolísticas" },
+    { id: "atributos", label: "Atributos e carta" },
+  ];
 
   const LINE_ATTRIBUTES = [
     {
@@ -563,6 +568,9 @@
     installPrompt: null,
     selectedPlayerId: null,
     editingPlayerId: null,
+    playerFormOpen: false,
+    playerFormStep: "basicos",
+    playersListOpen: false,
     selectedPeladaId: null,
     selectedGameSummaryId: null,
     peladasView: "gerenciar",
@@ -3184,8 +3192,44 @@
     `;
   }
 
+  function normalizePlayerFormStep(step) {
+    return PLAYER_FORM_STEPS.some((item) => item.id === step) ? step : PLAYER_FORM_STEPS[0].id;
+  }
+
+  function getPlayerFormStepIndex(step) {
+    return Math.max(0, PLAYER_FORM_STEPS.findIndex((item) => item.id === normalizePlayerFormStep(step)));
+  }
+
+  function renderPlayerFormStepper(activeStep) {
+    const activeIndex = getPlayerFormStepIndex(activeStep);
+
+    return `
+      <div class="player-form-stepper" aria-label="Etapas do cadastro">
+        ${PLAYER_FORM_STEPS.map((step, index) => `
+          <span class="${index === activeIndex ? "is-active" : ""} ${index < activeIndex ? "is-done" : ""}" data-step-indicator="${escapeHtml(step.id)}">
+            <strong>${escapeHtml(index + 1)}</strong>
+            <small>${escapeHtml(step.label)}</small>
+          </span>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  function renderPlayerFormStepActions(isEditing, activeStep) {
+    const isFirstStep = activeStep === PLAYER_FORM_STEPS[0].id;
+    const isLastStep = activeStep === PLAYER_FORM_STEPS[PLAYER_FORM_STEPS.length - 1].id;
+
+    return `
+      <div class="form-actions player-wizard-actions">
+        ${isFirstStep ? `<button class="ghost-button" type="button" data-player-action="cancel-form">${isEditing ? "Cancelar edição" : "Cancelar"}</button>` : `<button class="ghost-button" type="button" data-player-action="prev-step">Voltar</button>`}
+        ${isLastStep ? `<button class="primary-button" type="submit">${isEditing ? "Salvar alterações" : "Finalizar cadastro"}</button>` : `<button class="primary-button" type="button" data-player-action="next-step">Continuar</button>`}
+      </div>
+    `;
+  }
+
   function renderPlayerForm(player = null, attributesRecord = null) {
     const isEditing = Boolean(player);
+    const activeStep = normalizePlayerFormStep(state.playerFormStep);
     const tipoJogador = player?.tipoJogador || "Linha";
     const posicaoPrincipal = player?.posicaoPrincipal || "ST";
     const attributes = {
@@ -3197,10 +3241,11 @@
     const idade = Number.isFinite(Number(player?.idade)) ? player.idade : "";
 
     return `
-      <form class="player-form" id="player-form" data-player-id="${escapeHtml(player?.id || "")}" novalidate>
+      <form class="player-form player-wizard-form" id="player-form" data-player-id="${escapeHtml(player?.id || "")}" data-player-step="${escapeHtml(activeStep)}" novalidate>
         <div class="form-errors" id="player-form-errors" hidden></div>
+        ${renderPlayerFormStepper(activeStep)}
 
-        <section class="form-section">
+        <section class="form-section player-step-panel ${activeStep === "basicos" ? "is-active-step" : ""}" data-player-step-panel="basicos">
           <h3>1. Dados básicos</h3>
           <div class="form-grid">
             <label class="field-label">
@@ -3219,7 +3264,7 @@
           </div>
         </section>
 
-        <section class="form-section">
+        <section class="form-section player-step-panel ${activeStep === "futebol" ? "is-active-step" : ""}" data-player-step-panel="futebol">
           <h3>2. Informações futebolísticas</h3>
           <div class="form-grid">
             <label class="field-label">
@@ -3255,7 +3300,7 @@
           </div>
         </section>
 
-        <section class="form-section">
+        <section class="form-section player-step-panel ${activeStep === "atributos" ? "is-active-step" : ""}" data-player-step-panel="atributos">
           <h3>3. Atributos</h3>
           <div class="attribute-help">
             <span>Use valores de 1 a 99. A ficha mostra atributos de linha ou goleiro conforme o tipo/posição.</span>
@@ -3264,7 +3309,7 @@
           ${renderPlayerAttributeFields(GOALKEEPER_ATTRIBUTES, attributes, "goleiro", activeGroup)}
         </section>
 
-        <section class="form-section">
+        <section class="form-section player-step-panel ${activeStep === "atributos" ? "is-active-step" : ""}" data-player-step-panel="atributos">
           <h3>4. Resultado automático da carta</h3>
           <div class="card-result">
             <div>
@@ -3278,10 +3323,7 @@
           </div>
         </section>
 
-        <div class="form-actions">
-          <button class="primary-button" type="submit">${isEditing ? "Salvar alterações" : "Salvar jogador"}</button>
-          <button class="ghost-button" type="button" data-player-action="reset-form">${isEditing ? "Cancelar edição" : "Limpar"}</button>
-        </div>
+        ${renderPlayerFormStepActions(isEditing, activeStep)}
       </form>
     `;
   }
@@ -3401,7 +3443,56 @@
             <em>${topPlayer ? `${escapeHtml(topPlayer.overall || "-")} OVR` : "Cadastre o primeiro atleta"}</em>
           </span>
         </div>
-        <button class="primary-button players-hero-action" type="button" data-player-action="new">Novo jogador</button>
+        <button class="primary-button players-hero-action" type="button" data-player-action="start-create">Cadastrar jogador</button>
+      </section>
+    `;
+  }
+
+  function renderPlayersActionCards(jogadores) {
+    const openLabel = state.playersListOpen ? "Ocultar elenco" : "Abrir elenco";
+
+    return `
+      <div class="players-action-grid">
+        <button class="players-action-card is-primary" type="button" data-player-action="start-create">
+          <span>+</span>
+          <strong>Cadastrar jogador</strong>
+          <small>Abra o cadastro guiado em etapas para criar uma nova carta.</small>
+        </button>
+        <button class="players-action-card" type="button" data-player-action="toggle-roster">
+          <span>${escapeHtml(jogadores.length)}</span>
+          <strong>Elenco cadastrado</strong>
+          <small>${escapeHtml(openLabel)} com todos os jogadores salvos neste aparelho.</small>
+        </button>
+      </div>
+    `;
+  }
+
+  function renderPlayersRosterPanel(jogadores, selectedPlayer) {
+    if (!state.playersListOpen) {
+      return "";
+    }
+
+    return `
+      <section class="players-list-panel">
+        <div class="players-toolbar">
+          <div>
+            <span class="panel-kicker">Elenco local</span>
+            <h3>Jogadores cadastrados</h3>
+            <p>${jogadores.length} jogador${jogadores.length === 1 ? "" : "es"} salvo${jogadores.length === 1 ? "" : "s"} neste aparelho.</p>
+          </div>
+          <button class="ghost-button compact-button" type="button" data-player-action="toggle-roster">Fechar elenco</button>
+        </div>
+        ${
+          jogadores.length
+            ? `<div class="player-card-grid">${jogadores.map(renderPlayerCard).join("")}</div>`
+            : `
+              <div class="empty-state">
+                <h3>Nenhum jogador cadastrado</h3>
+                <p>Abra o cadastro para criar o primeiro jogador e liberar a seleção em times e eventos.</p>
+              </div>
+            `
+        }
+        ${selectedPlayer ? renderPlayerDetail(selectedPlayer) : ""}
       </section>
     `;
   }
@@ -3409,8 +3500,9 @@
   async function renderPlayersSection() {
     const jogadores = await readPlayersWithAttributes();
     const selectedPlayer =
-      jogadores.find((jogador) => jogador.id === state.selectedPlayerId) || jogadores[0] || null;
+      jogadores.find((jogador) => jogador.id === state.selectedPlayerId) || null;
     const editingPlayer = jogadores.find((jogador) => jogador.id === state.editingPlayerId) || null;
+    const shouldShowForm = state.playerFormOpen || Boolean(editingPlayer);
 
     setSectionTitle("Cadastro", "Jogadores");
     state.selectedPlayerId = selectedPlayer?.id || null;
@@ -3418,40 +3510,24 @@
     $("#section-content").innerHTML = `
       <div class="players-screen">
         ${renderPlayersHero(jogadores)}
-        <div class="players-layout">
-        <section class="data-card player-form-card">
-          <div class="players-toolbar">
-            <div>
-              <span class="panel-kicker">${editingPlayer ? "Edição da carta" : "Nova carta"}</span>
-              <h3>${editingPlayer ? "Editar jogador" : "Cadastrar jogador"}</h3>
-              <p>Foto, dados e atributos com overall calculado automaticamente.</p>
-            </div>
-          </div>
-          ${renderPlayerForm(editingPlayer)}
-        </section>
-
-        <section class="players-list-panel">
-          <div class="players-toolbar">
-            <div>
-              <span class="panel-kicker">Elenco local</span>
-              <h3>Jogadores cadastrados</h3>
-              <p>${jogadores.length} jogador${jogadores.length === 1 ? "" : "es"} salvo${jogadores.length === 1 ? "" : "s"} neste aparelho.</p>
-            </div>
-            <button class="ghost-button compact-button" type="button" data-player-action="new">Novo</button>
-          </div>
-          ${
-            jogadores.length
-              ? `<div class="player-card-grid">${jogadores.map(renderPlayerCard).join("")}</div>`
-              : `
-                <div class="empty-state">
-                  <h3>Nenhum jogador cadastrado</h3>
-                  <p>Preencha o formulário para criar o primeiro jogador e liberar a seleção futura em times e eventos.</p>
+        ${renderPlayersActionCards(jogadores)}
+        ${
+          shouldShowForm
+            ? `
+              <section class="data-card player-form-card">
+                <div class="players-toolbar">
+                  <div>
+                    <span class="panel-kicker">${editingPlayer ? "Edição da carta" : "Nova carta"}</span>
+                    <h3>${editingPlayer ? "Editar jogador" : "Cadastrar jogador"}</h3>
+                    <p>Cadastro guiado em etapas para deixar a carta completa sem poluir a tela.</p>
+                  </div>
                 </div>
-              `
-          }
-          ${renderPlayerDetail(selectedPlayer)}
-        </section>
-        </div>
+                ${renderPlayerForm(editingPlayer)}
+              </section>
+            `
+            : ""
+        }
+        ${renderPlayersRosterPanel(jogadores, selectedPlayer)}
       </div>
     `;
 
@@ -3463,26 +3539,28 @@
     const layout = $(".players-screen");
     const form = $("#player-form");
 
-    if (!layout || !form) {
+    if (!layout) {
       return;
     }
 
-    form.addEventListener("input", (event) => {
-      if (["nome", "apelido"].includes(event.target?.name)) {
-        updatePlayerPhotoPreview(form);
-      }
-      updatePlayerFormState(form);
-    });
-    form.addEventListener("change", async (event) => {
-      if (event.target?.name === "fotoArquivo") {
-        await handlePlayerPhotoSelection(form, event.target);
-        return;
-      }
+    if (form) {
+      form.addEventListener("input", (event) => {
+        if (["nome", "apelido"].includes(event.target?.name)) {
+          updatePlayerPhotoPreview(form);
+        }
+        updatePlayerFormState(form);
+      });
+      form.addEventListener("change", async (event) => {
+        if (event.target?.name === "fotoArquivo") {
+          await handlePlayerPhotoSelection(form, event.target);
+          return;
+        }
 
-      normalizePlayerTypeAndPosition(form, event.target);
-      updatePlayerFormState(form);
-    });
-    form.addEventListener("submit", handlePlayerFormSubmit);
+        normalizePlayerTypeAndPosition(form, event.target);
+        updatePlayerFormState(form);
+      });
+      form.addEventListener("submit", handlePlayerFormSubmit);
+    }
 
     layout.addEventListener("click", async (event) => {
       const actionButton = event.target.closest("[data-player-action]");
@@ -3495,20 +3573,60 @@
       const playerId = actionButton.dataset.playerId;
 
       if (action === "remove-photo") {
-        clearPlayerPhoto(form);
+        if (form) {
+          clearPlayerPhoto(form);
+        }
+        return;
+      }
+
+      if (action === "start-create" || action === "new") {
+        state.playerFormOpen = true;
+        state.playerFormStep = "basicos";
+        state.editingPlayerId = null;
+        state.selectedPlayerId = null;
+        await renderCurrentSection();
+        $("#player-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+
+      if (action === "toggle-roster") {
+        state.playersListOpen = !state.playersListOpen;
+        state.selectedPlayerId = null;
+        await renderCurrentSection();
+        return;
+      }
+
+      if (action === "next-step" && form) {
+        advancePlayerFormStep(form, 1);
+        return;
+      }
+
+      if (action === "prev-step" && form) {
+        advancePlayerFormStep(form, -1);
+        return;
+      }
+
+      if (action === "cancel-form") {
+        state.playerFormOpen = false;
+        state.playerFormStep = "basicos";
+        state.editingPlayerId = null;
+        await renderCurrentSection();
         return;
       }
 
       if (action === "view" && playerId) {
-        state.selectedStatsPlayerId = playerId;
+        state.selectedPlayerId = playerId;
         state.editingPlayerId = null;
-        await switchSection("estatisticas");
+        state.playersListOpen = true;
+        await renderCurrentSection();
         return;
       }
 
       if (action === "edit" && playerId) {
         state.selectedPlayerId = playerId;
         state.editingPlayerId = playerId;
+        state.playerFormOpen = true;
+        state.playerFormStep = "basicos";
         await renderCurrentSection();
         $("#player-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
         return;
@@ -3524,11 +3642,102 @@
         return;
       }
 
-      if (action === "reset-form" || action === "new") {
+      if (action === "reset-form") {
+        state.playerFormOpen = false;
+        state.playerFormStep = "basicos";
         state.editingPlayerId = null;
         await renderCurrentSection();
       }
     });
+  }
+
+  function advancePlayerFormStep(form, direction) {
+    const currentStep = normalizePlayerFormStep(form?.dataset.playerStep || state.playerFormStep);
+    const currentIndex = getPlayerFormStepIndex(currentStep);
+    const nextIndex = clamp(currentIndex + direction, 0, PLAYER_FORM_STEPS.length - 1);
+
+    if (direction > 0) {
+      const errors = validatePlayerWizardStep(form, currentStep);
+      showPlayerFormErrors(errors);
+
+      if (errors.length) {
+        return;
+      }
+    }
+
+    setPlayerFormStep(PLAYER_FORM_STEPS[nextIndex].id, form);
+  }
+
+  function setPlayerFormStep(step, form = $("#player-form")) {
+    const activeStep = normalizePlayerFormStep(step);
+    const activeIndex = getPlayerFormStepIndex(activeStep);
+    const isEditing = Boolean(form?.dataset.playerId);
+
+    state.playerFormStep = activeStep;
+
+    if (!form) {
+      return;
+    }
+
+    form.dataset.playerStep = activeStep;
+    form.querySelectorAll("[data-player-step-panel]").forEach((panel) => {
+      panel.classList.toggle("is-active-step", panel.dataset.playerStepPanel === activeStep);
+    });
+    form.querySelectorAll("[data-step-indicator]").forEach((indicator) => {
+      const index = getPlayerFormStepIndex(indicator.dataset.stepIndicator);
+      indicator.classList.toggle("is-active", index === activeIndex);
+      indicator.classList.toggle("is-done", index < activeIndex);
+    });
+
+    const actions = form.querySelector(".player-wizard-actions");
+    if (actions) {
+      actions.outerHTML = renderPlayerFormStepActions(isEditing, activeStep);
+    }
+
+    showPlayerFormErrors([]);
+    updatePlayerFormState(form);
+  }
+
+  function validatePlayerWizardStep(form, step) {
+    const errors = [];
+    const normalizedStep = normalizePlayerFormStep(step);
+
+    if (normalizedStep === "basicos") {
+      const nome = String(form.elements.nome?.value || "").trim();
+      const idadeValue = String(form.elements.idade?.value || "").trim();
+      const idade = idadeValue ? Number(idadeValue) : "";
+
+      if (!nome) {
+        errors.push("Nome é obrigatório.");
+      }
+
+      if (idade !== "" && (!Number.isFinite(idade) || idade < 1 || idade > 120)) {
+        errors.push("Idade deve ser um número válido.");
+      }
+    }
+
+    if (normalizedStep === "futebol") {
+      const tipoJogador = form.elements.tipoJogador?.value || "";
+      const posicaoPrincipal = form.elements.posicaoPrincipal?.value || "";
+
+      if (!PLAYER_TYPES.includes(tipoJogador)) {
+        errors.push("Tipo de jogador é obrigatório.");
+      }
+
+      if (!PLAYER_POSITIONS.includes(posicaoPrincipal)) {
+        errors.push("Posição principal é obrigatória.");
+      }
+
+      if (tipoJogador === "Goleiro" && posicaoPrincipal !== "GK") {
+        errors.push("Goleiro deve usar a posição principal GK.");
+      }
+
+      if (tipoJogador === "Linha" && posicaoPrincipal === "GK") {
+        errors.push("Jogador de linha não pode usar GK como posição principal.");
+      }
+    }
+
+    return errors;
   }
 
   function updatePlayerPhotoPreview(form = $("#player-form")) {
@@ -3793,6 +4002,13 @@
     event.preventDefault();
 
     const form = event.currentTarget;
+    const currentStep = normalizePlayerFormStep(form.dataset.playerStep || state.playerFormStep);
+
+    if (currentStep !== "atributos") {
+      advancePlayerFormStep(form, 1);
+      return;
+    }
+
     normalizePlayerTypeAndPosition(form);
     updatePlayerFormState(form);
 
@@ -3850,6 +4066,9 @@
 
     state.selectedPlayerId = jogadorId;
     state.editingPlayerId = null;
+    state.playerFormOpen = false;
+    state.playerFormStep = "basicos";
+    state.playersListOpen = true;
     await refreshCurrentView();
     await syncNow();
   }

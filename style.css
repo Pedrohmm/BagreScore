@@ -5919,6 +5919,65 @@ body[data-section="jogadores"] .players-hero-action {
   white-space: nowrap;
 }
 
+body[data-section="jogadores"] .players-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+body[data-section="jogadores"] .players-action-card {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  min-height: 110px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 20px;
+  padding: 16px;
+  color: #f4f4f4;
+  text-align: left;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.1), transparent 14rem),
+    linear-gradient(145deg, rgba(19, 19, 19, 0.98), rgba(7, 7, 7, 0.98));
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+
+body[data-section="jogadores"] .players-action-card.is-primary {
+  border-color: rgba(255, 90, 0, 0.48);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(255, 90, 0, 0.22), transparent 14rem),
+    linear-gradient(145deg, rgba(28, 18, 12, 0.98), rgba(7, 7, 7, 0.98));
+}
+
+body[data-section="jogadores"] .players-action-card > span {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border: 1px solid rgba(255, 90, 0, 0.42);
+  border-radius: 16px;
+  color: var(--orange);
+  background: rgba(255, 90, 0, 0.1);
+  font-size: 1.45rem;
+  font-weight: 950;
+}
+
+body[data-section="jogadores"] .players-action-card strong,
+body[data-section="jogadores"] .players-action-card small {
+  grid-column: 2;
+}
+
+body[data-section="jogadores"] .players-action-card strong {
+  color: #fff;
+  font-size: 1.12rem;
+}
+
+body[data-section="jogadores"] .players-action-card small {
+  color: #aeb0b3;
+  line-height: 1.4;
+}
+
 body[data-section="jogadores"] .player-form-card,
 body[data-section="jogadores"] .players-list-panel,
 body[data-section="jogadores"] .player-detail,
@@ -5930,6 +5989,10 @@ body[data-section="jogadores"] .empty-state {
     radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.08), transparent 14rem),
     linear-gradient(145deg, rgba(19, 19, 19, 0.98), rgba(7, 7, 7, 0.98));
   box-shadow: 0 16px 38px rgba(0, 0, 0, 0.3);
+}
+
+body[data-section="jogadores"] .player-form-card {
+  position: static;
 }
 
 body[data-section="jogadores"] .players-list-panel {
@@ -5959,6 +6022,73 @@ body[data-section="jogadores"] .form-section {
 body[data-section="jogadores"] .form-section h3 {
   color: #fff;
   font-size: 1rem;
+}
+
+body[data-section="jogadores"] .player-form-stepper {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+body[data-section="jogadores"] .player-form-stepper span {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 8px;
+  color: #9f9f9f;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+body[data-section="jogadores"] .player-form-stepper strong {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  color: #d6d6d6;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.82rem;
+}
+
+body[data-section="jogadores"] .player-form-stepper small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-section="jogadores"] .player-form-stepper .is-active {
+  border-color: rgba(255, 90, 0, 0.56);
+  color: #fff;
+  background: rgba(255, 90, 0, 0.11);
+}
+
+body[data-section="jogadores"] .player-form-stepper .is-active strong,
+body[data-section="jogadores"] .player-form-stepper .is-done strong {
+  color: #fff;
+  background: linear-gradient(135deg, #ff7a1c, #ff4d00);
+}
+
+body[data-section="jogadores"] .player-step-panel {
+  display: none;
+}
+
+body[data-section="jogadores"] .player-step-panel.is-active-step {
+  display: grid;
+}
+
+body[data-section="jogadores"] .player-wizard-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+}
+
+body[data-section="jogadores"] .player-wizard-actions button {
+  min-height: 52px;
+  justify-content: center;
+  border-radius: 14px;
 }
 
 body[data-section="jogadores"] .field-label span,
@@ -6126,6 +6256,18 @@ body[data-section="jogadores"] .status-inativo {
     grid-template-columns: 1fr;
   }
 
+  body[data-section="jogadores"] .players-action-grid {
+    grid-template-columns: 1fr;
+  }
+
+  body[data-section="jogadores"] .players-action-card {
+    min-height: 96px;
+  }
+
+  body[data-section="jogadores"] .player-form-stepper {
+    grid-template-columns: 1fr;
+  }
+
   body[data-section="jogadores"] .form-grid,
   body[data-section="jogadores"] .attribute-group,
   body[data-section="jogadores"] .card-result,
@@ -6146,6 +6288,10 @@ body[data-section="jogadores"] .status-inativo {
   body[data-section="jogadores"] .players-toolbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  body[data-section="jogadores"] .player-wizard-actions {
+    grid-template-columns: 1fr;
   }
 
   body[data-section="jogadores"] .players-toolbar .compact-button {
