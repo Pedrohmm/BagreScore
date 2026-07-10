@@ -86,3 +86,5 @@ Para aplicar:
 6. em **Zerar dados de teste**, digite `ZERAR BAGRESCORE` e confirme.
 
 A limpeza preserva somente a conta administrativa atual e os perfis. Jogadores, peladas, jogos, eventos, contas de teste, filas e sessões são apagados. Todos os aparelhos serão desconectados e, no próximo login, descartarão automaticamente os dados antigos antes de baixar a base limpa.
+
+Se aparecer **“Ação de API inválida”**, o arquivo foi salvo no editor, mas a implantação `/exec` ainda aponta para a versão anterior. Abra **Implantar > Gerenciar implantações**, edite o Aplicativo da Web, escolha **Nova versão** e confirme a implantação. Não é necessário trocar a URL quando a implantação existente é atualizada.

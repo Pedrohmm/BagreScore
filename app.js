@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.11.0";
+  const APP_VERSION = "0.11.1";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 5000;
@@ -9726,6 +9726,19 @@
     return parsed.toString();
   }
 
+  function isApiVersionAtLeast(currentVersion, minimumVersion) {
+    const current = String(currentVersion || "0").split(".").map((part) => Number(part) || 0);
+    const minimum = String(minimumVersion || "0").split(".").map((part) => Number(part) || 0);
+    const length = Math.max(current.length, minimum.length);
+
+    for (let index = 0; index < length; index += 1) {
+      const difference = Number(current[index] || 0) - Number(minimum[index] || 0);
+      if (difference) return difference > 0;
+    }
+
+    return true;
+  }
+
   async function callAppsScript(action, payload = {}, urlOverride = "") {
     const url = normalizeAppsScriptUrl(urlOverride || state.backendUrl);
     if (!url) throw new Error("Servidor do Apps Script não configurado.");
@@ -10119,6 +10132,11 @@
     submitButton.textContent = "Zerando base...";
 
     try {
+      const serverInfo = await callAppsScript("ping");
+      if (!isApiVersionAtLeast(serverInfo.version, "1.1.0")) {
+        throw new Error(`Apps Script desatualizado (${serverInfo.version || "versão antiga"}). Publique uma nova versão da implantação com o Code.gs 1.1.0 antes de zerar a base.`);
+      }
+
       const result = await callAppsScript("resetData", {
         token: state.authToken,
         deviceId: getDeviceId(),
@@ -10129,7 +10147,9 @@
       await switchSection("inicio", { historyMode: "replace" });
       openAuthGate("Base zerada com sucesso. Entre novamente.");
     } catch (error) {
-      feedback.textContent = error.message;
+      feedback.textContent = /Ação de API inválida/i.test(error.message)
+        ? "O Apps Script publicado ainda é antigo. Em Implantar > Gerenciar implantações, edite o Aplicativo da Web, selecione Nova versão e implante novamente."
+        : error.message;
       feedback.hidden = false;
       submitButton.disabled = false;
       submitButton.textContent = "Zerar todos os dados";
