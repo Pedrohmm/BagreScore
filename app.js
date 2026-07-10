@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.9.16";
+  const APP_VERSION = "0.9.17";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 15000;
@@ -870,6 +870,7 @@
 
   async function switchSection(sectionName, options = {}) {
     const targetSection = normalizeSectionName(sectionName);
+    const previousSection = state.currentSection;
     const historyMode = options.historyMode || "push";
     const peladaId = targetSection === "peladas" ? options.peladaId || "" : "";
     const gameId = targetSection === "peladas" ? options.gameId || "" : "";
@@ -877,6 +878,14 @@
     const targetHash = buildSectionHash(targetSection, { peladaId, gameId, peladasView });
 
     state.currentSection = targetSection;
+
+    if (targetSection === "jogadores" && previousSection !== "jogadores") {
+      state.playerFormOpen = false;
+      state.playerFormStep = "basicos";
+      state.playersListOpen = false;
+      state.selectedPlayerId = null;
+      state.editingPlayerId = null;
+    }
 
     if (targetSection === "peladas") {
       const nextPeladaId = peladaId || null;
@@ -3417,12 +3426,6 @@
   }
 
   function renderPlayersHero(jogadores) {
-    const activeCount = jogadores.filter((jogador) => jogador.status === "Ativo").length;
-    const guestCount = jogadores.filter((jogador) => jogador.status === "Convidado").length;
-    const topPlayer = jogadores
-      .filter((jogador) => jogador.status !== "Inativo")
-      .sort((a, b) => Number(b.overall || 0) - Number(a.overall || 0))[0];
-
     return `
       <section class="players-hero">
         <div class="players-hero-copy">
@@ -3430,20 +3433,6 @@
           <h2>Jogadores</h2>
           <p>Cadastre atletas, fotos, atributos e cartas para usar em peladas, rankings, estatísticas e partida ao vivo.</p>
         </div>
-        <div class="players-hero-stats">
-          <span><strong>${escapeHtml(jogadores.length)}</strong> cadastrados</span>
-          <span><strong>${escapeHtml(activeCount)}</strong> ativos</span>
-          <span><strong>${escapeHtml(guestCount)}</strong> convidados</span>
-        </div>
-        <div class="players-hero-feature">
-          ${topPlayer ? renderPlayerAvatar(topPlayer, "player-avatar players-hero-avatar") : `<span class="player-avatar players-hero-avatar" aria-hidden="true">BS</span>`}
-          <span>
-            <small>Maior overall</small>
-            <strong>${topPlayer ? escapeHtml(playerDisplayName(topPlayer)) : "Sem jogadores"}</strong>
-            <em>${topPlayer ? `${escapeHtml(topPlayer.overall || "-")} OVR` : "Cadastre o primeiro atleta"}</em>
-          </span>
-        </div>
-        <button class="primary-button players-hero-action" type="button" data-player-action="start-create">Cadastrar jogador</button>
       </section>
     `;
   }
@@ -3582,6 +3571,7 @@
       if (action === "start-create" || action === "new") {
         state.playerFormOpen = true;
         state.playerFormStep = "basicos";
+        state.playersListOpen = false;
         state.editingPlayerId = null;
         state.selectedPlayerId = null;
         await renderCurrentSection();
@@ -3591,6 +3581,9 @@
 
       if (action === "toggle-roster") {
         state.playersListOpen = !state.playersListOpen;
+        state.playerFormOpen = false;
+        state.playerFormStep = "basicos";
+        state.editingPlayerId = null;
         state.selectedPlayerId = null;
         await renderCurrentSection();
         return;

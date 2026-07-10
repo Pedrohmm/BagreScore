@@ -5801,7 +5801,7 @@ body[data-section="jogadores"] .players-screen {
 
 body[data-section="jogadores"] .players-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: 1fr;
   align-items: center;
   gap: 14px;
   border: 1px solid rgba(255, 255, 255, 0.14);
