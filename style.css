@@ -7518,3 +7518,580 @@ body.stats-profile-mode .player-history-row.award-history-row {
     justify-self: start;
   }
 }
+
+/* Global premium alignment */
+:root {
+  --premium-bg: #050505;
+  --premium-panel: rgba(16, 16, 16, 0.96);
+  --premium-panel-strong: rgba(24, 24, 24, 0.98);
+  --premium-border: rgba(255, 255, 255, 0.13);
+  --premium-border-hot: rgba(255, 90, 0, 0.48);
+  --premium-muted: #aeb0b3;
+  --premium-shadow: 0 18px 44px rgba(0, 0, 0, 0.38);
+  --premium-radius: 22px;
+}
+
+body {
+  background:
+    radial-gradient(circle at 12% 6%, rgba(255, 90, 0, 0.11), transparent 19rem),
+    radial-gradient(circle at 100% 28%, rgba(255, 90, 0, 0.07), transparent 24rem),
+    linear-gradient(180deg, #070707, #020202);
+}
+
+.app-shell {
+  width: min(820px, calc(100% - 28px));
+}
+
+body:not([data-section="inicio"]) #pending-count,
+body:not([data-section="inicio"]) #back-home {
+  display: none !important;
+}
+
+.primary-button,
+.ghost-button,
+.danger-button,
+.compact-button,
+.quick-action {
+  border-radius: 16px;
+  font-weight: 900;
+}
+
+.primary-button {
+  background: linear-gradient(135deg, #ff7a1c, #ff4d00);
+  box-shadow: 0 16px 30px rgba(255, 90, 0, 0.18);
+}
+
+.ghost-button,
+.quick-action {
+  border-color: var(--premium-border);
+  color: #f3f3f3;
+  background:
+    linear-gradient(145deg, rgba(24, 24, 24, 0.94), rgba(8, 8, 8, 0.96));
+}
+
+.danger-button {
+  border-color: rgba(227, 93, 93, 0.45);
+  color: #ffd0d0;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(227, 93, 93, 0.18), transparent 9rem),
+    linear-gradient(145deg, rgba(30, 14, 14, 0.94), rgba(9, 9, 9, 0.96));
+}
+
+.workspace-panel:not(.is-home) {
+  border: 0;
+  padding: 8px 0 0;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(255, 90, 0, 0.1), transparent 18rem),
+    radial-gradient(circle at 100% 80%, rgba(255, 90, 0, 0.06), transparent 25rem),
+    linear-gradient(180deg, rgba(8, 8, 8, 0.98), rgba(2, 2, 2, 0.98));
+  box-shadow: none;
+}
+
+body[data-section="jogadores"] .section-heading,
+body[data-section="estatisticas"] .section-heading,
+body[data-section="historico"] .section-heading,
+body[data-section="configuracoes"] .section-heading {
+  align-items: center;
+  border: 1px solid var(--premium-border);
+  border-radius: var(--premium-radius);
+  margin-bottom: 16px;
+  padding: 18px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.15), transparent 15rem),
+    linear-gradient(145deg, rgba(20, 20, 20, 0.98), rgba(7, 7, 7, 0.98));
+  box-shadow: var(--premium-shadow);
+}
+
+body[data-section="jogadores"] #section-title,
+body[data-section="estatisticas"] #section-title,
+body[data-section="historico"] #section-title,
+body[data-section="configuracoes"] #section-title {
+  color: #fff;
+  font-size: clamp(2rem, 8vw, 3.05rem);
+  line-height: 1;
+}
+
+body[data-section="jogadores"] #section-kicker,
+body[data-section="estatisticas"] #section-kicker,
+body[data-section="historico"] #section-kicker,
+body[data-section="configuracoes"] #section-kicker {
+  color: var(--orange);
+  letter-spacing: 0.12em;
+}
+
+.data-card,
+.metric-card,
+.empty-state,
+.modal-panel,
+.player-selection-option,
+.team-config,
+.game-history-card-item,
+.nested-diagnostic,
+.diagnostics-grid article {
+  border-color: var(--premium-border);
+  border-radius: var(--premium-radius);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.09), transparent 14rem),
+    linear-gradient(145deg, rgba(19, 19, 19, 0.98), rgba(7, 7, 7, 0.98));
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.3);
+}
+
+.data-card h3,
+.metric-card strong,
+.empty-state h3 {
+  color: #fff;
+}
+
+.data-card p,
+.empty-state p,
+.field-label,
+.attribute-field small,
+.ranking-row small,
+.field-list li {
+  color: var(--premium-muted);
+}
+
+.field-label input,
+.field-label select,
+.field-label textarea,
+.attribute-field input,
+.selection-search input,
+.event-form input,
+.event-form select,
+.event-form textarea {
+  min-height: 48px;
+  border-color: rgba(255, 255, 255, 0.13);
+  border-radius: 15px;
+  color: #fff;
+  background:
+    linear-gradient(180deg, rgba(18, 18, 18, 0.98), rgba(8, 8, 8, 0.98));
+}
+
+.field-label input:focus,
+.field-label select:focus,
+.field-label textarea:focus,
+.attribute-field input:focus,
+.selection-search input:focus,
+.event-form input:focus,
+.event-form select:focus,
+.event-form textarea:focus {
+  outline: 3px solid rgba(255, 90, 0, 0.24);
+  border-color: rgba(255, 90, 0, 0.72);
+}
+
+.field-list {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+
+.field-list li {
+  flex: 0 0 auto;
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.count-badge,
+.status-pill {
+  color: #fff;
+  background: rgba(255, 90, 0, 0.13);
+}
+
+.count-badge {
+  border: 1px solid rgba(255, 90, 0, 0.42);
+}
+
+.section-heading-inline {
+  align-items: center;
+  border-bottom-color: rgba(255, 255, 255, 0.09);
+}
+
+.section-heading-inline h3 {
+  color: #fff;
+  font-size: 1.24rem;
+}
+
+.section-heading-inline p {
+  color: var(--premium-muted);
+}
+
+.modal-backdrop {
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+.modal-panel {
+  border-radius: 24px;
+  padding: 18px;
+}
+
+.modal-header {
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  padding-bottom: 10px;
+}
+
+.modal-header h3 {
+  color: #fff;
+  font-size: 1.35rem;
+}
+
+.player-selection-list {
+  gap: 10px;
+}
+
+.player-selection-option {
+  border-radius: 18px;
+  padding: 12px;
+  box-shadow: none;
+}
+
+.player-selection-option:has(input:checked) {
+  border-color: rgba(255, 90, 0, 0.65);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.16), transparent 12rem),
+    linear-gradient(145deg, rgba(28, 18, 12, 0.98), rgba(8, 8, 8, 0.98));
+}
+
+.selection-search {
+  border-radius: 18px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.64);
+}
+
+body[data-section="estatisticas"] .stats-layout {
+  display: grid;
+  gap: 16px;
+}
+
+body[data-section="estatisticas"] .stats-filter-card {
+  overflow: hidden;
+  padding: 12px;
+}
+
+body[data-section="estatisticas"] .stats-filter-form {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+  scroll-snap-type: x proximity;
+}
+
+body[data-section="estatisticas"] .stats-filter-form .field-label {
+  flex: 0 0 min(250px, 78vw);
+  scroll-snap-align: start;
+}
+
+body[data-section="estatisticas"] .stats-summary-grid,
+body[data-section="estatisticas"] .leader-grid {
+  gap: 10px;
+}
+
+body[data-section="estatisticas"] .metric-card,
+body[data-section="estatisticas"] .leader-card,
+body[data-section="estatisticas"] .ranking-card,
+body[data-section="estatisticas"] .top-ranking-card {
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.1), transparent 12rem),
+    linear-gradient(145deg, rgba(20, 20, 20, 0.98), rgba(7, 7, 7, 0.98));
+}
+
+body[data-section="estatisticas"] .leader-card {
+  border: 1px solid var(--premium-border);
+}
+
+body[data-section="estatisticas"] .leader-card strong,
+body[data-section="estatisticas"] .ranking-row strong {
+  color: #fff;
+}
+
+body[data-section="estatisticas"] .ranking-grid {
+  gap: 12px;
+}
+
+body[data-section="estatisticas"] .ranking-card {
+  padding: 14px;
+}
+
+body[data-section="estatisticas"] .ranking-list {
+  gap: 8px;
+}
+
+body[data-section="estatisticas"] .ranking-row {
+  border-color: rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+body[data-section="jogadores"] .players-action-grid,
+body[data-section="jogadores"] .player-form-stepper,
+body[data-section="peladas"] .peladas-mode-nav,
+body[data-section="peladas"] .pelada-leaders-list,
+.game-summary-nav {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+body[data-section="jogadores"] .players-action-card,
+body[data-section="jogadores"] .player-card,
+body[data-section="jogadores"] .player-form-card,
+body[data-section="jogadores"] .players-list-panel {
+  border-radius: 22px;
+}
+
+body[data-section="jogadores"] .players-action-card {
+  transition:
+    border-color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+body[data-section="jogadores"] .players-action-card:hover,
+body[data-section="jogadores"] .players-action-card:focus-visible {
+  border-color: rgba(255, 90, 0, 0.58);
+  box-shadow: 0 18px 36px rgba(255, 90, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+body[data-section="jogadores"] .player-form-stepper {
+  display: flex;
+  gap: 9px;
+}
+
+body[data-section="jogadores"] .player-form-stepper span {
+  flex: 1 0 min(190px, 72vw);
+}
+
+body[data-section="jogadores"] .player-card-main {
+  min-height: 68px;
+}
+
+body[data-section="jogadores"] .player-card-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+body[data-section="peladas"] .peladas-mode-nav,
+body[data-section="ranking"] .ranking-mode-tabs,
+body.stats-profile-mode .player-profile-tabs {
+  scroll-snap-type: x proximity;
+}
+
+body[data-section="peladas"] .peladas-mode-button,
+body[data-section="ranking"] .ranking-mode-tabs button,
+body.stats-profile-mode .player-profile-tabs button {
+  scroll-snap-align: start;
+}
+
+body[data-section="peladas"] .pelada-open-hero,
+body[data-section="peladas"] .game-setup-card,
+body[data-section="peladas"] .game-history-card,
+body[data-section="peladas"] .game-summary,
+body[data-section="peladas"] .team-config {
+  border-radius: 24px;
+}
+
+body[data-section="peladas"] .team-config {
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--team-color), transparent 82%), transparent 13rem),
+    linear-gradient(145deg, rgba(19, 19, 19, 0.98), rgba(7, 7, 7, 0.98));
+}
+
+body[data-section="peladas"] .game-history-card-item {
+  overflow: hidden;
+}
+
+body[data-section="peladas"] .game-history-card-item button {
+  min-height: 124px;
+}
+
+body[data-section="peladas"] .game-history-cta,
+body[data-section="peladas"] .pelada-open-cta {
+  border-radius: 999px;
+}
+
+body[data-section="ao-vivo"] .live-idle-card,
+body[data-section="ao-vivo"] .live-score-card,
+body[data-section="ao-vivo"] .live-events-card,
+body[data-section="ao-vivo"] .live-pitch-card {
+  border-radius: 24px;
+}
+
+body[data-section="ao-vivo"] .live-topbar {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 22px;
+  margin-bottom: 4px;
+  padding: 10px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.14), transparent 13rem),
+    linear-gradient(145deg, rgba(22, 22, 22, 0.96), rgba(7, 7, 7, 0.96));
+}
+
+body[data-section="ao-vivo"] .player-action-grid button,
+.compact-segment button {
+  border-radius: 18px;
+}
+
+body[data-section="ao-vivo"] .player-action-grid button {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.1), transparent 8rem),
+    linear-gradient(145deg, rgba(25, 25, 25, 0.96), rgba(8, 8, 8, 0.96));
+}
+
+body[data-section="historico"] .content-grid,
+body[data-section="configuracoes"] .content-grid {
+  gap: 14px;
+}
+
+body[data-section="historico"] .data-card,
+body[data-section="configuracoes"] .data-card {
+  min-width: 0;
+}
+
+body[data-section="configuracoes"] .diagnostics-grid {
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+}
+
+body[data-section="configuracoes"] .diagnostics-lists,
+body[data-section="configuracoes"] .diagnostics-collections {
+  max-height: 460px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+body[data-section="configuracoes"] .diagnostics-collections {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.bottom-nav {
+  border-top-color: rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(10, 10, 10, 0.88), rgba(0, 0, 0, 0.96));
+}
+
+.bottom-nav-item {
+  border-radius: 16px;
+}
+
+.bottom-nav-item.active {
+  color: #fff;
+}
+
+.bottom-nav-item.active .nav-glyph {
+  color: var(--orange);
+  filter: drop-shadow(0 0 10px rgba(255, 90, 0, 0.45));
+}
+
+@media (min-width: 821px) {
+  .app-shell {
+    padding-bottom: 120px;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    width: min(100% - 20px, 820px);
+  }
+
+  body[data-section="jogadores"] .section-heading,
+  body[data-section="estatisticas"] .section-heading,
+  body[data-section="historico"] .section-heading,
+  body[data-section="configuracoes"] .section-heading {
+    margin-bottom: 12px;
+    padding: 15px;
+  }
+
+  .content-grid,
+  .collection-grid,
+  .schema-grid {
+    grid-template-columns: 1fr;
+  }
+
+  body[data-section="estatisticas"] .stats-summary-grid,
+  body[data-section="estatisticas"] .leader-grid,
+  body[data-section="estatisticas"] .ranking-grid {
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+    scroll-snap-type: x proximity;
+  }
+
+  body[data-section="estatisticas"] .metric-card,
+  body[data-section="estatisticas"] .leader-card,
+  body[data-section="estatisticas"] .ranking-card {
+    flex: 0 0 min(280px, 82vw);
+    scroll-snap-align: start;
+  }
+
+  body[data-section="jogadores"] .players-action-grid {
+    display: flex;
+    gap: 10px;
+    padding-bottom: 4px;
+    scroll-snap-type: x proximity;
+  }
+
+  body[data-section="jogadores"] .players-action-card {
+    flex: 0 0 min(315px, 86vw);
+    scroll-snap-align: start;
+  }
+
+  body[data-section="jogadores"] .player-card-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-panel {
+    width: min(100%, 720px);
+    border-radius: 22px;
+  }
+}
+
+@media (max-width: 520px) {
+  .app-shell {
+    width: 100%;
+    padding-inline: 10px;
+  }
+
+  .topbar {
+    padding-inline: 2px;
+  }
+
+  body[data-section="jogadores"] #section-title,
+  body[data-section="estatisticas"] #section-title,
+  body[data-section="historico"] #section-title,
+  body[data-section="configuracoes"] #section-title {
+    font-size: 2.15rem;
+  }
+
+  .data-card,
+  .metric-card,
+  .empty-state,
+  .modal-panel,
+  body[data-section="peladas"] .pelada-open-hero,
+  body[data-section="peladas"] .game-setup-card,
+  body[data-section="peladas"] .game-history-card,
+  body[data-section="ao-vivo"] .live-idle-card,
+  body[data-section="ao-vivo"] .live-score-card,
+  body[data-section="ao-vivo"] .live-events-card,
+  body[data-section="ao-vivo"] .live-pitch-card {
+    border-radius: 20px;
+  }
+
+  .primary-button,
+  .ghost-button,
+  .danger-button {
+    min-height: 50px;
+  }
+
+  .bottom-nav-item {
+    min-height: 58px;
+    font-size: 0.68rem;
+  }
+}
