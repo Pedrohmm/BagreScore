@@ -8,7 +8,7 @@
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#07130f",
-  "theme_color": "#0a7f3f",
+  "theme_color": "#ff5a00",
   "categories": ["sports", "productivity"],
   "icons": [
     {

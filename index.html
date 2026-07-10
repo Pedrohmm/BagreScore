@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#0a7f3f" />
+    <meta name="theme-color" content="#ff5a00" />
     <meta name="description" content="BagreScore: app offline-first para organizar peladas, jogos, eventos e estatísticas." />
     <title>BagreScore</title>
     <link rel="manifest" href="manifest.json" />
@@ -23,78 +23,15 @@
         </div>
 
         <div class="topbar-actions">
-          <span class="status-pill" id="network-status">Verificando rede</span>
-          <span class="status-pill technical-status" id="db-status">Banco local</span>
-          <button class="ghost-button" id="install-app" type="button" hidden>Instalar</button>
-          <button class="ghost-button" id="sync-now" type="button">Atualizar</button>
-          <button class="primary-button" id="force-update" type="button">Forçar atualização</button>
+          <button class="settings-button" id="home-settings-toggle" type="button" aria-label="Abrir configurações">
+            <span aria-hidden="true">&#9881;</span>
+          </button>
         </div>
       </header>
 
       <main>
-        <section class="home-grid" aria-labelledby="home-title">
-          <div class="scoreboard-panel">
-            <div class="panel-kicker">BagreScore</div>
-            <h2 id="home-title">Central da pelada</h2>
-            <p>
-              Organize a rodada, acompanhe os jogos e veja quem está voando na resenha.
-            </p>
-            <div class="version-row">
-              <span class="status-pill" id="home-network-status">Verificando rede</span>
-              <span hidden>Versão <strong id="app-version">0.0.0</strong></span>
-              <span id="sync-status" hidden>Sincronização aguardando configuração</span>
-            </div>
-          </div>
-
-          <nav class="quick-actions" aria-label="Atalhos principais">
-            <button class="quick-action" data-section="peladas" type="button">
-              Peladas
-            </button>
-            <button class="quick-action" data-section="ao-vivo" type="button">
-              Partida ao Vivo
-            </button>
-            <button class="quick-action" data-section="jogadores" type="button">
-              Jogadores
-            </button>
-            <button class="quick-action" data-section="ranking" type="button">
-              Ranking
-            </button>
-            <button class="quick-action" data-section="estatisticas" type="button">
-              Estatísticas
-            </button>
-            <button class="quick-action" data-section="historico" type="button">
-              Histórico
-            </button>
-            <button class="quick-action secondary-action active" data-section="inicio" type="button">
-              Início
-            </button>
-            <button class="quick-action secondary-action" data-section="configuracoes" type="button">
-              Configurações
-            </button>
-          </nav>
-        </section>
-
-        <section class="metric-grid" aria-label="Cards rápidos">
-          <article class="metric-card">
-            <span class="metric-label">Artilheiro atual</span>
-            <strong id="metric-top-scorer">Sem dados</strong>
-          </article>
-          <article class="metric-card">
-            <span class="metric-label">Líder de assistências</span>
-            <strong id="metric-top-assists">Sem dados</strong>
-          </article>
-          <article class="metric-card">
-            <span class="metric-label">Mais vitórias</span>
-            <strong id="metric-most-wins">Sem dados</strong>
-          </article>
-          <article class="metric-card">
-            <span class="metric-label">Melhor aproveitamento</span>
-            <strong id="metric-best-rate">Sem dados</strong>
-          </article>
-          <article class="metric-card">
-            <span class="metric-label">Último jogo</span>
-            <strong id="metric-last-game">Sem dados</strong>
-          </article>
+        <section class="home-screen" id="home-screen" aria-labelledby="home-title">
+          <div id="home-content"></div>
         </section>
 
         <section class="workspace-panel is-home" aria-live="polite">
@@ -111,6 +48,95 @@
           <div id="section-content"></div>
         </section>
       </main>
+
+      <nav class="bottom-nav" aria-label="Navegação principal">
+        <button class="quick-action bottom-nav-item active" data-section="inicio" type="button">
+          <span class="nav-glyph" aria-hidden="true">⌂</span>
+          <span>Início</span>
+        </button>
+        <button class="quick-action bottom-nav-item" data-section="peladas" type="button">
+          <span class="nav-glyph" aria-hidden="true">▣</span>
+          <span>Peladas</span>
+        </button>
+        <button class="quick-action bottom-nav-item" data-section="ao-vivo" type="button">
+          <span class="nav-glyph" aria-hidden="true">◉</span>
+          <span>Ao Vivo</span>
+        </button>
+        <button class="quick-action bottom-nav-item" data-section="jogadores" type="button">
+          <span class="nav-glyph" aria-hidden="true">◎</span>
+          <span>Jogadores</span>
+        </button>
+        <button class="quick-action bottom-nav-item" data-section="ranking" type="button">
+          <span class="nav-glyph" aria-hidden="true">♕</span>
+          <span>Ranking</span>
+        </button>
+      </nav>
     </div>
+
+    <div class="settings-drawer-backdrop" id="settings-drawer-backdrop" hidden></div>
+    <aside class="settings-drawer" id="settings-drawer" aria-hidden="true" aria-labelledby="settings-drawer-title">
+      <div class="drawer-header">
+        <h2 id="settings-drawer-title">Configurações</h2>
+        <button class="drawer-close-button" id="settings-drawer-close" type="button" aria-label="Fechar configurações">×</button>
+      </div>
+
+      <div class="drawer-actions">
+        <article class="drawer-card">
+          <span class="drawer-icon online-dot" aria-hidden="true"></span>
+          <span>
+            <strong>Status: <span id="network-status">Verificando rede</span></strong>
+            <small id="db-status">Banco local</small>
+          </span>
+        </article>
+
+        <button class="drawer-card drawer-button" id="install-app" type="button" hidden>
+          <span class="drawer-icon" aria-hidden="true">↓</span>
+          <span>
+            <strong>Instalar app</strong>
+            <small>Instale o BagreScore neste dispositivo</small>
+          </span>
+        </button>
+
+        <button class="drawer-card drawer-button" id="sync-now" type="button">
+          <span class="drawer-icon" aria-hidden="true">↻</span>
+          <span>
+            <strong>Atualizar</strong>
+            <small>Verifique dados e sincronização</small>
+          </span>
+        </button>
+
+        <button class="drawer-card drawer-button" id="force-update" type="button">
+          <span class="drawer-icon" aria-hidden="true">↑</span>
+          <span>
+            <strong>Forçar atualização</strong>
+            <small>Limpe cache e carregue a versão mais recente</small>
+          </span>
+        </button>
+
+        <button class="drawer-card drawer-button" id="drawer-sync-option" type="button">
+          <span class="drawer-icon" aria-hidden="true">⇄</span>
+          <span>
+            <strong>Sincronização</strong>
+            <small id="sync-status">Sincronização aguardando configuração</small>
+          </span>
+        </button>
+
+        <button class="drawer-card drawer-button" data-section="configuracoes" type="button">
+          <span class="drawer-icon muted-icon" aria-hidden="true">i</span>
+          <span>
+            <strong>Sobre o BagreScore</strong>
+            <small>Versão <span id="app-version">0.0.0</span></small>
+          </span>
+        </button>
+
+        <button class="drawer-card drawer-button danger-drawer-button" type="button" disabled>
+          <span class="drawer-icon" aria-hidden="true">↪</span>
+          <span>
+            <strong>Sair da conta</strong>
+            <small>Login ainda não configurado</small>
+          </span>
+        </button>
+      </div>
+    </aside>
   </body>
 </html>

@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.9.1";
+  const APP_VERSION = "0.9.2";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 15000;
@@ -566,7 +566,7 @@
     selectedStatsPlayerId: null,
     evolutionMessage: "",
     gameDraft: {
-      A: { nome: "Time A", cor: "#19a765", linha: [], goleiro: "" },
+      A: { nome: "Time A", cor: "#ff5a00", linha: [], goleiro: "" },
       B: { nome: "Time B", cor: "#4aa3df", linha: [], goleiro: "" },
     },
     statsFilters: {
@@ -905,7 +905,7 @@
 
   function teamColorFromGame(jogo, teamKey) {
     const team = teamKey === "A" ? jogo?.timeA : jogo?.timeB;
-    return team?.cor || (teamKey === "A" ? "#19a765" : "#4aa3df");
+    return team?.cor || (teamKey === "A" ? "#ff5a00" : "#4a4a4a");
   }
 
   function scoreByTeam(jogo, teamKey) {
@@ -1419,7 +1419,7 @@
 
   function createEmptyGameDraft() {
     return {
-      A: { nome: "Time A", cor: "#19a765", linha: [], goleiro: "" },
+      A: { nome: "Time A", cor: "#ff5a00", linha: [], goleiro: "" },
       B: { nome: "Time B", cor: "#4aa3df", linha: [], goleiro: "" },
     };
   }
@@ -1474,7 +1474,7 @@
     }
 
     state.gameDraft.A.nome = String(form.elements.timeANome?.value || "Time A").trim() || "Time A";
-    state.gameDraft.A.cor = form.elements.timeACor?.value || "#19a765";
+    state.gameDraft.A.cor = form.elements.timeACor?.value || "#ff5a00";
     state.gameDraft.B.nome = String(form.elements.timeBNome?.value || "Time B").trim() || "Time B";
     state.gameDraft.B.cor = form.elements.timeBCor?.value || "#4aa3df";
   }
@@ -2636,8 +2636,9 @@
   }
 
   async function readDashboardStats() {
-    const [jogadores, eventos, jogos, statsResult] = await Promise.all([
-      getAllRecords("jogadores"),
+    const [jogadores, peladas, eventos, jogos, statsResult] = await Promise.all([
+      readPlayersWithAttributes(),
+      readPeladasSorted(),
       getAllRecords("eventos"),
       getAllRecords("jogos"),
       calcularEstatisticasJogadores({
@@ -2665,6 +2666,16 @@
     const topScorer = topFromTally(golsPorJogador, jogadorPorId);
     const topAssists = topFromTally(assistencias, jogadorPorId);
     const latestGame = [...jogos].sort((a, b) => String(b.inicio || "").localeCompare(String(a.inicio || "")))[0];
+    const highlightedPelada = getHighlightedPelada(peladas, jogos);
+    const topScorerStats = topStats(statsResult.playersStats, "gols");
+    const topAssistStats = topStats(statsResult.playersStats, "assistencias");
+    const mvpStats = topStats(statsResult.playersStats, "mvpsPelada");
+    const bestOverallStats = statsResult.playersStats
+      .filter((stats) => stats.jogador)
+      .sort((a, b) =>
+        Number(b.jogador.overall || 0) - Number(a.jogador.overall || 0) ||
+        playerDisplayName(a.jogador).localeCompare(playerDisplayName(b.jogador), "pt-BR")
+      )[0] || null;
     const mostWins = topFromPlayerStats(statsResult.playersStats, "vitorias", "vitória");
     const bestRate = topFromPlayerStats(
       statsResult.playersStats.filter((stats) => stats.jogos > 0),
@@ -2673,6 +2684,20 @@
     );
 
     return {
+      jogadores,
+      peladas,
+      eventos: eventosValidos,
+      jogos,
+      statsResult,
+      playerById: jogadorPorId,
+      highlightedPelada,
+      latestGame,
+      highlights: {
+        topScorer: topScorerStats,
+        topAssists: topAssistStats,
+        mvp: mvpStats,
+        bestOverall: bestOverallStats,
+      },
       topScorer,
       topAssists,
       mostWins,
@@ -2691,6 +2716,28 @@
       }
       return acc;
     }, new Map());
+  }
+
+  function getHighlightedPelada(peladas, jogos) {
+    const today = new Date().toISOString().slice(0, 10);
+    const activePeladaIds = new Set(
+      jogos.filter((jogo) => jogo.status === "Em andamento").map((jogo) => jogo.peladaId)
+    );
+
+    return [...peladas]
+      .sort((a, b) => {
+        const activeDiff = Number(activePeladaIds.has(b.id)) - Number(activePeladaIds.has(a.id));
+        if (activeDiff) return activeDiff;
+
+        const openDiff = Number(b.status !== "Finalizada") - Number(a.status !== "Finalizada");
+        if (openDiff) return openDiff;
+
+        const futureA = String(a.data || "") >= today ? 1 : 0;
+        const futureB = String(b.data || "") >= today ? 1 : 0;
+        if (futureA !== futureB) return futureB - futureA;
+
+        return String(b.data || b.createdAt || "").localeCompare(String(a.data || a.createdAt || ""));
+      })[0] || null;
   }
 
   function topFromTally(tallyMap, jogadorPorId) {
@@ -2726,11 +2773,211 @@
   }
 
   function renderDashboardCards(stats) {
-    $("#metric-top-scorer").textContent = stats.topScorer;
-    $("#metric-top-assists").textContent = stats.topAssists;
-    $("#metric-most-wins").textContent = stats.mostWins;
-    $("#metric-best-rate").textContent = stats.bestRate;
-    $("#metric-last-game").textContent = stats.lastGame;
+    const oldCards = [
+      ["#metric-top-scorer", stats.topScorer],
+      ["#metric-top-assists", stats.topAssists],
+      ["#metric-most-wins", stats.mostWins],
+      ["#metric-best-rate", stats.bestRate],
+      ["#metric-last-game", stats.lastGame],
+    ];
+
+    oldCards.forEach(([selector, value]) => {
+      const element = $(selector);
+      if (element) {
+        element.textContent = value;
+      }
+    });
+
+    if (state.currentSection === "inicio" && $("#home-content")) {
+      $("#home-content").innerHTML = renderPremiumHome(stats);
+    }
+  }
+
+  function renderPremiumHome(stats) {
+    return `
+      <div class="home-premium">
+        ${renderFeaturedPeladaCard(stats)}
+        ${renderWeeklyHighlights(stats)}
+        ${renderLastMatchHomeCard(stats)}
+        ${renderRankingGeneralHomeCard()}
+      </div>
+    `;
+  }
+
+  function renderFeaturedPeladaCard(stats) {
+    const pelada = stats.highlightedPelada;
+
+    if (!pelada) {
+      return `
+        <section class="featured-match-card is-empty">
+          <span class="feature-badge">Pelada em destaque</span>
+          <h2 id="home-title">Nenhuma pelada criada ainda</h2>
+          <p>Crie a primeira pelada para acompanhar jogos, escalações e rankings.</p>
+          <button class="primary-button home-primary-action" type="button" data-home-section="peladas">Criar pelada</button>
+        </section>
+      `;
+    }
+
+    const games = stats.jogos.filter((jogo) => jogo.peladaId === pelada.id);
+    const activeGame = games.find((jogo) => jogo.status === "Em andamento");
+    const horario = [pelada.horarioInicio, pelada.horarioFim].filter(Boolean).join(" - ") || "Horário aberto";
+    const confirmados = getPeladaConfirmedCount(pelada, games);
+
+    return `
+      <section class="featured-match-card">
+        <div class="featured-card-glow" aria-hidden="true"></div>
+        <div class="featured-card-content">
+          <span class="feature-badge">${activeGame ? "Pelada ao vivo" : "Pelada em destaque"}</span>
+          <h2 id="home-title">${escapeHtml(pelada.local || "Pelada")}</h2>
+          <div class="featured-meta">
+            <span>Local: ${escapeHtml(pelada.endereco || pelada.local || "-")}</span>
+            <span>Data: ${escapeHtml(formatDateLabel(pelada.data))}</span>
+            <span>Horário: ${escapeHtml(horario)}</span>
+            <span>${escapeHtml(confirmados ? `+${confirmados} confirmados` : `${games.length} jogo${games.length === 1 ? "" : "s"}`)}</span>
+          </div>
+          <button class="primary-button home-primary-action" type="button" data-home-action="open-pelada" data-pelada-id="${escapeHtml(pelada.id)}">
+            Abrir pelada
+          </button>
+        </div>
+        <div class="featured-shield" aria-hidden="true">
+          <img src="assets/icons/icon.svg" alt="" />
+        </div>
+      </section>
+    `;
+  }
+
+  function getPeladaConfirmedCount(pelada, games) {
+    if (Number.isFinite(Number(pelada.confirmados))) {
+      return Number(pelada.confirmados);
+    }
+
+    const uniquePlayers = new Set();
+    games.forEach((jogo) => {
+      [...(jogo.timeA?.jogadores || []), ...(jogo.timeB?.jogadores || [])].forEach((id) => uniquePlayers.add(id));
+    });
+
+    return uniquePlayers.size;
+  }
+
+  function renderWeeklyHighlights(stats) {
+    const cards = [
+      ["Artilheiro", stats.highlights.topScorer, "gols", "gols"],
+      ["Garçom", stats.highlights.topAssists, "assistencias", "assistências"],
+      ["MVP", stats.highlights.mvp, "mvpsPelada", "MVPs"],
+      ["Melhor Overall", stats.highlights.bestOverall, "overall", "OVR"],
+    ];
+
+    return `
+      <section class="home-section-block">
+        <div class="home-section-heading">
+          <h3>Destaques da semana</h3>
+          <button type="button" data-home-section="ranking">Ver todos</button>
+        </div>
+        <div class="home-highlight-grid">
+          ${cards.map(([title, entry, metric, suffix]) => renderHomeHighlightCard(title, entry, metric, suffix)).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderHomeHighlightCard(title, entry, metric, suffix) {
+    if (!entry?.jogador) {
+      return `
+        <article class="home-highlight-card is-empty">
+          <span>${escapeHtml(title)}</span>
+          <strong>Sem dados</strong>
+          <small>Jogue partidas para atualizar</small>
+        </article>
+      `;
+    }
+
+    const value = metric === "overall"
+      ? Number(entry.jogador.overall || 0)
+      : Number(entry[metric] || 0);
+    const valueLabel = metric === "overall"
+      ? `${value} ${suffix}`
+      : `${value} ${suffix}`;
+
+    return `
+      <button class="home-highlight-card" type="button" data-home-action="player-profile" data-player-id="${escapeHtml(entry.jogadorId)}">
+        <span>${escapeHtml(title)}</span>
+        ${renderPlayerAvatar(entry.jogador, "player-avatar home-avatar")}
+        <strong>${escapeHtml(playerDisplayName(entry.jogador))}</strong>
+        <small>${escapeHtml(valueLabel)}</small>
+      </button>
+    `;
+  }
+
+  function renderLastMatchHomeCard(stats) {
+    const jogo = stats.latestGame;
+
+    if (!jogo) {
+      return `
+        <section class="home-section-block">
+          <div class="home-section-heading">
+            <h3>Última partida</h3>
+          </div>
+          <article class="last-match-card is-empty">
+            <p>Nenhuma partida registrada ainda.</p>
+          </article>
+        </section>
+      `;
+    }
+
+    const pelada = stats.peladas.find((item) => item.id === jogo.peladaId);
+    const gameEvents = stats.eventos.filter((evento) => evento.jogoId === jogo.id);
+    const goals = gameEvents.filter((evento) => normalizeToken(evento.tipo) === "gol");
+
+    return `
+      <section class="home-section-block">
+        <div class="home-section-heading">
+          <h3>Última partida</h3>
+          <button type="button" data-home-action="open-game-summary" data-pelada-id="${escapeHtml(jogo.peladaId)}" data-game-id="${escapeHtml(jogo.id)}">Ver resumo</button>
+        </div>
+        <article class="last-match-card">
+          <div class="last-match-score">
+            <span>${escapeHtml(teamNameFromGame(jogo, "A"))}</span>
+            <strong>${escapeHtml(jogo.placarA ?? 0)} x ${escapeHtml(jogo.placarB ?? 0)}</strong>
+            <span>${escapeHtml(teamNameFromGame(jogo, "B"))}</span>
+          </div>
+          <small>${escapeHtml(formatDateLabel(pelada?.data || jogo.inicio?.slice(0, 10) || ""))} ${jogo.inicio ? `- ${escapeHtml(jogo.inicio.slice(11, 16))}` : ""}</small>
+          ${renderHomeGoalAuthors(goals, stats.playerById)}
+        </article>
+      </section>
+    `;
+  }
+
+  function renderHomeGoalAuthors(goals, playerById) {
+    if (!goals.length) {
+      return `<p class="last-match-goals">Gols: nenhum</p>`;
+    }
+
+    return `
+      <div class="last-match-goals">
+        ${goals
+          .slice(0, 4)
+          .map((evento) => {
+            const author = playerNameFromMap(playerById, evento.jogadorId);
+            const minute = evento.minuto ? `${evento.minuto}'` : "";
+            const label = evento.golContra ? `Gol contra de ${author}` : `${minute} ${author}`;
+            return `<span>${escapeHtml(label.trim())}</span>`;
+          })
+          .join("")}
+      </div>
+    `;
+  }
+
+  function renderRankingGeneralHomeCard() {
+    return `
+      <button class="ranking-general-card" type="button" data-home-section="ranking">
+        <span class="ranking-visual" aria-hidden="true"></span>
+        <span>
+          <strong>Ranking Geral</strong>
+          <small>Acompanhe os melhores jogadores da temporada</small>
+        </span>
+        <em>Top 100</em>
+      </button>
+    `;
   }
 
   async function renderCurrentSection() {
@@ -2784,6 +3031,7 @@
   async function renderHomeSection(counts) {
     setSectionTitle("Início", "Resumo da pelada");
     $("#section-content").innerHTML = "";
+    renderDashboardCards(await readDashboardStats());
   }
 
   async function readPlayersWithAttributes() {
@@ -3695,7 +3943,7 @@
         <form class="game-form" id="game-form" novalidate>
           <div class="form-errors" id="game-form-errors" hidden></div>
           <div class="team-config-grid">
-            <fieldset class="team-config" style="--team-color: #19a765;">
+            <fieldset class="team-config" style="--team-color: #ff5a00;">
               <legend>Time A</legend>
               <label class="field-label">
                 <span>Nome</span>
@@ -6974,11 +7222,18 @@
   function updateNetworkStatus() {
     const status = $("#network-status");
     const homeStatus = $("#home-network-status");
+    const onlineDot = $(".online-dot");
     const online = navigator.onLine;
 
-    status.textContent = online ? "Online" : "Offline";
-    status.classList.toggle("online", online);
-    status.classList.toggle("offline", !online);
+    if (status) {
+      status.textContent = online ? "Online" : "Offline";
+      status.classList.toggle("online", online);
+      status.classList.toggle("offline", !online);
+    }
+
+    if (onlineDot) {
+      onlineDot.classList.toggle("is-offline", !online);
+    }
 
     if (homeStatus) {
       homeStatus.textContent = online ? "Online" : "Offline";
@@ -7026,6 +7281,18 @@
     window.location.reload();
   }
 
+  function openSettingsDrawer() {
+    $("#settings-drawer")?.setAttribute("aria-hidden", "false");
+    $("#settings-drawer-backdrop")?.removeAttribute("hidden");
+    document.body.classList.add("settings-open");
+  }
+
+  function closeSettingsDrawer() {
+    $("#settings-drawer")?.setAttribute("aria-hidden", "true");
+    $("#settings-drawer-backdrop")?.setAttribute("hidden", "");
+    document.body.classList.remove("settings-open");
+  }
+
   async function registerServiceWorker() {
     const canUseServiceWorker =
       "serviceWorker" in navigator &&
@@ -7054,6 +7321,51 @@
       });
     });
 
+    $("#home-settings-toggle")?.addEventListener("click", openSettingsDrawer);
+    $("#settings-drawer-close")?.addEventListener("click", closeSettingsDrawer);
+    $("#settings-drawer-backdrop")?.addEventListener("click", closeSettingsDrawer);
+    $("#drawer-sync-option")?.addEventListener("click", syncNow);
+
+    document.body.addEventListener("click", async (event) => {
+      const sectionButton = event.target.closest("[data-home-section], .drawer-button[data-section]");
+      const actionButton = event.target.closest("[data-home-action]");
+
+      if (sectionButton) {
+        const section = sectionButton.dataset.homeSection || sectionButton.dataset.section;
+        closeSettingsDrawer();
+        await switchSection(section);
+        return;
+      }
+
+      if (!actionButton) {
+        return;
+      }
+
+      const action = actionButton.dataset.homeAction;
+
+      if (action === "open-pelada") {
+        const peladaId = actionButton.dataset.peladaId || "";
+        state.selectedGameSummaryId = null;
+        state.gameDraft = createEmptyGameDraft();
+        await switchSection("peladas", { peladaId });
+        return;
+      }
+
+      if (action === "open-game-summary") {
+        const peladaId = actionButton.dataset.peladaId || "";
+        const gameId = actionButton.dataset.gameId || "";
+        if (peladaId && gameId) {
+          await switchSection("peladas", { peladaId, gameId });
+        }
+        return;
+      }
+
+      if (action === "player-profile") {
+        state.selectedStatsPlayerId = actionButton.dataset.playerId || null;
+        await switchSection("estatisticas");
+      }
+    });
+
     $("#back-home")?.addEventListener("click", async () => {
       await switchSection("inicio", { historyMode: "replace" });
     });
@@ -7075,6 +7387,11 @@
       syncNow();
     });
     window.addEventListener("offline", updateNetworkStatus);
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        closeSettingsDrawer();
+      }
+    });
 
     window.addEventListener("beforeinstallprompt", (event) => {
       event.preventDefault();
