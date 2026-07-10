@@ -2608,6 +2608,19 @@ body[data-section="ao-vivo"] .section-heading {
   line-height: 1.35;
 }
 
+.live-idle-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.live-idle-actions .primary-button {
+  min-height: 56px;
+  justify-content: center;
+  border-radius: 14px;
+  font-size: 1rem;
+  box-shadow: 0 16px 34px rgba(255, 90, 0, 0.2);
+}
+
 .live-topbar {
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr) 48px;

@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.9.13";
+  const APP_VERSION = "0.9.14";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 15000;
@@ -5252,6 +5252,11 @@
           <span>Gols</span>
           <strong>${escapeHtml(goalAuthors)}${escapeHtml(extraGoals)}</strong>
         </div>
+        <div class="live-idle-actions">
+          <button class="primary-button big-touch" type="button" data-live-action="new-game" data-pelada-id="${escapeHtml(jogo.peladaId || "")}">
+            Criar nova partida
+          </button>
+        </div>
       </section>
     `;
   }
@@ -5878,7 +5883,15 @@
       }
 
       if (action === "new-game") {
-        await switchSection("peladas");
+        const peladaId = actionButton.dataset.peladaId || "";
+        state.selectedGameSummaryId = null;
+        state.gameDraft = createEmptyGameDraft();
+
+        if (peladaId) {
+          await switchSection("peladas", { peladaId });
+        } else {
+          await switchSection("peladas", { peladasView: "gerenciar" });
+        }
         return;
       }
 
