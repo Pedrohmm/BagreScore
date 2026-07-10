@@ -1,10 +1,26 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.9.25";
+  const APP_VERSION = "0.10.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 15000;
+  const SYNC_BATCH_SIZE = 100;
+  const AUTH_TOKEN_STORAGE_KEY = "bagrescore:auth-token";
+  const AUTH_USER_STORAGE_KEY = "bagrescore:auth-user";
+  const REMOTE_SYNC_STORES = new Set([
+    "jogadores",
+    "atributos",
+    "peladas",
+    "jogos",
+    "times",
+    "escalacoes",
+    "eventos",
+    "faltas",
+    "evolucoes",
+    "temporadas",
+    "estatisticasCache",
+  ]);
 
   const STORE_SCHEMAS = [
     {
@@ -306,7 +322,7 @@
     perfis: ["id", "nome", "permissoes"],
     temporadas: ["id", "nome", "tipo", "inicio", "fim", "status"],
     estatisticasCache: ["id", "jogadorId", "temporadaId", "metricas", "updatedAt", "revision"],
-    configs: ["id", "appVersion", "appsScriptUrl", "regras", "updatedAt"],
+    configs: ["id", "appVersion", "appsScriptUrl", "lastServerRevision", "regras", "updatedAt"],
   };
 
   const FIELD_LABELS = {
@@ -391,6 +407,7 @@
     metricas: "Métricas",
     appVersion: "Versão do app",
     appsScriptUrl: "URL do Apps Script",
+    lastServerRevision: "Última revisão do servidor",
     regras: "Regras",
   };
 
@@ -596,6 +613,13 @@
     activeGameId: localStorage.getItem("bagrescore:active-game-id") || null,
     liveTimerId: null,
     liveMessage: "",
+    backendUrl: "",
+    authToken: "",
+    currentUser: null,
+    syncInProgress: false,
+    remoteUsers: [],
+    remoteProfiles: [],
+    accountMessage: "",
   };
 
   const $ = (selector) => document.querySelector(selector);
@@ -1777,7 +1801,7 @@
       action,
       before: before || null,
       after: after || null,
-      createdBy: getDeviceId(),
+      createdBy: getActorId(),
       createdAt,
     };
   }
@@ -1847,7 +1871,7 @@
         jogoId: change.jogoId || "",
         valorAnterior,
         valorNovo,
-        criadoPor: getDeviceId(),
+        criadoPor: getActorId(),
         createdAt: savedAt,
         updatedAt: savedAt,
         revision: 1,
@@ -2675,6 +2699,7 @@
       id: "app",
       appVersion: APP_VERSION,
       appsScriptUrl: "",
+      lastServerRevision: 0,
       syncIntervalMs: SYNC_INTERVAL_MS,
       regras: DEFAULT_RULES,
       updatedAt: createdAt,
@@ -2718,8 +2743,9 @@
       });
     }
 
-    if (!(await getRecord("temporadas", "temporada-atual"))) {
-      await putRecord("temporadas", {
+    let currentSeason = await getRecord("temporadas", "temporada-atual");
+    if (!currentSeason) {
+      currentSeason = {
         id: "temporada-atual",
         nome: "Temporada atual",
         tipo: "aberta",
@@ -2729,8 +2755,10 @@
         createdAt,
         updatedAt: createdAt,
         revision: 0,
-      });
+      };
+      await putRecord("temporadas", currentSeason);
     }
+
   }
 
   async function readCollectionCounts() {
@@ -4154,6 +4182,8 @@
 
   async function handlePlayerFormSubmit(event) {
     event.preventDefault();
+    const playerPermission = state.editingPlayerId ? "jogadores:editar" : "jogadores:criar";
+    if (!requirePermission(playerPermission)) return;
 
     const form = event.currentTarget;
 
@@ -4258,6 +4288,7 @@
   }
 
   async function updatePlayerStatus(playerId, status) {
+    if (!requirePermission("jogadores:editar")) return;
     const existingPlayer = await getRecord("jogadores", playerId);
 
     if (!existingPlayer) {
@@ -4286,6 +4317,7 @@
   }
 
   async function deletePlayer(playerId) {
+    if (!requirePermission("jogadores:editar")) return;
     const [
       existingPlayer,
       existingAttributes,
@@ -5527,6 +5559,7 @@
 
   async function handleFinishPeladaSubmit(event, peladaId) {
     event.preventDefault();
+    if (!requirePermission("jogos:finalizar")) return;
 
     const form = event.currentTarget;
     const summary = await readPeladaClosureSummary(peladaId);
@@ -5567,7 +5600,7 @@
       tipoDefesaGoleiro: "",
       golContra: false,
       observacoes,
-      criadoPor: getDeviceId(),
+      criadoPor: getActorId(),
       createdAt: savedAt,
       updatedAt: savedAt,
       revision: 1,
@@ -5672,6 +5705,7 @@
 
   async function handlePeladaFormSubmit(event) {
     event.preventDefault();
+    if (!requirePermission("peladas:criar")) return;
 
     const form = event.currentTarget;
     const data = collectPeladaFormData(form);
@@ -5754,6 +5788,7 @@
 
   async function handleGameFormSubmit(event) {
     event.preventDefault();
+    if (!requirePermission("jogos:iniciar")) return;
 
     const form = event.currentTarget;
     const [jogadores, pelada, activeGame] = await Promise.all([
@@ -6866,6 +6901,7 @@
 
   async function handleGoalSubmit(event, jogoId) {
     event.preventDefault();
+    if (!requirePermission("gols:registrar")) return;
 
     const form = event.currentTarget;
     const bundle = await readGameBundle(jogoId);
@@ -6935,7 +6971,7 @@
       golContra,
       observacoes,
       detalhe: `${getGoalTypeLabel(tipoGol)} - ${teamNameFromGame(jogo, teamKey)}`,
-      criadoPor: getDeviceId(),
+      criadoPor: getActorId(),
       createdAt: savedAt,
       updatedAt: savedAt,
       revision: 1,
@@ -7024,6 +7060,7 @@
 
   async function handleFoulSubmit(event, jogoId) {
     event.preventDefault();
+    if (!requirePermission("faltas:registrar")) return;
 
     const form = event.currentTarget;
     const bundle = await readGameBundle(jogoId);
@@ -7081,7 +7118,7 @@
       golContra: false,
       observacoes,
       detalhe: `Falta - ${getCardLabel(cartao)}`,
-      criadoPor: getDeviceId(),
+      criadoPor: getActorId(),
       createdAt: savedAt,
       updatedAt: savedAt,
       revision: 1,
@@ -7121,6 +7158,7 @@
   }
 
   async function saveCardEvent({ jogo, bundle, jogadorId, cartao }) {
+    if (!requirePermission("eventos:criar")) return;
     const savedAt = nowIso();
     const teamKey = getLineupTeamForPlayer(bundle, jogadorId);
     const evento = {
@@ -7138,7 +7176,7 @@
       golContra: false,
       observacoes: "",
       detalhe: `Cartão ${getCardLabel(cartao)}`,
-      criadoPor: getDeviceId(),
+      criadoPor: getActorId(),
       createdAt: savedAt,
       updatedAt: savedAt,
       revision: 1,
@@ -7160,6 +7198,7 @@
   }
 
   async function undoLastLiveEvent(jogoId) {
+    if (!requirePermission("eventos:excluir")) return;
     const [jogo, eventos] = await Promise.all([
       getRecord("jogos", jogoId),
       getAllRecords("eventos"),
@@ -7286,6 +7325,7 @@
 
   async function handleDefensiveActionSubmit(event, jogoId) {
     event.preventDefault();
+    if (!requirePermission("eventos:criar")) return;
 
     const form = event.currentTarget;
     const bundle = await readGameBundle(jogoId);
@@ -7340,7 +7380,7 @@
       golContra: false,
       observacoes,
       detalhe: `${actionLabel} - ${teamNameFromGame(jogo, teamKey)}`,
-      criadoPor: getDeviceId(),
+      criadoPor: getActorId(),
       createdAt: savedAt,
       updatedAt: savedAt,
       revision: 1,
@@ -7417,6 +7457,7 @@
 
   async function handleGoalkeeperSaveSubmit(event, jogoId) {
     event.preventDefault();
+    if (!requirePermission("eventos:criar")) return;
 
     const form = event.currentTarget;
     const bundle = await readGameBundle(jogoId);
@@ -7480,7 +7521,7 @@
       golContra: false,
       observacoes,
       detalhe: `${saveMessage} - ${teamNameFromGame(jogo, teamKey)}`,
-      criadoPor: getDeviceId(),
+      criadoPor: getActorId(),
       createdAt: savedAt,
       updatedAt: savedAt,
       revision: 1,
@@ -7502,6 +7543,7 @@
   }
 
   async function addProvisionalGoal(jogoId, teamKey) {
+    if (!requirePermission("eventos:criar")) return;
     if (!["A", "B"].includes(teamKey)) {
       return;
     }
@@ -7530,7 +7572,7 @@
       time: teamKey,
       minuto: Math.min(DEFAULT_RULES.duracaoJogoMinutos, Math.floor(getElapsedGameSeconds(jogo) / 60) + 1),
       detalhe: `Gol provisorio - ${teamNameFromGame(jogo, teamKey)}`,
-      criadoPor: getDeviceId(),
+      criadoPor: getActorId(),
       createdAt: savedAt,
       updatedAt: savedAt,
       revision: 1,
@@ -7560,6 +7602,7 @@
   }
 
   async function pauseGame(jogoId) {
+    if (!requirePermission("jogos:alterar")) return;
     const jogo = await getRecord("jogos", jogoId);
 
     if (!jogo || jogo.status !== "Em andamento" || jogo.pausadoEm) {
@@ -7586,6 +7629,7 @@
   }
 
   async function resumeGame(jogoId) {
+    if (!requirePermission("jogos:alterar")) return;
     const jogo = await getRecord("jogos", jogoId);
 
     if (!jogo || jogo.status !== "Em andamento" || !jogo.pausadoEm) {
@@ -7614,6 +7658,7 @@
   }
 
   async function finalizeGame(jogoId, formaEncerramento) {
+    if (!requirePermission("jogos:finalizar")) return;
     const jogo = await getRecord("jogos", jogoId);
 
     if (!jogo || jogo.status === "Finalizado") {
@@ -9196,6 +9241,7 @@
 
   async function handleManualEvolutionSubmit(event) {
     event.preventDefault();
+    if (!requirePermission("atributos:editar")) return;
 
     const form = event.currentTarget;
     const jogadorId = form.elements.jogadorId?.value || "";
@@ -9346,10 +9392,72 @@
       getAllRecords("auditLog"),
     ]);
     const pendingSync = syncQueue.filter((item) => item.status !== "sincronizado");
+    let accountPlayers = [];
+
+    if (canManageUsers()) {
+      accountPlayers = await getAllRecords("jogadores");
+      if (navigator.onLine && state.backendUrl && state.authToken) {
+        try {
+          const accounts = await callAppsScript("listUsers", { token: state.authToken });
+          state.remoteUsers = accounts.users || [];
+          state.remoteProfiles = accounts.profiles || [];
+        } catch (error) {
+          state.accountMessage = `Não foi possível carregar as contas: ${error.message}`;
+        }
+      }
+    }
 
     setSectionTitle("Sistema", "Configurações");
 
     $("#section-content").innerHTML = `
+      <section class="data-card account-config-card">
+        <div class="section-heading-inline">
+          <div>
+            <span class="panel-kicker">Conta e servidor</span>
+            <h3>${state.currentUser ? escapeHtml(state.currentUser.nome) : "Conectar BagreScore"}</h3>
+            <p>${state.currentUser
+              ? `${escapeHtml(state.currentUser.perfilNome || state.currentUser.perfilId || "Usuário")} · sessão ativa neste aparelho`
+              : config?.appsScriptUrl
+                ? "Servidor configurado. Entre para sincronizar os dados."
+                : "Cole a URL publicada do Apps Script para ativar contas e sincronização."}</p>
+          </div>
+          ${state.currentUser ? `<span class="status-pill account-online-pill">Conectado</span>` : ""}
+        </div>
+
+        <form class="sync-config-form" id="sync-config-form" novalidate>
+          <label class="field-label">
+            <span>URL publicada do Apps Script</span>
+            <input type="url" name="appsScriptUrl" value="${escapeHtml(config?.appsScriptUrl || "")}" placeholder="https://script.google.com/macros/s/.../exec" required />
+          </label>
+          <button class="primary-button" type="submit">Salvar e conectar</button>
+          <p class="form-feedback" id="sync-config-feedback" role="status" hidden></p>
+        </form>
+
+        ${state.currentUser ? `
+          <form class="change-pin-form" id="change-pin-form" novalidate>
+            <h3>Alterar meu PIN</h3>
+            <div class="form-grid">
+              <label class="field-label">
+                <span>PIN atual</span>
+                <input type="password" name="currentPin" inputmode="numeric" autocomplete="current-password" minlength="4" maxlength="12" required />
+              </label>
+              <label class="field-label">
+                <span>Novo PIN</span>
+                <input type="password" name="newPin" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="12" required />
+              </label>
+              <label class="field-label">
+                <span>Confirmar novo PIN</span>
+                <input type="password" name="confirmPin" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="12" required />
+              </label>
+            </div>
+            <button class="ghost-button" type="submit">Alterar PIN</button>
+            <p class="form-feedback" id="change-pin-feedback" role="status" hidden></p>
+          </form>
+        ` : ""}
+      </section>
+
+      ${canManageUsers() ? renderUserManagement(accountPlayers) : ""}
+
       <div class="content-grid">
         <article class="data-card">
           <h3>Regras do jogo</h3>
@@ -9435,6 +9543,11 @@
         </article>
       </div>
     `;
+
+    $("#sync-config-form")?.addEventListener("submit", handleSyncConfigSubmit);
+    $("#change-pin-form")?.addEventListener("submit", handleChangePinSubmit);
+    $("#user-admin-form")?.addEventListener("submit", handleUserAdminSubmit);
+    $(".user-admin-card")?.addEventListener("click", handleUserAdminClick);
   }
 
   function updateNetworkStatus() {
@@ -9465,22 +9578,589 @@
     await updatePendingCount();
   }
 
-  async function syncNow() {
+  function getActorId() {
+    return state.currentUser?.id || getDeviceId();
+  }
+
+  function readStoredAuthUser() {
+    try {
+      return JSON.parse(localStorage.getItem(AUTH_USER_STORAGE_KEY) || "null");
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function persistAuthSession(token, user) {
+    state.authToken = String(token || "");
+    state.currentUser = user || null;
+
+    if (state.authToken) localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, state.authToken);
+    else localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+
+    if (state.currentUser) localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(state.currentUser));
+    else localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+
+    updateAccountUi();
+  }
+
+  function clearAuthSession() {
+    persistAuthSession("", null);
+  }
+
+  function restoreAuthState(config) {
+    state.backendUrl = String(config?.appsScriptUrl || "").trim();
+    state.authToken = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || "";
+    state.currentUser = readStoredAuthUser();
+
+    if (!state.authToken) {
+      state.currentUser = null;
+    }
+
+    updateAccountUi();
+
+    if (state.backendUrl && !state.authToken) {
+      openAuthGate();
+    }
+  }
+
+  function updateAccountUi() {
+    const label = $("#account-label");
+    const detail = $("#account-detail");
+    const logoutButton = $("#logout-button");
+
+    if (!label || !detail || !logoutButton) return;
+
+    if (state.currentUser) {
+      label.textContent = state.currentUser.nome || "Conta conectada";
+      detail.textContent = state.currentUser.perfilNome || state.currentUser.perfilId || "Usuário";
+      logoutButton.hidden = false;
+      return;
+    }
+
+    logoutButton.hidden = true;
+    if (state.backendUrl) {
+      label.textContent = "Entrar na conta";
+      detail.textContent = "Login necessário para sincronizar";
+    } else {
+      label.textContent = "Modo local";
+      detail.textContent = "Servidor ainda não configurado";
+    }
+  }
+
+  function openAuthGate(message = "") {
+    const gate = $("#auth-gate");
+    const errorBox = $("#auth-error");
+    if (!gate) return;
+    gate.hidden = false;
+    document.body.classList.add("auth-required");
+    if (errorBox) {
+      errorBox.hidden = !message;
+      errorBox.textContent = message;
+    }
+    window.setTimeout(() => gate.querySelector('input[name="login"]')?.focus(), 20);
+  }
+
+  function closeAuthGate() {
+    $("#auth-gate")?.setAttribute("hidden", "");
+    document.body.classList.remove("auth-required");
+    const errorBox = $("#auth-error");
+    if (errorBox) {
+      errorBox.hidden = true;
+      errorBox.textContent = "";
+    }
+  }
+
+  function hasPermission(permission) {
+    if (!state.backendUrl) return true;
+    const permissions = state.currentUser?.permissoes || [];
+    return permissions.includes("*") || permissions.includes(permission);
+  }
+
+  function requirePermission(permission, message = "Seu perfil não permite esta ação.") {
+    if (hasPermission(permission)) return true;
+    if (!state.currentUser) openAuthGate("Entre na sua conta para continuar.");
+    else window.alert(message);
+    return false;
+  }
+
+  function normalizeAppsScriptUrl(value) {
+    const url = String(value || "").trim();
+    if (!url) return "";
+
+    let parsed;
+    try {
+      parsed = new URL(url);
+    } catch (error) {
+      throw new Error("Informe uma URL válida do Apps Script.");
+    }
+
+    if (parsed.protocol !== "https:" || parsed.hostname !== "script.google.com" || !parsed.pathname.endsWith("/exec")) {
+      throw new Error("Use a URL publicada do Apps Script terminada em /exec.");
+    }
+
+    return parsed.toString();
+  }
+
+  async function callAppsScript(action, payload = {}, urlOverride = "") {
+    const url = normalizeAppsScriptUrl(urlOverride || state.backendUrl);
+    if (!url) throw new Error("Servidor do Apps Script não configurado.");
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 20000);
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        redirect: "follow",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action, ...payload }),
+        signal: controller.signal,
+      });
+      const text = await response.text();
+      let result;
+
+      try {
+        result = JSON.parse(text);
+      } catch (error) {
+        throw new Error("O servidor não respondeu como esperado. Confira a implantação e as permissões do Apps Script.");
+      }
+
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || `Falha no servidor (${response.status}).`);
+      }
+
+      return result;
+    } catch (error) {
+      if (error.name === "AbortError") throw new Error("O servidor demorou para responder.");
+      throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  }
+
+  async function handleAuthLoginSubmit(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const submitButton = form.querySelector('button[type="submit"]');
+    const errorBox = $("#auth-error");
+    const login = String(form.elements.login?.value || "").trim().toLowerCase();
+    const pin = String(form.elements.pin?.value || "").trim();
+
+    if (!login || !/^\d{4,12}$/.test(pin)) {
+      errorBox.textContent = "Informe o usuário e um PIN de 4 a 12 números.";
+      errorBox.hidden = false;
+      return;
+    }
+
+    submitButton.disabled = true;
+    submitButton.textContent = "Entrando...";
+    errorBox.hidden = true;
+
+    try {
+      const result = await callAppsScript("login", { login, pin, deviceId: getDeviceId() });
+      persistAuthSession(result.token, result.user);
+      form.reset();
+      closeAuthGate();
+      await updateSyncStatus(`Conectado como ${result.user.nome}`);
+      await syncNow();
+      await renderCurrentSection();
+    } catch (error) {
+      errorBox.textContent = error.message;
+      errorBox.hidden = false;
+    } finally {
+      submitButton.disabled = false;
+      submitButton.textContent = "Entrar";
+    }
+  }
+
+  async function handleLogout() {
+    const token = state.authToken;
+    clearAuthSession();
+    closeSettingsDrawer();
+
+    if (navigator.onLine && token && state.backendUrl) {
+      try {
+        await callAppsScript("logout", { token });
+      } catch (error) {
+        console.warn("Não foi possível encerrar a sessão remota.", error);
+      }
+    }
+
+    if (state.backendUrl) openAuthGate("Sessão encerrada.");
+  }
+
+  async function handleAuthChangeServer() {
+    const confirmed = window.confirm("Quer remover a URL atual e voltar ao modo local neste aparelho?");
+    if (!confirmed) return;
+
     const config = await getRecord("configs", "app");
-    const pending = await getAllRecords("syncQueue");
-    const activePending = pending.filter((item) => item.status !== "sincronizado");
+    await putRecord("configs", {
+      ...config,
+      appsScriptUrl: "",
+      lastServerRevision: 0,
+      updatedAt: nowIso(),
+    });
+    state.backendUrl = "";
+    clearAuthSession();
+    closeAuthGate();
+    await updateSyncStatus("Modo local ativo");
+    await renderCurrentSection();
+  }
 
-    if (!navigator.onLine) {
-      await updateSyncStatus(`${activePending.length} pendente(s), aguardando internet`);
+  async function handleSyncConfigSubmit(event) {
+    event.preventDefault();
+    if (state.backendUrl && !requirePermission("configs:editar")) return;
+    const form = event.currentTarget;
+    const submitButton = form.querySelector('button[type="submit"]');
+    const feedback = $("#sync-config-feedback");
+
+    try {
+      const nextUrl = normalizeAppsScriptUrl(form.elements.appsScriptUrl?.value || "");
+      submitButton.disabled = true;
+      submitButton.textContent = "Verificando...";
+      feedback.hidden = true;
+
+      await callAppsScript("ping", {}, nextUrl);
+      const config = await getRecord("configs", "app");
+      const changedServer = String(config?.appsScriptUrl || "") !== nextUrl;
+      await putRecord("configs", {
+        ...config,
+        appsScriptUrl: nextUrl,
+        lastServerRevision: changedServer ? 0 : Number(config?.lastServerRevision || 0),
+        updatedAt: nowIso(),
+      });
+
+      state.backendUrl = nextUrl;
+      if (changedServer) clearAuthSession();
+      updateAccountUi();
+      feedback.textContent = "Servidor conectado. Entre com a conta administrativa.";
+      feedback.hidden = false;
+      if (state.currentUser) await syncNow();
+      else openAuthGate();
+    } catch (error) {
+      feedback.textContent = error.message;
+      feedback.hidden = false;
+    } finally {
+      submitButton.disabled = false;
+      submitButton.textContent = "Salvar e conectar";
+    }
+  }
+
+  async function handleChangePinSubmit(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const feedback = $("#change-pin-feedback");
+    const currentPin = String(form.elements.currentPin?.value || "").trim();
+    const newPin = String(form.elements.newPin?.value || "").trim();
+    const confirmPin = String(form.elements.confirmPin?.value || "").trim();
+
+    if (!/^\d{4,12}$/.test(newPin) || newPin !== confirmPin) {
+      feedback.textContent = "O novo PIN deve ter de 4 a 12 números e a confirmação deve ser igual.";
+      feedback.hidden = false;
       return;
     }
 
-    if (!config?.appsScriptUrl) {
-      await updateSyncStatus(`${activePending.length} pendente(s), URL do Apps Script pendente`);
+    try {
+      await callAppsScript("changePin", { token: state.authToken, currentPin, newPin });
+      form.reset();
+      feedback.textContent = "PIN alterado com sucesso.";
+      feedback.hidden = false;
+    } catch (error) {
+      feedback.textContent = error.message;
+      feedback.hidden = false;
+    }
+  }
+
+  function canManageUsers() {
+    const permissions = state.currentUser?.permissoes || [];
+    return permissions.includes("*") || permissions.includes("usuarios:gerenciar");
+  }
+
+  function renderUserManagement(players) {
+    const profiles = state.remoteProfiles.length ? state.remoteProfiles : DEFAULT_PERFIS;
+    const userRows = state.remoteUsers.length
+      ? state.remoteUsers.map((user) => `
+          <button class="remote-user-row" type="button" data-user-admin-action="edit" data-user-id="${escapeHtml(user.id)}">
+            <span class="remote-user-avatar" aria-hidden="true">${escapeHtml(String(user.nome || "U").slice(0, 1).toUpperCase())}</span>
+            <span>
+              <strong>${escapeHtml(user.nome)}</strong>
+              <small>@${escapeHtml(user.login)} · ${escapeHtml(user.perfilNome || user.perfilId)}</small>
+            </span>
+            <em class="${user.status === "ativo" ? "is-active" : ""}">${escapeHtml(user.status)}</em>
+          </button>
+        `).join("")
+      : `<p class="account-list-empty">Nenhuma conta remota encontrada.</p>`;
+
+    return `
+      <section class="data-card user-admin-card">
+        <div class="section-heading-inline">
+          <div>
+            <span class="panel-kicker">Acessos</span>
+            <h3>Contas dos usuários</h3>
+            <p>Crie contas para organizadores, marcadores e jogadores. O PIN temporário aparece uma única vez após salvar.</p>
+          </div>
+          <span class="count-badge">${state.remoteUsers.length}</span>
+        </div>
+
+        <form class="user-admin-form" id="user-admin-form" novalidate>
+          <input type="hidden" name="id" />
+          <div class="form-grid">
+            <label class="field-label">
+              <span>Nome *</span>
+              <input type="text" name="nome" autocomplete="off" required />
+            </label>
+            <label class="field-label">
+              <span>Login *</span>
+              <input type="text" name="login" autocomplete="off" autocapitalize="none" placeholder="ex.: juninho" required />
+            </label>
+            <label class="field-label">
+              <span>Perfil *</span>
+              <select name="perfilId" required>
+                ${profiles.map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.nome)}</option>`).join("")}
+              </select>
+            </label>
+            <label class="field-label">
+              <span>Vincular ao jogador</span>
+              <select name="jogadorId">
+                <option value="">Sem vínculo</option>
+                ${players.map((player) => `<option value="${escapeHtml(player.id)}">${escapeHtml(playerDisplayName(player))}</option>`).join("")}
+              </select>
+            </label>
+            <label class="field-label">
+              <span>Status</span>
+              <select name="status">
+                <option value="ativo">Ativo</option>
+                <option value="inativo">Inativo</option>
+              </select>
+            </label>
+            <label class="field-label">
+              <span>Definir novo PIN</span>
+              <input type="password" name="pin" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="12" placeholder="Gerado automaticamente" />
+            </label>
+          </div>
+          <div class="form-actions">
+            <button class="primary-button" type="submit">Salvar conta</button>
+            <button class="ghost-button" type="reset" data-user-admin-action="reset">Limpar</button>
+          </div>
+          <p class="form-feedback" id="user-admin-feedback" role="status" ${state.accountMessage ? "" : "hidden"}>${escapeHtml(state.accountMessage)}</p>
+        </form>
+
+        <div class="remote-user-list">
+          ${userRows}
+        </div>
+      </section>
+    `;
+  }
+
+  async function handleUserAdminSubmit(event) {
+    event.preventDefault();
+    if (!canManageUsers()) return;
+
+    const form = event.currentTarget;
+    const submitButton = form.querySelector('button[type="submit"]');
+    const user = {
+      id: String(form.elements.id?.value || ""),
+      nome: String(form.elements.nome?.value || "").trim(),
+      login: String(form.elements.login?.value || "").trim().toLowerCase(),
+      perfilId: String(form.elements.perfilId?.value || "jogador"),
+      jogadorId: String(form.elements.jogadorId?.value || ""),
+      status: String(form.elements.status?.value || "ativo"),
+      pin: String(form.elements.pin?.value || "").trim(),
+    };
+
+    if (!user.nome || !/^[a-z0-9._-]{3,40}$/.test(user.login)) {
+      state.accountMessage = "Informe o nome e um login com pelo menos três caracteres simples.";
+      const feedback = $("#user-admin-feedback");
+      feedback.textContent = state.accountMessage;
+      feedback.hidden = false;
       return;
     }
 
-    await updateSyncStatus("Sincronização pronta para conectar ao Apps Script");
+    submitButton.disabled = true;
+    submitButton.textContent = "Salvando...";
+
+    try {
+      const result = await callAppsScript("saveUser", {
+        token: state.authToken,
+        deviceId: getDeviceId(),
+        user,
+      });
+      state.accountMessage = result.temporaryPin
+        ? `Conta salva. PIN temporário de ${result.user.nome}: ${result.temporaryPin}`
+        : `Conta de ${result.user.nome} atualizada.`;
+      await renderCurrentSection();
+    } catch (error) {
+      state.accountMessage = error.message;
+      const feedback = $("#user-admin-feedback");
+      feedback.textContent = state.accountMessage;
+      feedback.hidden = false;
+      submitButton.disabled = false;
+      submitButton.textContent = "Salvar conta";
+    }
+  }
+
+  function handleUserAdminClick(event) {
+    const button = event.target.closest("[data-user-admin-action]");
+    if (!button) return;
+    const form = $("#user-admin-form");
+    if (!form) return;
+
+    if (button.dataset.userAdminAction === "reset") {
+      form.reset();
+      form.elements.id.value = "";
+      state.accountMessage = "";
+      return;
+    }
+
+    if (button.dataset.userAdminAction !== "edit") return;
+    const user = state.remoteUsers.find((item) => item.id === button.dataset.userId);
+    if (!user) return;
+
+    form.elements.id.value = user.id || "";
+    form.elements.nome.value = user.nome || "";
+    form.elements.login.value = user.login || "";
+    form.elements.perfilId.value = user.perfilId || "jogador";
+    form.elements.jogadorId.value = user.jogadorId || "";
+    form.elements.status.value = user.status || "ativo";
+    form.elements.pin.value = "";
+    form.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function applySyncResponse(response, batch, config) {
+    const acknowledgements = new Map((response.acks || []).map((ack) => [String(ack.id || ""), ack]));
+    const blockedEntities = new Set();
+    const queueUpdates = batch.map((item) => {
+      const acknowledgement = acknowledgements.get(String(item.id));
+      if (!acknowledgement) return item;
+
+      if (acknowledgement.status !== "ok") {
+        blockedEntities.add(`${item.storeName}:${item.entityId}`);
+      }
+
+      const attempts = Number(item.attempts || 0) + 1;
+      return {
+        ...item,
+        status: acknowledgement.status === "ok" ? "sincronizado" : "erro",
+        attempts,
+        lastAttemptAt: nowIso(),
+        nextAttemptAt: acknowledgement.status === "ok"
+          ? ""
+          : new Date(Date.now() + Math.min(300000, attempts * 60000)).toISOString(),
+        serverRevision: Number(acknowledgement.serverRevision || item.serverRevision || 0),
+        syncError: acknowledgement.error || "",
+        updatedAt: nowIso(),
+      };
+    });
+
+    if (queueUpdates.length) {
+      await putRecords({ syncQueue: queueUpdates });
+    }
+
+    const changesByStore = new Map();
+    (response.changes || []).forEach((change) => {
+      if (!REMOTE_SYNC_STORES.has(change.storeName)) return;
+      if (blockedEntities.has(`${change.storeName}:${change.entityId}`)) return;
+      if (!changesByStore.has(change.storeName)) changesByStore.set(change.storeName, []);
+      changesByStore.get(change.storeName).push(change);
+    });
+
+    for (const [storeName, changes] of changesByStore.entries()) {
+      const transaction = state.db.transaction(storeName, "readwrite");
+      const store = transaction.objectStore(storeName);
+
+      changes.forEach((change) => {
+        if (change.deleted) {
+          store.delete(change.entityId);
+          return;
+        }
+
+        store.put({
+          ...(change.payload || {}),
+          serverCreatedAt: change.serverCreatedAt || change.payload?.serverCreatedAt || "",
+          serverUpdatedAt: change.serverUpdatedAt || change.payload?.serverUpdatedAt || "",
+          serverRevision: Number(change.serverRevision || 0),
+          revision: Number(change.entityRevision || change.payload?.revision || 0),
+        });
+      });
+
+      await transactionDone(transaction);
+    }
+
+    await putRecord("configs", {
+      ...config,
+      lastServerRevision: Number(response.cursor || config?.lastServerRevision || 0),
+      lastSyncAt: response.serverTime || nowIso(),
+      updatedAt: nowIso(),
+    });
+
+    if (response.user) persistAuthSession(state.authToken, response.user);
+    return (response.changes || []).length;
+  }
+
+  async function syncNow() {
+    if (!state.db || state.syncInProgress) return;
+    state.syncInProgress = true;
+
+    try {
+      const config = await getRecord("configs", "app");
+      state.backendUrl = String(config?.appsScriptUrl || "").trim();
+      const pending = await getAllRecords("syncQueue");
+      const now = Date.now();
+      const activePending = pending
+        .filter((item) => item.status !== "sincronizado")
+        .filter((item) => !item.nextAttemptAt || new Date(item.nextAttemptAt).getTime() <= now)
+        .slice(0, SYNC_BATCH_SIZE);
+
+      updateAccountUi();
+
+      if (!navigator.onLine) {
+        await updateSyncStatus(`${activePending.length} pendente(s), aguardando internet`);
+        return;
+      }
+
+      if (!state.backendUrl) {
+        await updateSyncStatus(`${activePending.length} pendente(s), modo local`);
+        return;
+      }
+
+      if (!state.authToken) {
+        await updateSyncStatus(`${activePending.length} pendente(s), login necessário`);
+        openAuthGate();
+        return;
+      }
+
+      await updateSyncStatus("Sincronizando...");
+      const response = await callAppsScript("sync", {
+        token: state.authToken,
+        deviceId: getDeviceId(),
+        sinceRevision: Number(config?.lastServerRevision || 0),
+        operations: activePending,
+      });
+      const changedRecords = await applySyncResponse(response, activePending, config);
+      const remaining = (await getAllRecords("syncQueue")).filter((item) => item.status !== "sincronizado").length;
+      const timeLabel = new Date(response.serverTime || Date.now()).toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      await updateSyncStatus(`${remaining} pendente(s) · sincronizado às ${timeLabel}`);
+
+      if (changedRecords) {
+        await renderCurrentSection();
+      }
+
+      if (response.hasMore) {
+        window.setTimeout(syncNow, 350);
+      }
+    } catch (error) {
+      console.error("Falha de sincronização", error);
+      if (/sessão|conta inativa|entre novamente/i.test(error.message)) {
+        clearAuthSession();
+        openAuthGate(error.message);
+      }
+      await updateSyncStatus(`Sincronização pendente: ${error.message}`);
+    } finally {
+      state.syncInProgress = false;
+    }
   }
 
   async function forceUpdate() {
@@ -9543,6 +10223,17 @@
     $("#settings-drawer-close")?.addEventListener("click", closeSettingsDrawer);
     $("#settings-drawer-backdrop")?.addEventListener("click", closeSettingsDrawer);
     $("#drawer-sync-option")?.addEventListener("click", syncNow);
+    $("#auth-login-form")?.addEventListener("submit", handleAuthLoginSubmit);
+    $("#auth-change-server")?.addEventListener("click", handleAuthChangeServer);
+    $("#logout-button")?.addEventListener("click", handleLogout);
+    $("#account-button")?.addEventListener("click", async () => {
+      closeSettingsDrawer();
+      if (state.backendUrl && !state.currentUser) {
+        openAuthGate();
+        return;
+      }
+      await switchSection("configuracoes");
+    });
 
     document.body.addEventListener("click", async (event) => {
       const sectionButton = event.target.closest("[data-home-section], .drawer-button[data-section]");
@@ -9645,6 +10336,7 @@
     try {
       state.db = await openLocalDatabase();
       await seedDefaults();
+      restoreAuthState(await getRecord("configs", "app"));
       $("#db-status").textContent = "Banco local pronto";
       renderDashboardCards(await readDashboardStats());
       await renderCurrentSection();

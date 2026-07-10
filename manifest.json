@@ -12,10 +12,22 @@
   "categories": ["sports", "productivity"],
   "icons": [
     {
-      "src": "assets/icons/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [
@@ -26,9 +38,9 @@
       "url": "./index.html#ao-vivo",
       "icons": [
         {
-          "src": "assets/icons/icon.svg",
-          "sizes": "any",
-          "type": "image/svg+xml"
+          "src": "assets/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
         }
       ]
     },
@@ -39,9 +51,9 @@
       "url": "./index.html#jogadores",
       "icons": [
         {
-          "src": "assets/icons/icon.svg",
-          "sizes": "any",
-          "type": "image/svg+xml"
+          "src": "assets/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
         }
       ]
     }

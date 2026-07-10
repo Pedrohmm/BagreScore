@@ -1,0 +1,74 @@
+# BagreScore no modelo PAOA
+
+O BagreScore usa o mesmo desenho geral do PAOA:
+
+1. o aplicativo salva primeiro no IndexedDB do aparelho;
+2. cada alteração entra na `syncQueue`;
+3. o Google Apps Script autentica o usuário e grava a base central;
+4. o servidor define horário e revisão oficiais;
+5. os outros aparelhos baixam as alterações.
+
+Enquanto a URL do Apps Script não estiver configurada, o aplicativo continua funcionando no modo local atual.
+
+## 1. Criar o servidor
+
+1. Acesse [script.google.com](https://script.google.com) e crie um projeto.
+2. Substitua o conteúdo de `Code.gs` pelo arquivo [`apps-script/Code.gs`](apps-script/Code.gs).
+3. Nas configurações do projeto, use o fuso `America/Fortaleza`.
+4. Execute manualmente a função `setupBagreScore`.
+5. Autorize o acesso solicitado pelo Google.
+6. Abra o registro da execução. Ele mostrará:
+   - endereço da planilha criada;
+   - login inicial `admin`;
+   - PIN administrativo temporário.
+
+Se precisar consultar essas informações novamente, execute `getBagreScoreSetupInfo`. Se perder o PIN antes de conseguir entrar, execute `resetBagreScoreAdminPin`.
+
+## 2. Publicar o Apps Script
+
+1. Clique em **Implantar > Nova implantação**.
+2. Escolha **Aplicativo da Web**.
+3. Em **Executar como**, selecione sua própria conta.
+4. Em **Quem pode acessar**, selecione a opção que permita acesso sem login Google, normalmente **Qualquer pessoa**.
+5. Conclua a implantação e copie a URL terminada em `/exec`.
+
+O endpoint pode ser acessado publicamente, mas os dados e operações exigem uma sessão BagreScore válida. PINs são armazenados apenas como hash com salt e segredo do servidor.
+
+## 3. Conectar o aplicativo
+
+1. Abra o BagreScore.
+2. Entre em **Configurações**.
+3. Na área **Conta e servidor**, cole a URL `/exec`.
+4. Clique em **Salvar e conectar**.
+5. Entre com o usuário `admin` e o PIN temporário.
+6. Altere o PIN na mesma tela.
+
+Depois disso, a fila local começará a ser enviada e a base remota será baixada para o aparelho.
+
+## 4. Criar contas
+
+Na área **Contas dos usuários**, o administrador pode criar contas com os seguintes perfis:
+
+- **Administrador:** acesso completo e gestão de contas.
+- **Organizador:** peladas, times e controle dos jogos.
+- **Marcador:** gols, assistências, faltas e eventos ao vivo.
+- **Jogador:** estatísticas, histórico e carta.
+- **Público:** consulta básica.
+
+Ao criar uma conta sem informar PIN, o servidor gera um PIN temporário e o mostra uma única vez no aplicativo. Entregue-o diretamente ao usuário.
+
+## 5. Teste recomendado
+
+1. Faça login no primeiro celular como administrador.
+2. Crie uma conta de marcador.
+3. Instale ou abra o app em um segundo celular e entre como marcador.
+4. Crie uma pelada no primeiro aparelho.
+5. Sincronize e confirme que ela aparece no segundo.
+6. Desligue a internet do segundo celular e registre um evento.
+7. Religue a internet e confirme a sincronização.
+8. Registre gols próximos em dois celulares e confirme que o placar final corresponde aos eventos aceitos pelo servidor.
+
+## Atualizações futuras
+
+Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.
+
