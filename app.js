@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.14.1";
+  const APP_VERSION = "0.15.1";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -4480,7 +4480,6 @@
 
       $("#section-content").innerHTML = `
         <div class="peladas-screen">
-          ${renderPeladasPageHeader()}
           ${renderPeladasModeNav(activeView)}
           ${
             activeView === "criar"
@@ -4544,27 +4543,6 @@
     `;
 
     bindPeladaSectionEvents();
-  }
-
-  function renderPeladasPageHeader() {
-    return `
-      <header class="peladas-page-header">
-        <div class="peladas-brand-row">
-          <div class="peladas-brand">
-            <img src="assets/icons/icon.svg" alt="" aria-hidden="true" />
-            <strong>Bagre<span>Score</span></strong>
-          </div>
-          <button class="settings-button peladas-settings-button" type="button" data-pelada-action="open-settings" aria-label="Abrir configurações">
-            <span aria-hidden="true">&#9881;</span>
-          </button>
-        </div>
-        <div class="peladas-title-card">
-          <span>Área de peladas</span>
-          <h2>Peladas</h2>
-          <p>Crie rodadas, acompanhe jogos e abra rapidamente cada pelada.</p>
-        </div>
-      </header>
-    `;
   }
 
   function renderPeladasModeNav(activeView) {
@@ -5956,7 +5934,6 @@
 
       $("#section-content").innerHTML = `
         <div class="live-idle-screen">
-          ${renderLiveTopbar()}
           ${renderLiveIdleCard(latestBundle)}
         </div>
       `;
@@ -5969,7 +5946,6 @@
 
     $("#section-content").innerHTML = `
       <div class="live-screen" data-game-id="${escapeHtml(jogo.id)}">
-        ${renderLiveTopbar()}
         ${renderLiveScoreCard(bundle, remaining)}
         ${renderLivePitch(bundle)}
         ${state.liveMessage ? `<p class="live-message-bar" id="live-message">${escapeHtml(state.liveMessage)}</p>` : `<p class="live-message-bar" id="live-message" hidden></p>`}
@@ -6041,19 +6017,6 @@
     }
 
     return author;
-  }
-
-  function renderLiveTopbar() {
-    return `
-      <div class="live-topbar">
-        <button class="live-icon-button" type="button" data-live-action="back-home" aria-label="Voltar">←</button>
-        <div class="live-brand-mini">
-          <img src="assets/icons/icon.svg" alt="" aria-hidden="true" />
-          <strong>Bagre<span>Score</span></strong>
-        </div>
-        <button class="live-icon-button" type="button" data-live-action="settings" aria-label="Abrir configurações">⚙</button>
-      </div>
-    `;
   }
 
   function renderLiveScoreCard(bundle, remaining) {
