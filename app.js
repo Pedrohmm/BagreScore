@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.15.8";
+  const APP_VERSION = "0.15.9";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -4596,7 +4596,7 @@
           aria-selected="${activeView === "criar"}"
           data-pelada-action="show-create"
         >
-          Criar pelada
+          Marcar pelada
         </button>
         <button
           class="peladas-mode-button ${activeView === "gerenciar" ? "active" : ""}"
@@ -4616,8 +4616,8 @@
       <section class="data-card pelada-form-card">
         <div class="players-toolbar">
           <div>
-            <h3>Criar Pelada</h3>
-            <p>Cadastre uma nova rodada para depois montar os jogos.</p>
+            <h3>Marcar pelada</h3>
+            <p>Defina data, local e horário da próxima rodada.</p>
           </div>
         </div>
         ${renderPeladaForm()}
@@ -4625,44 +4625,76 @@
     `;
   }
 
+  function isFinalizedPelada(pelada) {
+    return normalizeToken(pelada?.status) === "finalizada";
+  }
+
+  function selectNextOpenPelada(peladas = []) {
+    const openPeladas = peladas.filter((pelada) => !isFinalizedPelada(pelada));
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const dateValue = (pelada) => {
+      const parsed = new Date(`${pelada?.data || ""}T${pelada?.horarioInicio || "00:00"}`).getTime();
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    const upcoming = openPeladas
+      .filter((pelada) => dateValue(pelada) >= startOfToday.getTime())
+      .sort((a, b) => dateValue(a) - dateValue(b));
+
+    if (upcoming.length) {
+      return upcoming[0];
+    }
+
+    return openPeladas.sort((a, b) => dateValue(b) - dateValue(a))[0] || null;
+  }
+
+  function renderNoOpenPeladaCard() {
+    const canCreate = hasPermission("peladas:criar");
+
+    return `
+      <section class="peladas-featured-empty" aria-labelledby="no-open-pelada-title">
+        <span class="peladas-featured-kicker">Próxima pelada</span>
+        <span class="peladas-empty-calendar" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/><path d="M12 12v5M9.5 14.5h5"/></svg>
+        </span>
+        <div>
+          <h3 id="no-open-pelada-title">Nenhuma pelada aberta</h3>
+          <p>${canCreate ? "Marque a próxima rodada e deixe tudo pronto para os jogos." : "A próxima rodada ainda não foi marcada."}</p>
+        </div>
+        ${canCreate ? `<button class="primary-button peladas-empty-cta" type="button" data-pelada-action="show-create">Marcar pelada</button>` : ""}
+      </section>
+    `;
+  }
+
   function renderManagePeladasPanel(peladas, gameCountByPeladaId, gamesByPeladaId) {
-    const featuredPelada = peladas[0] || null;
+    const featuredPelada = selectNextOpenPelada(peladas);
+    const finalizedPeladas = peladas.filter(isFinalizedPelada);
 
     return `
       <section class="pelada-workspace peladas-manage-shell">
-        ${
-          featuredPelada
-            ? `
-              ${renderPeladaHighlightCard(
-                featuredPelada,
-                gameCountByPeladaId.get(featuredPelada.id) || 0,
-                gamesByPeladaId.get(featuredPelada.id) || []
-              )}
-              <div class="peladas-created-heading">
-                <h3>Peladas criadas</h3>
-                <span>${peladas.length} salva${peladas.length === 1 ? "" : "s"}</span>
-              </div>
-              <div class="pelada-card-grid">${peladas
-                .map((pelada) =>
-                  renderPeladaCard(
-                    pelada,
-                    gameCountByPeladaId.get(pelada.id) || 0,
-                    gamesByPeladaId.get(pelada.id) || []
-                  )
+        ${featuredPelada
+          ? renderPeladaHighlightCard(
+              featuredPelada,
+              gameCountByPeladaId.get(featuredPelada.id) || 0,
+              gamesByPeladaId.get(featuredPelada.id) || []
+            )
+          : renderNoOpenPeladaCard()}
+
+        <div class="peladas-created-heading">
+          <h3>Peladas finalizadas</h3>
+          <span>${finalizedPeladas.length} finalizada${finalizedPeladas.length === 1 ? "" : "s"}</span>
+        </div>
+        ${finalizedPeladas.length
+          ? `<div class="pelada-card-grid">${finalizedPeladas
+              .map((pelada) =>
+                renderPeladaCard(
+                  pelada,
+                  gameCountByPeladaId.get(pelada.id) || 0,
+                  gamesByPeladaId.get(pelada.id) || []
                 )
-                .join("")}</div>
-              ${hasPermission("peladas:criar") ? `<button class="peladas-new-floating" type="button" data-pelada-action="show-create">
-                <span aria-hidden="true">+</span>
-                Nova pelada
-              </button>` : ""}
-            `
-            : `
-              <div class="empty-state">
-                <h3>Nenhuma pelada criada</h3>
-                <p>${hasPermission("peladas:criar") ? "Crie a primeira pelada. Depois, abra o card dela para montar times e iniciar jogos." : "Nenhuma pelada foi publicada ainda."}</p>
-              </div>
-            `
-        }
+              )
+              .join("")}</div>`
+          : `<div class="peladas-finished-empty"><span aria-hidden="true">✓</span><p>Nenhuma pelada finalizada ainda.</p></div>`}
       </section>
     `;
   }
@@ -4702,7 +4734,7 @@
           </label>
         </div>
         <div class="form-actions">
-          <button class="primary-button" type="submit">Salvar pelada</button>
+          <button class="primary-button" type="submit">Marcar pelada</button>
           <button class="ghost-button" type="reset">Limpar</button>
         </div>
       </form>
@@ -4794,9 +4826,10 @@
 
   function renderPeladaCard(pelada, gameCount = 0, jogos = []) {
     const status = getPeladaStatusLabel(pelada, jogos);
+    const statusClass = normalizeToken(status);
 
     return `
-      <article class="pelada-card">
+      <article class="pelada-card ${statusClass === "finalizada" ? "is-finalized" : ""}">
         <button class="pelada-card-main" type="button" data-pelada-action="open-pelada" data-pelada-id="${escapeHtml(pelada.id)}">
           ${renderPeladaDateTile(pelada)}
           <span class="pelada-card-info">
@@ -5272,21 +5305,32 @@
   }
 
   function renderPeladaSuggestionCard(title, stats, scoreKey, scoreLabel) {
+    const suggestionType = scoreKey === "bagreScore" ? "bagre" : "mvp";
+
     if (!stats) {
       return `
-        <article class="pelada-suggestion-card">
+        <article class="pelada-suggestion-card is-${suggestionType} is-empty">
+          <span class="finish-suggestion-badge">${suggestionType === "mvp" ? "MVP" : "BAGRE"}</span>
           <span class="metric-label">${escapeHtml(title)}</span>
-          <strong>Sem sugestão</strong>
+          <strong>Aguardando dados</strong>
         </article>
       `;
     }
 
     return `
-      <article class="pelada-suggestion-card">
-        <span class="metric-label">${escapeHtml(title)}</span>
-        <strong>${escapeHtml(playerDisplayName(stats.jogador))}</strong>
-        <small>${escapeHtml(stats.jogador.posicaoPrincipal || "-")} - ${escapeHtml(stats.jogador.overall || "-")} OVR</small>
-        <em>${escapeHtml(scoreLabel)}: ${escapeHtml(formatScoreNumber(stats[scoreKey]))}</em>
+      <article class="pelada-suggestion-card is-${suggestionType}">
+        <header>
+          <span class="finish-suggestion-badge">${suggestionType === "mvp" ? "MVP" : "BAGRE"}</span>
+          <span class="metric-label">${escapeHtml(title)}</span>
+        </header>
+        <div class="finish-suggestion-player">
+          ${renderPlayerAvatar(stats.jogador, "player-avatar finish-suggestion-avatar")}
+          <span>
+            <strong>${escapeHtml(playerDisplayName(stats.jogador))}</strong>
+            <small>${escapeHtml(stats.jogador.posicaoPrincipal || "-")} · ${escapeHtml(stats.jogador.overall || "-")} OVR</small>
+          </span>
+        </div>
+        <em><small>${escapeHtml(scoreLabel)}</small><strong>${escapeHtml(formatScoreNumber(stats[scoreKey]))}</strong></em>
       </article>
     `;
   }
@@ -5322,55 +5366,72 @@
       <form class="event-form finish-pelada-form" id="finish-pelada-form" data-pelada-id="${escapeHtml(summary.pelada.id)}" novalidate>
         <div class="form-errors" id="finish-pelada-errors" hidden></div>
 
-        <section class="pelada-finish-block">
-          <h3>Resumo geral da pelada</h3>
-          <div class="event-summary-grid">
-            <span><strong>${escapeHtml(summary.totals.jogosRealizados)}</strong> jogos realizados</span>
-            <span><strong>${escapeHtml(summary.totals.gols)}</strong> gols</span>
-            <span><strong>${escapeHtml(summary.totals.assistencias)}</strong> assistências</span>
-            <span><strong>${escapeHtml(summary.totals.faltas)}</strong> faltas</span>
-            <span><strong>${escapeHtml(summary.totals.acoesDefensivas)}</strong> ações defensivas</span>
-            <span><strong>${escapeHtml(summary.totals.defesasDificeis)}</strong> defesas difíceis</span>
+        <section class="finish-pelada-hero">
+          <span class="finish-pelada-kicker">Encerramento da rodada</span>
+          <h3>${escapeHtml(summary.pelada.local || "Pelada")}</h3>
+          <p>${escapeHtml(formatDateLabel(summary.pelada.data))} · Revise os destaques e confirme as escolhas finais.</p>
+        </section>
+
+        <section class="pelada-finish-block finish-summary-block">
+          <header class="finish-block-heading">
+            <span>01</span>
+            <div><h3>Resumo da pelada</h3><p>Os principais números da rodada.</p></div>
+          </header>
+          <div class="finish-metrics-grid">
+            <span><small>Jogos</small><strong>${escapeHtml(summary.totals.jogosRealizados)}</strong></span>
+            <span><small>Gols</small><strong>${escapeHtml(summary.totals.gols)}</strong></span>
+            <span><small>Assistências</small><strong>${escapeHtml(summary.totals.assistencias)}</strong></span>
+            <span><small>Faltas</small><strong>${escapeHtml(summary.totals.faltas)}</strong></span>
+            <span><small>Ações defensivas</small><strong>${escapeHtml(summary.totals.acoesDefensivas)}</strong></span>
+            <span><small>Defesas difíceis</small><strong>${escapeHtml(summary.totals.defesasDificeis)}</strong></span>
           </div>
-          <div class="pelada-leaders-list">
-            <span><strong>Artilheiro</strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.artilheiro, "gols"))}</span>
-            <span><strong>Líder de assistências</strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.assistencias, "assistencias"))}</span>
-            <span><strong>Maior participação em gol</strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.participacoesGol, "participacoesGol"))}</span>
-            <span><strong>Mais vitórias</strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.vitorias, "vitorias"))}</span>
-            <span><strong>Goleiro com mais defesas</strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.goleiroDefesas, "defesasDificeis"))}</span>
+          <div class="finish-leaders-grid">
+            <span><small>Artilheiro</small><strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.artilheiro, "gols"))}</strong></span>
+            <span><small>Garçom</small><strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.assistencias, "assistencias"))}</strong></span>
+            <span><small>Maior participação</small><strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.participacoesGol, "participacoesGol"))}</strong></span>
+            <span><small>Mais vitórias</small><strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.vitorias, "vitorias"))}</strong></span>
+            <span><small>Goleiro destaque</small><strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.goleiroDefesas, "defesasDificeis"))}</strong></span>
           </div>
         </section>
 
-        <section class="pelada-finish-block">
-          <h3>Sugestões da Pelada</h3>
-          <p>O app sugere com base na pontuação, mas a escolha final é manual.</p>
+        <section class="pelada-finish-block finish-suggestions-block">
+          <header class="finish-block-heading">
+            <span>02</span>
+            <div><h3>Sugestões do BagreScore</h3><p>Use como referência. A decisão final continua sendo sua.</p></div>
+          </header>
           <div class="pelada-suggestion-grid">
-            ${renderPeladaSuggestionCard("Sugestão de MVP da Pelada", summary.suggestions.mvp, "pontuacao", "Pontuação")}
-            ${renderPeladaSuggestionCard("Sugestão de Bagre da Pelada", summary.suggestions.bagre, "bagreScore", "Índice negativo")}
+            ${renderPeladaSuggestionCard("MVP recomendado", summary.suggestions.mvp, "pontuacao", "Pontuação")}
+            ${renderPeladaSuggestionCard("Bagre recomendado", summary.suggestions.bagre, "bagreScore", "Índice negativo")}
           </div>
         </section>
 
-        <div class="form-grid">
-          <label class="field-label">
-            <span>MVP da Pelada *</span>
-            <select name="mvpJogadorId" ${canChoose ? "" : "disabled"}>
-              ${renderAwardPlayerOptions(summary, summary.suggestions.mvp?.jogadorId || "", "pontuacao")}
-            </select>
-          </label>
-          <label class="field-label">
-            <span>Bagre da Pelada *</span>
-            <select name="bagreJogadorId" ${canChoose ? "" : "disabled"}>
-              ${renderAwardPlayerOptions(summary, summary.suggestions.bagre?.jogadorId || "", "bagreScore")}
-            </select>
-          </label>
-          <label class="field-label wide-field">
-            <span>Observações</span>
-            <textarea name="observacoes" rows="3" placeholder="Ex.: escolha confirmada pelo grupo após a última partida."></textarea>
-          </label>
-        </div>
+        <section class="pelada-finish-block finish-choices-block">
+          <header class="finish-block-heading">
+            <span>03</span>
+            <div><h3>Escolhas finais</h3><p>MVP e Bagre precisam ser jogadores diferentes.</p></div>
+          </header>
+          <div class="form-grid finish-choice-grid">
+            <label class="field-label">
+              <span>MVP da Pelada *</span>
+              <select name="mvpJogadorId" ${canChoose ? "" : "disabled"}>
+                ${renderAwardPlayerOptions(summary, summary.suggestions.mvp?.jogadorId || "", "pontuacao")}
+              </select>
+            </label>
+            <label class="field-label">
+              <span>Bagre da Pelada *</span>
+              <select name="bagreJogadorId" ${canChoose ? "" : "disabled"}>
+                ${renderAwardPlayerOptions(summary, summary.suggestions.bagre?.jogadorId || "", "bagreScore")}
+              </select>
+            </label>
+            <label class="field-label wide-field">
+              <span>Observações</span>
+              <textarea name="observacoes" rows="3" placeholder="Ex.: escolha confirmada pelo grupo após a última partida."></textarea>
+            </label>
+          </div>
+        </section>
 
         <div class="form-actions">
-          <button class="primary-button big-touch" type="submit" ${canChoose ? "" : "disabled"}>Confirmar encerramento</button>
+          <button class="primary-button big-touch" type="submit" ${canChoose ? "" : "disabled"}>Finalizar pelada</button>
           <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
         </div>
       </form>
@@ -5636,6 +5697,7 @@
     if (!requirePermission("jogos:finalizar")) return;
 
     const form = event.currentTarget;
+    if (form.dataset.submitting === "true") return;
     const summary = await readPeladaClosureSummary(peladaId);
     const pelada = summary?.pelada;
     const mvpJogadorId = form.elements.mvpJogadorId?.value || "";
@@ -5656,6 +5718,11 @@
     if (errors.length) {
       return;
     }
+
+    form.dataset.submitting = "true";
+    form.querySelectorAll("button").forEach((button) => {
+      button.disabled = true;
+    });
 
     const savedAt = nowIso();
     const mvpScore = summary.scoreByPlayerId.get(mvpJogadorId)?.pontuacao || 0;
@@ -5727,8 +5794,11 @@
     }
 
     closeLiveModal();
-    await syncNow();
-    await refreshCurrentView();
+    state.selectedPeladaId = null;
+    state.selectedGameSummaryId = null;
+    state.peladasView = "gerenciar";
+    await switchSection("peladas", { historyMode: "replace", peladasView: "gerenciar" });
+    void syncNow();
   }
 
   function collectPeladaFormData(form) {
