@@ -10402,6 +10402,352 @@ body.auth-required {
   }
 }
 
+/* Final visual refinements v0.15.2 */
+body[data-section="inicio"] .topbar-actions {
+  left: 12px;
+  right: auto;
+}
+
+body[data-section="inicio"] .topbar {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+body[data-section="inicio"] .home-brand-lockup {
+  grid-column: 1;
+  width: 100%;
+}
+
+body[data-section="inicio"] .home-menu-button {
+  width: 42px;
+  min-width: 42px;
+  height: 38px;
+  border-color: rgba(255, 255, 255, 0.09);
+  border-radius: 13px;
+  color: #aaa;
+  background: rgba(255, 255, 255, 0.035);
+  box-shadow: none;
+}
+
+body[data-section="inicio"] .home-menu-button span,
+body[data-section="inicio"] .home-menu-button svg {
+  display: block;
+  width: 23px;
+  height: 23px;
+}
+
+body[data-section="inicio"] .home-menu-button svg {
+  fill: currentColor;
+}
+
+body[data-section="inicio"] .home-brand-lockup {
+  position: relative;
+  left: 0;
+  margin-inline: auto;
+}
+
+body[data-section="peladas"] .pelada-status-badge.status-aberta {
+  border: 1px solid rgba(55, 214, 103, 0.25);
+  color: #7df49a;
+  background: rgba(34, 197, 94, 0.13);
+  box-shadow: inset 0 0 16px rgba(34, 197, 94, 0.05);
+}
+
+/* Ao vivo professional scoreboard */
+body[data-section="ao-vivo"] .live-idle-card,
+body[data-section="ao-vivo"] .live-score-card {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(255, 90, 0, 0.22);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.15), transparent 16rem),
+    radial-gradient(circle at 0% 100%, rgba(34, 197, 94, 0.06), transparent 14rem),
+    linear-gradient(155deg, rgba(19, 19, 19, 0.99), rgba(4, 4, 4, 0.99));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
+    0 18px 44px rgba(0, 0, 0, 0.38);
+}
+
+body[data-section="ao-vivo"] .live-idle-card::before,
+body[data-section="ao-vivo"] .live-score-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 18px;
+  right: 18px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--orange), transparent);
+  opacity: 0.72;
+}
+
+body[data-section="ao-vivo"] .live-idle-card {
+  gap: 12px;
+  border-radius: 22px;
+  padding: 17px;
+}
+
+body[data-section="ao-vivo"] .live-idle-heading {
+  gap: 8px;
+}
+
+body[data-section="ao-vivo"] .live-idle-kicker,
+body[data-section="ao-vivo"] .live-idle-heading > strong {
+  padding: 6px 9px;
+  font-size: 0.67rem;
+  letter-spacing: 0.04em;
+}
+
+body[data-section="ao-vivo"] .live-idle-heading > strong {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #c8c8c8;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+body[data-section="ao-vivo"] .live-idle-card > p {
+  color: #9e9e9e;
+  font-size: 0.84rem;
+}
+
+body[data-section="ao-vivo"] .live-idle-score {
+  min-height: 132px;
+  border-color: rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  padding: 16px 12px;
+  background:
+    radial-gradient(circle at 50% 115%, rgba(255, 90, 0, 0.15), transparent 10rem),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018));
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.2);
+}
+
+body[data-section="ao-vivo"] .live-idle-score span {
+  color: #d7d7d7;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+body[data-section="ao-vivo"] .live-idle-score strong {
+  color: #fff;
+  font-size: clamp(2.8rem, 13vw, 4.4rem);
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  text-shadow: 0 0 24px rgba(255, 90, 0, 0.15);
+}
+
+body[data-section="ao-vivo"] .live-idle-meta {
+  gap: 6px;
+}
+
+body[data-section="ao-vivo"] .live-idle-meta span {
+  border-color: rgba(255, 255, 255, 0.08);
+  padding: 6px 9px;
+  color: #bdbdbd;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 0.75rem;
+}
+
+body[data-section="ao-vivo"] .live-idle-goals {
+  gap: 4px;
+  border-left-width: 2px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: linear-gradient(90deg, rgba(255, 90, 0, 0.12), rgba(255, 90, 0, 0.035));
+}
+
+body[data-section="ao-vivo"] .live-idle-goals span {
+  font-size: 0.67rem;
+  letter-spacing: 0.05em;
+}
+
+body[data-section="ao-vivo"] .live-idle-goals strong {
+  color: #f3f3f3;
+  font-size: 0.9rem;
+}
+
+body[data-section="ao-vivo"] .live-idle-actions .primary-button {
+  min-height: 52px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #ff7920, #f34b00);
+  box-shadow: 0 12px 26px rgba(255, 90, 0, 0.18);
+}
+
+body[data-section="ao-vivo"] .live-score-card {
+  gap: 14px;
+  border-radius: 22px;
+  padding: 16px;
+}
+
+body[data-section="ao-vivo"] .live-score-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body[data-section="ao-vivo"] .live-match-title {
+  display: grid;
+  gap: 2px;
+}
+
+body[data-section="ao-vivo"] .live-match-title small {
+  color: var(--orange);
+  font-size: 0.62rem;
+  font-weight: 950;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+body[data-section="ao-vivo"] .live-match-title strong {
+  color: #fff;
+  font-size: 1.1rem;
+}
+
+body[data-section="ao-vivo"] .live-match-title em {
+  color: #888;
+  font-size: 0.68rem;
+  font-style: normal;
+}
+
+body[data-section="ao-vivo"] .live-status-dot {
+  align-self: start;
+  border: 1px solid rgba(34, 197, 94, 0.24);
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: rgba(34, 197, 94, 0.09);
+  font-size: 0.68rem;
+}
+
+body[data-section="ao-vivo"] .live-status-dot.is-ended {
+  border-color: rgba(255, 90, 0, 0.24);
+  color: #ff9e63;
+  background: rgba(255, 90, 0, 0.09);
+}
+
+body[data-section="ao-vivo"] .live-score-board {
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 18px;
+  padding: 14px 10px;
+  background: rgba(255, 255, 255, 0.022);
+}
+
+body[data-section="ao-vivo"] .live-events-card {
+  border-color: rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background: linear-gradient(155deg, rgba(16, 16, 16, 0.98), rgba(5, 5, 5, 0.99));
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
+}
+
+/* Player cards: identity and attributes first, actions secondary */
+body[data-section="jogadores"] .player-card {
+  border-color: rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  padding: 11px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(255, 90, 0, 0.08), transparent 10rem),
+    linear-gradient(155deg, rgba(17, 17, 17, 0.98), rgba(6, 6, 6, 0.99));
+}
+
+body[data-section="jogadores"] .player-card-main {
+  grid-template-columns: 66px minmax(0, 1fr) auto;
+  gap: 12px;
+  min-height: 70px;
+}
+
+body[data-section="jogadores"] .player-card-main .player-avatar {
+  width: 64px;
+  height: 64px;
+  border-width: 2px;
+  box-shadow: 0 0 18px rgba(255, 90, 0, 0.16);
+}
+
+body[data-section="jogadores"] .player-card-info {
+  gap: 3px;
+}
+
+body[data-section="jogadores"] .player-card-info strong {
+  color: #fff;
+  font-size: 1rem;
+}
+
+body[data-section="jogadores"] .player-card-info span {
+  color: #8f8f8f;
+  font-size: 0.74rem;
+}
+
+body[data-section="jogadores"] .player-card-info span:first-of-type {
+  color: #d8d8d8;
+  font-weight: 750;
+}
+
+body[data-section="jogadores"] .player-status {
+  grid-column: auto;
+  align-self: start;
+  justify-self: end;
+  width: auto;
+  border-color: rgba(34, 197, 94, 0.2);
+  padding: 4px 7px;
+  color: #7ee79a;
+  background: rgba(34, 197, 94, 0.08);
+  font-size: 0.62rem;
+  text-align: center;
+}
+
+body[data-section="jogadores"] .player-card-actions {
+  display: flex;
+  grid-template-columns: none;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.065);
+  padding-top: 7px;
+}
+
+body[data-section="jogadores"] .player-card-actions .compact-button,
+body[data-section="jogadores"] .player-card-actions button {
+  width: auto;
+  min-width: 0;
+  min-height: 29px;
+  flex: 0 1 auto;
+  border-radius: 9px;
+  padding: 5px 8px;
+  color: #aaa;
+  background: rgba(255, 255, 255, 0.025);
+  box-shadow: none;
+  font-size: 0.65rem;
+}
+
+body[data-section="jogadores"] .player-card-actions .danger-button {
+  border-color: rgba(227, 93, 93, 0.16);
+  color: #b98e8e;
+  background: rgba(227, 93, 93, 0.035);
+}
+
+body[data-section="jogadores"] .player-card-actions button:hover,
+body[data-section="jogadores"] .player-card-actions button:focus-visible {
+  border-color: rgba(255, 90, 0, 0.3);
+  color: #eee;
+  background: rgba(255, 90, 0, 0.07);
+}
+
+@media (max-width: 420px) {
+  body[data-section="inicio"] .topbar-actions {
+    left: 9px;
+  }
+
+  body[data-section="inicio"] .home-menu-button {
+    width: 38px;
+    min-width: 38px;
+    height: 36px;
+  }
+
+  body[data-section="jogadores"] .player-card-main {
+    grid-template-columns: 60px minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+
+  body[data-section="jogadores"] .player-card-main .player-avatar {
+    width: 58px;
+    height: 58px;
+  }
+}
+
 /* Mobile navigation and section cleanup v0.15 */
 .app-shell {
   padding-bottom: calc(98px + env(safe-area-inset-bottom));
@@ -10793,5 +11139,18 @@ body[data-section="ao-vivo"] .live-screen:has(.live-control-bar) {
   .bottom-nav .nav-glyph svg {
     width: 21px;
     height: 21px;
+  }
+}
+
+/* Keep the home menu outside the centered brand geometry. */
+body[data-section="inicio"] .topbar-actions {
+  left: 12px;
+  right: auto;
+}
+
+@media (max-width: 420px) {
+  body[data-section="inicio"] .topbar-actions {
+    left: 9px;
+    right: auto;
   }
 }

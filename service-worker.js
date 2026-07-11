@@ -1,9 +1,9 @@
-const CACHE_VERSION = "bagrescore-v0.15.1";
+const CACHE_VERSION = "bagrescore-v0.15.3";
 const PRECACHE_URLS = [
   "./",
   "./index.html",
-  "./style.css?v=0.15.1",
-  "./app.js?v=0.15.1",
+  "./style.css?v=0.15.3",
+  "./app.js?v=0.15.3",
   "./manifest.json",
   "./assets/icons/icon.svg",
   "./assets/icons/icon-192.png",
