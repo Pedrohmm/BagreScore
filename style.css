@@ -11243,16 +11243,283 @@ body[data-section="ao-vivo"] .live-idle-screen {
 body[data-section="ao-vivo"] .live-control-bar {
   bottom: calc(82px + env(safe-area-inset-bottom));
   z-index: 50;
+  grid-template-columns: 1fr 1fr 1.14fr;
+  gap: 6px;
   width: min(744px, calc(100% - 14px));
   border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 18px;
-  padding: 7px;
-  background: rgba(7, 7, 7, 0.95);
-  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.4);
+  border-radius: 20px;
+  padding: 6px;
+  background:
+    radial-gradient(circle at 82% 0%, rgba(255, 90, 0, 0.1), transparent 12rem),
+    rgba(7, 7, 7, 0.96);
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.44), 0 0 0 1px rgba(255, 90, 0, 0.025) inset;
+  transition: opacity 160ms ease, visibility 160ms ease;
+}
+
+body[data-section="ao-vivo"] .live-control-button,
+body[data-section="ao-vivo"] .live-control-bar .big-touch {
+  display: flex;
+  min-width: 0;
+  min-height: 58px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-color: rgba(255, 255, 255, 0.08);
+  border-radius: 15px;
+  padding: 6px 4px;
+  color: #d4d4d4;
+  background: rgba(255, 255, 255, 0.025);
+  box-shadow: none;
+  font-size: 0.68rem;
+  font-weight: 850;
+  line-height: 1;
+}
+
+body[data-section="ao-vivo"] .live-control-button:hover,
+body[data-section="ao-vivo"] .live-control-button:focus-visible {
+  border-color: rgba(255, 90, 0, 0.38);
+  color: #fff;
+  background: rgba(255, 90, 0, 0.08);
+}
+
+body[data-section="ao-vivo"] .live-control-icon {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border-radius: 9px;
+  color: var(--orange);
+  background: rgba(255, 90, 0, 0.08);
+}
+
+body[data-section="ao-vivo"] .live-control-icon svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+body[data-section="ao-vivo"] .live-control-button.is-finish {
+  border-color: rgba(227, 93, 93, 0.32);
+  color: #ffd6d6;
+  background: rgba(227, 93, 93, 0.09);
+}
+
+body[data-section="ao-vivo"] .live-control-button.is-finish .live-control-icon {
+  color: #ff8d8d;
+  background: rgba(227, 93, 93, 0.1);
 }
 
 body[data-section="ao-vivo"] .live-screen:has(.live-control-bar) {
   padding-bottom: calc(174px + env(safe-area-inset-bottom));
+}
+
+/* Live action forms always sit above the match dock and mobile navigation. */
+#live-modal.modal-backdrop {
+  z-index: 120;
+  padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+  background: rgba(0, 0, 0, 0.84);
+  backdrop-filter: blur(14px);
+}
+
+#live-modal .modal-panel {
+  width: min(680px, 100%);
+  max-height: min(92dvh, 780px);
+  overscroll-behavior: contain;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 26px;
+  padding: 18px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.15), transparent 18rem),
+    linear-gradient(160deg, rgba(20, 20, 20, 0.99), rgba(6, 6, 6, 0.99));
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.72);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 90, 0, 0.45) transparent;
+}
+
+#live-modal .modal-header {
+  position: sticky;
+  top: -18px;
+  z-index: 5;
+  margin: -18px -18px 2px;
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+  border-radius: 26px 26px 0 0;
+  padding: 17px 18px 13px;
+  background: rgba(10, 10, 10, 0.93);
+  backdrop-filter: blur(18px);
+}
+
+#live-modal .modal-header h3 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(1.05rem, 4.8vw, 1.35rem);
+  letter-spacing: -0.025em;
+}
+
+.live-modal-close {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 13px;
+  color: #aaa;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+
+.live-modal-close:hover,
+.live-modal-close:focus-visible {
+  border-color: rgba(255, 90, 0, 0.38);
+  color: #fff;
+  background: rgba(255, 90, 0, 0.08);
+}
+
+.live-modal-close svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+}
+
+#live-modal .event-form {
+  gap: 10px;
+  padding-top: 2px;
+}
+
+#live-modal .quick-question {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(190px, 1.2fr);
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 16px;
+  padding: 11px 12px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+#live-modal .quick-question > span {
+  color: #c8c8c8;
+  font-size: 0.83rem;
+  font-weight: 750;
+}
+
+#live-modal .compact-segment,
+#live-modal .segmented-options {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+#live-modal .segmented-options label {
+  min-height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 6px 8px;
+  color: #999;
+  background: rgba(255, 255, 255, 0.025);
+  font-size: 0.78rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+#live-modal .segmented-options label:has(input:checked) {
+  border-color: rgba(255, 90, 0, 0.52);
+  color: #fff;
+  background: rgba(255, 90, 0, 0.12);
+  box-shadow: 0 0 0 1px rgba(255, 90, 0, 0.05) inset;
+}
+
+#live-modal input[type="radio"] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--orange);
+}
+
+#live-modal .field-label textarea {
+  min-height: 74px;
+  resize: vertical;
+}
+
+#live-modal .event-form > .form-actions {
+  position: sticky;
+  bottom: -18px;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(100px, 0.75fr);
+  gap: 8px;
+  margin: 4px -18px -18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 12px 18px calc(12px + env(safe-area-inset-bottom));
+  background: rgba(8, 8, 8, 0.95);
+  backdrop-filter: blur(18px);
+}
+
+#live-modal .event-form > .form-actions .big-touch {
+  min-height: 50px;
+  border-radius: 14px;
+  font-size: 0.8rem;
+}
+
+body:has(#live-modal) .live-control-bar,
+body:has(#live-modal) .bottom-nav {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+@media (max-width: 620px) {
+  #live-modal.modal-backdrop {
+    place-items: end center;
+    padding: 6px 6px max(6px, env(safe-area-inset-bottom));
+  }
+
+  #live-modal .modal-panel {
+    max-height: calc(100dvh - 12px - env(safe-area-inset-top));
+    border-radius: 24px 24px 18px 18px;
+    padding: 14px;
+  }
+
+  #live-modal .modal-header {
+    top: -14px;
+    margin: -14px -14px 2px;
+    border-radius: 24px 24px 0 0;
+    padding: 14px;
+  }
+
+  #live-modal .quick-question {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  #live-modal .event-form > .form-actions {
+    bottom: -14px;
+    margin: 4px -14px -14px;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 360px) {
+  body[data-section="ao-vivo"] .live-control-bar {
+    gap: 4px;
+  }
+
+  body[data-section="ao-vivo"] .live-control-button,
+  body[data-section="ao-vivo"] .live-control-bar .big-touch {
+    min-height: 55px;
+    font-size: 0.62rem;
+  }
+
+  #live-modal .event-form > .form-actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 420px) {

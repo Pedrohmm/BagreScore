@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.15.5";
+  const APP_VERSION = "0.15.6";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -6204,12 +6204,23 @@
     const paused = Boolean(jogo.pausadoEm);
 
     return `
-      <div class="live-control-bar">
-        <button class="ghost-button big-touch" type="button" data-live-action="${paused ? "resume" : "pause"}">
-          ${paused ? "Retomar" : "Pausar"}
+      <div class="live-control-bar" role="toolbar" aria-label="Controles da partida">
+        <button class="ghost-button big-touch live-control-button" type="button" data-live-action="${paused ? "resume" : "pause"}" aria-label="${paused ? "Retomar partida" : "Pausar partida"}">
+          <span class="live-control-icon" aria-hidden="true">
+            ${paused
+              ? `<svg viewBox="0 0 24 24"><path d="m9 6 9 6-9 6z"/></svg>`
+              : `<svg viewBox="0 0 24 24"><path d="M8 6v12M16 6v12"/></svg>`}
+          </span>
+          <span>${paused ? "Retomar" : "Pausar"}</span>
         </button>
-        <button class="ghost-button big-touch" type="button" data-live-action="undo">Desfazer</button>
-        <button class="danger-button big-touch" type="button" data-live-action="finish">Finalizar jogo</button>
+        <button class="ghost-button big-touch live-control-button" type="button" data-live-action="undo" aria-label="Desfazer último evento">
+          <span class="live-control-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 7 4 12l5 5M5 12h8a6 6 0 0 1 6 6"/></svg></span>
+          <span>Desfazer</span>
+        </button>
+        <button class="danger-button big-touch live-control-button is-finish" type="button" data-live-action="finish" aria-label="Finalizar jogo">
+          <span class="live-control-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 4v16M7 5h10l-2 3 2 3H7"/></svg></span>
+          <span>Finalizar</span>
+        </button>
       </div>
     `;
   }
@@ -6793,7 +6804,9 @@
       <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="live-modal-title">
         <div class="modal-header">
           <h3 id="live-modal-title">${escapeHtml(title)}</h3>
-          <button class="ghost-button compact-button" type="button" data-modal-close>Fechar</button>
+          <button class="live-modal-close" type="button" data-modal-close aria-label="Fechar formulário">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg>
+          </button>
         </div>
         ${bodyHtml}
       </div>
