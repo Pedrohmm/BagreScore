@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.14.0";
+  const APP_VERSION = "0.14.1";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -9523,6 +9523,42 @@
     `;
   }
 
+  function renderPlayerPinCard() {
+    return `
+      <section class="data-card player-pin-card">
+        <div>
+          <span class="panel-kicker">Segurança</span>
+          <h3>Alterar meu PIN</h3>
+        </div>
+        <form class="change-pin-form player-change-pin-form" id="change-pin-form" novalidate>
+          <div class="form-grid">
+            <label class="field-label">
+              <span>PIN atual</span>
+              <input type="password" name="currentPin" inputmode="numeric" autocomplete="current-password" minlength="4" maxlength="12" required />
+            </label>
+            <label class="field-label">
+              <span>Novo PIN</span>
+              <input type="password" name="newPin" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="12" required />
+            </label>
+            <label class="field-label">
+              <span>Confirmar novo PIN</span>
+              <input type="password" name="confirmPin" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="12" required />
+            </label>
+          </div>
+          <button class="ghost-button" type="submit">Alterar PIN</button>
+          <p class="form-feedback" id="change-pin-feedback" role="status" hidden></p>
+        </form>
+      </section>
+    `;
+  }
+
+  function bindMyPlayerSettingsEvents() {
+    $("#change-pin-form")?.addEventListener("submit", handleChangePinSubmit);
+    $("#my-player-profile-form")?.addEventListener("submit", handleMyPlayerProfileSubmit);
+    $("#my-player-profile-form input[name=\"fotoArquivo\"]")?.addEventListener("change", handleMyPlayerProfilePhotoChange);
+    $("[data-my-profile-action=\"remove-photo\"]")?.addEventListener("click", handleMyPlayerProfileRemovePhoto);
+  }
+
   async function renderConfigSection(counts = {}) {
     const [config, syncQueue, auditLog] = await Promise.all([
       getRecord("configs", "app"),
@@ -9535,6 +9571,18 @@
       ? await getRecord("jogadores", state.currentUser.jogadorId)
       : null;
     let accountPlayers = [];
+
+    if (state.currentUser?.perfilId === "jogador") {
+      setSectionTitle("Minha conta", "Meu jogador");
+      $("#section-content").innerHTML = `
+        <div class="player-self-settings">
+          ${renderPlayerPinCard()}
+          ${renderMyPlayerProfile(linkedPlayer)}
+        </div>
+      `;
+      bindMyPlayerSettingsEvents();
+      return;
+    }
 
     if (canManageUsers()) {
       accountPlayers = await getAllRecords("jogadores");
@@ -9709,10 +9757,7 @@
     `;
 
     $("#sync-config-form")?.addEventListener("submit", handleSyncConfigSubmit);
-    $("#change-pin-form")?.addEventListener("submit", handleChangePinSubmit);
-    $("#my-player-profile-form")?.addEventListener("submit", handleMyPlayerProfileSubmit);
-    $("#my-player-profile-form input[name=\"fotoArquivo\"]")?.addEventListener("change", handleMyPlayerProfilePhotoChange);
-    $("[data-my-profile-action=\"remove-photo\"]")?.addEventListener("click", handleMyPlayerProfileRemovePhoto);
+    bindMyPlayerSettingsEvents();
     $("#user-admin-form")?.addEventListener("submit", handleUserAdminSubmit);
     $(".user-admin-card")?.addEventListener("click", handleUserAdminClick);
     $("#server-reset-form")?.addEventListener("submit", handleServerResetSubmit);

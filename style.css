@@ -9985,6 +9985,26 @@ body.auth-required {
   overflow: hidden;
 }
 
+.player-self-settings {
+  display: grid;
+  gap: 14px;
+}
+
+.player-pin-card {
+  display: grid;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.player-pin-card h3 {
+  margin: 4px 0 0;
+  color: #fff;
+}
+
+.player-change-pin-form {
+  margin-top: 2px;
+}
+
 .my-player-profile-form {
   display: grid;
   gap: 16px;
