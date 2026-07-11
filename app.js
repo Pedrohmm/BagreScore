@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.15.4";
+  const APP_VERSION = "0.15.5";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -473,6 +473,16 @@
     excluirEventosComoCancelados: true,
   };
   const SECTION_NAMES = ["inicio", "jogadores", "peladas", "ao-vivo", "ranking", "estatisticas", "historico", "configuracoes"];
+  const SECTION_HEADINGS = {
+    inicio: ["Início", "Resumo da pelada"],
+    jogadores: ["Elenco", "Jogadores"],
+    peladas: ["Peladas", "Suas rodadas"],
+    "ao-vivo": ["Partida", "Ao vivo"],
+    ranking: ["Desempenho", "Ranking geral"],
+    estatisticas: ["Desempenho", "Estatísticas"],
+    historico: ["Partidas", "Histórico"],
+    configuracoes: ["Sistema", "Configurações"],
+  };
   const GAME_DURATION_SECONDS = DEFAULT_RULES.duracaoJogoMinutos * 60;
   const GOALS_TO_END_GAME = DEFAULT_RULES.golsParaEncerrar;
   const pendingGoalGameIds = new Set();
@@ -945,6 +955,10 @@
     const targetHash = buildSectionHash(targetSection, { peladaId, gameId, peladasView });
 
     state.currentSection = targetSection;
+
+    if (targetSection === "configuracoes" && previousSection !== "configuracoes") {
+      showSectionLoadingState(targetSection, "Abrindo suas configurações...");
+    }
 
     if (targetSection === "jogadores" && previousSection !== "jogadores") {
       state.playerFormOpen = false;
@@ -3239,9 +3253,6 @@
       closeLiveModal();
     }
 
-    const counts = await readCollectionCounts();
-    const syncQueue = await getAllRecords("syncQueue");
-    const pending = syncQueue.filter((item) => item.status !== "sincronizado").length;
     const isHome = state.currentSection === "inicio";
     document.body.dataset.section = state.currentSection;
     document.body.classList.toggle("is-internal", !isHome);
@@ -3251,6 +3262,9 @@
     if (backHome) {
       backHome.hidden = isHome;
     }
+    const counts = await readCollectionCounts();
+    const syncQueue = await getAllRecords("syncQueue");
+    const pending = syncQueue.filter((item) => item.status !== "sincronizado").length;
     $("#pending-count").textContent = `${pending} pendente${pending === 1 ? "" : "s"}`;
 
     const renderers = {
@@ -3271,6 +3285,19 @@
   function setSectionTitle(kicker, title) {
     $("#section-kicker").textContent = kicker;
     $("#section-title").textContent = title;
+  }
+
+  function showSectionLoadingState(sectionName, message = "Organizando seus dados...") {
+    const [kicker, title] = SECTION_HEADINGS[sectionName] || SECTION_HEADINGS.inicio;
+    setSectionTitle(kicker, title);
+    document.body.dataset.section = sectionName;
+    $("#section-content").innerHTML = `
+      <div class="app-loading-state" role="status" aria-live="polite">
+        <span class="app-loading-mark" aria-hidden="true"></span>
+        <strong>Preparando o BagreScore</strong>
+        <small>${escapeHtml(message)}</small>
+      </div>
+    `;
   }
 
   function renderFields(storeName) {
@@ -9523,6 +9550,8 @@
   }
 
   async function renderConfigSection(counts = {}) {
+    const isPlayerProfile = state.currentUser?.perfilId === "jogador";
+    setSectionTitle(isPlayerProfile ? "Minha conta" : "Sistema", isPlayerProfile ? "Meu jogador" : "Configurações");
     const [config, syncQueue, auditLog] = await Promise.all([
       getRecord("configs", "app"),
       getAllRecords("syncQueue"),
@@ -9535,8 +9564,7 @@
       : null;
     let accountPlayers = [];
 
-    if (state.currentUser?.perfilId === "jogador") {
-      setSectionTitle("Minha conta", "Meu jogador");
+    if (isPlayerProfile) {
       $("#section-content").innerHTML = `
         <div class="player-self-settings">
           ${renderPlayerPinCard()}
@@ -9559,8 +9587,6 @@
         }
       }
     }
-
-    setSectionTitle("Sistema", "Configurações");
 
     $("#section-content").innerHTML = `
       <section class="data-card account-config-card">
@@ -9807,18 +9833,18 @@
     if (!label || !detail || !logoutButton) return;
 
     if (state.currentUser) {
-      label.textContent = state.currentUser.nome || "Conta conectada";
-      detail.textContent = state.currentUser.perfilNome || state.currentUser.perfilId || "Usuário";
+      const profileName = state.currentUser.perfilNome || state.currentUser.perfilId || "Usuário";
+      label.textContent = "Meu perfil";
+      detail.textContent = `${state.currentUser.nome || "Conta conectada"} · ${profileName}`;
       logoutButton.hidden = false;
       return;
     }
 
     logoutButton.hidden = true;
+    label.textContent = "Meu perfil";
     if (state.backendUrl) {
-      label.textContent = "Entrar na conta";
       detail.textContent = "Login necessário para sincronizar";
     } else {
-      label.textContent = "Modo local";
       detail.textContent = "Servidor ainda não configurado";
     }
   }
@@ -10579,7 +10605,11 @@
   }
 
   async function forceUpdate() {
-    $("#force-update").textContent = "Atualizando...";
+    const forceUpdateButton = $("#force-update");
+    const forceUpdateLabel = $("#force-update-label");
+    forceUpdateButton?.classList.add("is-loading");
+    if (forceUpdateButton) forceUpdateButton.disabled = true;
+    if (forceUpdateLabel) forceUpdateLabel.textContent = "Atualizando...";
 
     if ("serviceWorker" in navigator) {
       const registrations = await navigator.serviceWorker.getRegistrations();
@@ -10642,12 +10672,21 @@
     $("#auth-change-server")?.addEventListener("click", handleAuthChangeServer);
     $("#logout-button")?.addEventListener("click", handleLogout);
     $("#account-button")?.addEventListener("click", async () => {
-      closeSettingsDrawer();
       if (state.backendUrl && !state.currentUser) {
+        closeSettingsDrawer();
         openAuthGate();
         return;
       }
-      await switchSection("configuracoes");
+      const accountButton = $("#account-button");
+      accountButton?.classList.add("is-loading");
+      if (accountButton) accountButton.disabled = true;
+      try {
+        await switchSection("configuracoes");
+        closeSettingsDrawer();
+      } finally {
+        accountButton?.classList.remove("is-loading");
+        if (accountButton) accountButton.disabled = false;
+      }
     });
 
     document.body.addEventListener("click", async (event) => {
@@ -10656,8 +10695,20 @@
 
       if (sectionButton) {
         const section = sectionButton.dataset.homeSection || sectionButton.dataset.section;
-        closeSettingsDrawer();
-        await switchSection(section);
+        const isDrawerSectionButton = sectionButton.matches(".drawer-button[data-section]");
+        if (isDrawerSectionButton) {
+          sectionButton.classList.add("is-loading");
+          sectionButton.disabled = true;
+        } else {
+          closeSettingsDrawer();
+        }
+        try {
+          await switchSection(section);
+          closeSettingsDrawer();
+        } finally {
+          sectionButton.classList.remove("is-loading");
+          sectionButton.disabled = false;
+        }
         return;
       }
 
@@ -10694,7 +10745,6 @@
     $("#back-home")?.addEventListener("click", async () => {
       await switchSection("inicio", { historyMode: "replace" });
     });
-    $("#sync-now").addEventListener("click", syncNow);
     $("#force-update").addEventListener("click", forceUpdate);
 
     window.addEventListener("hashchange", async () => {
@@ -10747,6 +10797,9 @@
     state.selectedPeladaId = initialRoute.peladaId || null;
     state.selectedGameSummaryId = initialRoute.gameId || null;
     state.peladasView = initialRoute.peladaId ? "detalhe" : initialRoute.peladasView || "gerenciar";
+    const [initialKicker, initialTitle] = SECTION_HEADINGS[state.currentSection] || SECTION_HEADINGS.inicio;
+    setSectionTitle(initialKicker, initialTitle);
+    document.body.dataset.section = state.currentSection;
     setActiveSection(state.currentSection);
 
     updateNetworkStatus();
@@ -10757,7 +10810,6 @@
       await seedDefaults();
       restoreAuthState(await getRecord("configs", "app"));
       $("#db-status").textContent = "Banco local pronto";
-      renderDashboardCards(await readDashboardStats());
       await renderCurrentSection();
       await registerServiceWorker();
       await syncNow();
