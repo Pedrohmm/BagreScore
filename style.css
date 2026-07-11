@@ -11561,3 +11561,421 @@ body[data-section="inicio"] .topbar-actions {
     right: auto;
   }
 }
+
+/* Live experience and navigation performance polish v0.15.7 */
+body[data-section="ao-vivo"] .live-screen {
+  animation: live-screen-enter 220ms ease-out both;
+}
+
+@keyframes live-screen-enter {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+body[data-section="ao-vivo"] .live-score-card {
+  gap: 12px;
+  border-color: rgba(255, 255, 255, 0.09);
+  border-radius: 24px;
+  padding: 14px;
+  background:
+    radial-gradient(circle at 50% 115%, rgba(25, 117, 55, 0.24), transparent 58%),
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.12), transparent 15rem),
+    linear-gradient(155deg, rgba(17, 18, 17, 0.99), rgba(4, 5, 4, 0.99));
+}
+
+body[data-section="ao-vivo"] .live-match-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+body[data-section="ao-vivo"] .live-match-eyebrow b {
+  border: 1px solid rgba(255, 90, 0, 0.34);
+  border-radius: 999px;
+  padding: 4px 7px;
+  color: #ff9b5f;
+  background: rgba(255, 90, 0, 0.09);
+  font-size: 0.63rem;
+  font-weight: 950;
+  letter-spacing: 0.055em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+body[data-section="ao-vivo"] .live-match-eyebrow small {
+  color: #8c8f8d;
+  font-size: 0.61rem;
+}
+
+body[data-section="ao-vivo"] .live-match-title strong {
+  margin-top: 2px;
+  font-size: clamp(1.02rem, 4.6vw, 1.35rem);
+}
+
+body[data-section="ao-vivo"] .live-score-board {
+  min-height: 145px;
+  gap: 7px;
+  border-color: rgba(255, 255, 255, 0.07);
+  border-radius: 20px;
+  padding: 13px 8px;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--orange), transparent 96%), transparent 34%, transparent 66%, rgba(74, 163, 223, 0.035)),
+    rgba(255, 255, 255, 0.018);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+body[data-section="ao-vivo"] .live-team-badge {
+  gap: 6px;
+}
+
+body[data-section="ao-vivo"] .live-team-badge > span {
+  width: 64px;
+  height: 64px;
+  border-width: 2px;
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, var(--team-color), transparent 90%),
+    0 0 24px color-mix(in srgb, var(--team-color), transparent 68%);
+  font-size: 1.02rem;
+}
+
+body[data-section="ao-vivo"] .live-team-badge strong {
+  max-width: 88px;
+  font-size: 0.75rem;
+}
+
+body[data-section="ao-vivo"] .live-score-center {
+  gap: 6px;
+}
+
+body[data-section="ao-vivo"] .live-score-center > strong {
+  font-size: clamp(2.65rem, 13vw, 4.35rem);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.055em;
+}
+
+body[data-section="ao-vivo"] .live-score-center .timer {
+  min-width: 96px;
+  border: 1px solid rgba(57, 255, 57, 0.12);
+  border-radius: 10px;
+  padding: 5px 9px;
+  font-size: clamp(1rem, 4.8vw, 1.32rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+}
+
+body[data-section="ao-vivo"] .live-period {
+  gap: 5px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.045em;
+}
+
+body[data-section="ao-vivo"] .live-period i {
+  width: 6px;
+  height: 6px;
+  box-shadow: 0 0 9px rgba(255, 90, 0, 0.7);
+}
+
+body[data-section="ao-vivo"] .live-pitch-card {
+  isolation: isolate;
+  height: clamp(500px, 128vw, 650px);
+  min-height: 0;
+  border: 1px solid rgba(116, 206, 118, 0.28);
+  border-radius: 26px;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(172, 255, 175, 0.09), transparent 42%),
+    repeating-linear-gradient(180deg, rgba(57, 125, 55, 0.94) 0 54px, rgba(43, 106, 45, 0.94) 54px 108px),
+    #245b2b;
+  box-shadow:
+    inset 0 0 90px rgba(2, 24, 8, 0.48),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 18px 44px rgba(0, 0, 0, 0.36);
+}
+
+body[data-section="ao-vivo"] .live-pitch-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.18;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.18) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 74% 62%, rgba(0, 0, 0, 0.22) 0 1px, transparent 1.5px);
+  background-size: 19px 23px, 27px 31px;
+  pointer-events: none;
+}
+
+body[data-section="ao-vivo"] .live-pitch-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.16), transparent 12%, transparent 88%, rgba(0, 0, 0, 0.16));
+  pointer-events: none;
+}
+
+body[data-section="ao-vivo"] .pitch-lines {
+  position: absolute;
+  inset: 14px;
+  z-index: 1;
+  overflow: visible;
+  border: 2px solid rgba(239, 255, 239, 0.32);
+  border-radius: 9px;
+  pointer-events: none;
+}
+
+body[data-section="ao-vivo"] .pitch-lines::before,
+body[data-section="ao-vivo"] .pitch-lines::after {
+  content: none;
+}
+
+body[data-section="ao-vivo"] .pitch-halfway {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  border-top: 2px solid rgba(239, 255, 239, 0.31);
+}
+
+body[data-section="ao-vivo"] .pitch-center-circle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: 108px;
+  height: 108px;
+  place-items: center;
+  border: 2px solid rgba(239, 255, 239, 0.31);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+body[data-section="ao-vivo"] .pitch-center-circle i,
+body[data-section="ao-vivo"] .pitch-penalty-spot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(239, 255, 239, 0.46);
+}
+
+body[data-section="ao-vivo"] .pitch-penalty-area,
+body[data-section="ao-vivo"] .pitch-goal-area {
+  position: absolute;
+  left: 18%;
+  width: 64%;
+  height: 18%;
+  border: 2px solid rgba(239, 255, 239, 0.31);
+}
+
+body[data-section="ao-vivo"] .pitch-penalty-area.is-top {
+  top: -2px;
+  border-top: 0;
+}
+
+body[data-section="ao-vivo"] .pitch-penalty-area.is-bottom {
+  bottom: -2px;
+  border-bottom: 0;
+}
+
+body[data-section="ao-vivo"] .pitch-goal-area {
+  left: 35%;
+  width: 30%;
+  height: 8%;
+}
+
+body[data-section="ao-vivo"] .pitch-goal-area.is-top {
+  top: -2px;
+  border-top: 0;
+}
+
+body[data-section="ao-vivo"] .pitch-goal-area.is-bottom {
+  bottom: -2px;
+  border-bottom: 0;
+}
+
+body[data-section="ao-vivo"] .pitch-penalty-spot {
+  position: absolute;
+  left: calc(50% - 2.5px);
+}
+
+body[data-section="ao-vivo"] .pitch-penalty-spot.is-top {
+  top: 12.5%;
+}
+
+body[data-section="ao-vivo"] .pitch-penalty-spot.is-bottom {
+  bottom: 12.5%;
+}
+
+body[data-section="ao-vivo"] .pitch-goal {
+  position: absolute;
+  left: 40%;
+  width: 20%;
+  height: 10px;
+  border: 2px solid rgba(239, 255, 239, 0.34);
+  background: repeating-linear-gradient(90deg, transparent 0 8px, rgba(255, 255, 255, 0.09) 8px 9px);
+}
+
+body[data-section="ao-vivo"] .pitch-goal.is-top {
+  top: -11px;
+  border-bottom: 0;
+}
+
+body[data-section="ao-vivo"] .pitch-goal.is-bottom {
+  bottom: -11px;
+  border-top: 0;
+}
+
+body[data-section="ao-vivo"] .pitch-corner {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 0 solid rgba(239, 255, 239, 0.3);
+}
+
+body[data-section="ao-vivo"] .pitch-corner.top-left {
+  top: -1px;
+  left: -1px;
+  border-right-width: 2px;
+  border-bottom-width: 2px;
+  border-radius: 0 0 100% 0;
+}
+
+body[data-section="ao-vivo"] .pitch-corner.top-right {
+  top: -1px;
+  right: -1px;
+  border-left-width: 2px;
+  border-bottom-width: 2px;
+  border-radius: 0 0 0 100%;
+}
+
+body[data-section="ao-vivo"] .pitch-corner.bottom-left {
+  bottom: -1px;
+  left: -1px;
+  border-top-width: 2px;
+  border-right-width: 2px;
+  border-radius: 0 100% 0 0;
+}
+
+body[data-section="ao-vivo"] .pitch-corner.bottom-right {
+  right: -1px;
+  bottom: -1px;
+  border-top-width: 2px;
+  border-left-width: 2px;
+  border-radius: 100% 0 0;
+}
+
+body[data-section="ao-vivo"] .pitch-team-name {
+  position: absolute;
+  left: 22px;
+  z-index: 2;
+  max-width: 38%;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 0.6rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+body[data-section="ao-vivo"] .pitch-team-name.is-top {
+  top: 23px;
+}
+
+body[data-section="ao-vivo"] .pitch-team-name.is-bottom {
+  bottom: 23px;
+}
+
+body[data-section="ao-vivo"] .pitch-player {
+  z-index: 4;
+  width: 66px;
+  transition: transform 150ms ease, filter 150ms ease;
+}
+
+body[data-section="ao-vivo"] .pitch-player:not(:disabled):hover,
+body[data-section="ao-vivo"] .pitch-player:not(:disabled):focus-visible {
+  filter: brightness(1.12);
+  transform: translate(-50%, -50%) scale(1.06);
+}
+
+body[data-section="ao-vivo"] .pitch-avatar {
+  width: 46px;
+  height: 46px;
+  border-width: 2px;
+  background: #0b0d0b;
+}
+
+body[data-section="ao-vivo"] .pitch-player-label {
+  max-width: 82px;
+  border-color: rgba(255, 255, 255, 0.14);
+  padding: 4px 7px;
+  background: rgba(3, 5, 3, 0.82);
+  backdrop-filter: blur(5px);
+}
+
+body[data-section="ao-vivo"] .pitch-player strong {
+  max-width: 50px;
+  font-size: 0.6rem;
+}
+
+body[data-section="ao-vivo"] .pitch-player small {
+  font-size: 0.52rem;
+}
+
+body[data-section="ao-vivo"] .live-message-bar:not([hidden]) {
+  animation: live-message-in 180ms ease-out both;
+}
+
+@keyframes live-message-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.game-form button.is-loading {
+  cursor: wait;
+  opacity: 0.78;
+}
+
+@media (max-width: 420px) {
+  body[data-section="ao-vivo"] .live-score-card {
+    padding: 12px;
+  }
+
+  body[data-section="ao-vivo"] .live-status-dot {
+    padding: 6px 8px;
+    font-size: 0.62rem;
+  }
+
+  body[data-section="ao-vivo"] .live-pitch-card {
+    height: clamp(480px, 132vw, 545px);
+    border-radius: 22px;
+  }
+
+  body[data-section="ao-vivo"] .pitch-lines {
+    inset: 12px;
+  }
+}
+
+@media (max-width: 350px) {
+  body[data-section="ao-vivo"] .live-team-badge > span {
+    width: 56px;
+    height: 56px;
+  }
+
+  body[data-section="ao-vivo"] .live-score-center > strong {
+    font-size: 2.5rem;
+  }
+
+  body[data-section="ao-vivo"] .pitch-avatar {
+    width: 40px;
+    height: 40px;
+  }
+}

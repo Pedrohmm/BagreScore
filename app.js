@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.15.6";
+  const APP_VERSION = "0.15.7";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -242,6 +242,7 @@
     jogos: [
       "id",
       "peladaId",
+      "numero",
       "timeA",
       "timeB",
       "placarA",
@@ -486,6 +487,7 @@
   const GAME_DURATION_SECONDS = DEFAULT_RULES.duracaoJogoMinutos * 60;
   const GOALS_TO_END_GAME = DEFAULT_RULES.golsParaEncerrar;
   const pendingGoalGameIds = new Set();
+  const finalizingGameIds = new Set();
   const GOAL_TYPES = [
     { value: "normal", label: "Normal" },
     { value: "penalti", label: "Pênalti" },
@@ -664,6 +666,12 @@
 
     return `id-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   };
+
+  function runBackgroundTask(task, errorLabel = "Falha em tarefa de segundo plano") {
+    Promise.resolve()
+      .then(task)
+      .catch((error) => console.error(errorLabel, error));
+  }
 
   const escapeHtml = (value) =>
     String(value ?? "")
@@ -997,6 +1005,10 @@
 
     setActiveSection(targetSection);
     await renderCurrentSection();
+
+    if (targetSection !== previousSection) {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    }
   }
 
   function teamNameFromGame(jogo, teamKey) {
@@ -3262,10 +3274,9 @@
     if (backHome) {
       backHome.hidden = isHome;
     }
-    const counts = await readCollectionCounts();
-    const syncQueue = await getAllRecords("syncQueue");
-    const pending = syncQueue.filter((item) => item.status !== "sincronizado").length;
-    $("#pending-count").textContent = `${pending} pendente${pending === 1 ? "" : "s"}`;
+    const counts = state.currentSection === "configuracoes"
+      ? await readCollectionCounts()
+      : {};
 
     const renderers = {
       inicio: renderHomeSection,
@@ -3280,6 +3291,7 @@
 
     const renderer = renderers[state.currentSection] || renderHomeSection;
     await renderer(counts);
+    runBackgroundTask(updatePendingCount, "Falha ao atualizar contador de sincronização");
   }
 
   function setSectionTitle(kicker, title) {
@@ -5094,7 +5106,25 @@
 
   function getGameNumber(jogos, jogoId) {
     const index = jogos.findIndex((jogo) => jogo.id === jogoId);
-    return index >= 0 ? index + 1 : 1;
+    const storedNumber = index >= 0 ? Number(jogos[index]?.numero || 0) : 0;
+    return storedNumber > 0 ? storedNumber : index >= 0 ? index + 1 : 1;
+  }
+
+  function getNextGameNumber(jogos = []) {
+    return jogos.reduce(
+      (highest, jogo, index) => Math.max(highest, Number(jogo?.numero || 0) || index + 1),
+      0
+    ) + 1;
+  }
+
+  async function resolveGameNumber(jogo) {
+    const storedNumber = Number(jogo?.numero || 0);
+
+    if (storedNumber > 0 || !jogo?.peladaId) {
+      return storedNumber || 1;
+    }
+
+    return getGameNumber(await readGamesForPelada(jogo.peladaId), jogo.id);
   }
 
   function getEventTeamKey(evento, jogo) {
@@ -5359,8 +5389,8 @@
         ${
           jogos.length
             ? `<div class="game-history-grid">${jogos
-                .map((jogo, index) =>
-                  renderGameHistoryCard(jogo, index + 1, eventsByGameId.get(jogo.id) || [], playerById)
+                .map((jogo) =>
+                  renderGameHistoryCard(jogo, getGameNumber(jogos, jogo.id), eventsByGameId.get(jogo.id) || [], playerById)
                 )
                 .join("")}</div>`
             : `
@@ -5835,16 +5865,31 @@
     if (!requirePermission("jogos:iniciar")) return;
 
     const form = event.currentTarget;
-    const [jogadores, pelada, activeGame] = await Promise.all([
+    const submitButton = form.querySelector('button[type="submit"]');
+
+    if (submitButton?.disabled) return;
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.classList.add("is-loading");
+      submitButton.textContent = "Iniciando...";
+    }
+
+    const [jogadores, pelada, activeGame, peladaGames] = await Promise.all([
       readActivePlayers(),
       state.selectedPeladaId ? getRecord("peladas", state.selectedPeladaId) : null,
       findActiveGame(),
+      state.selectedPeladaId ? readGamesForPelada(state.selectedPeladaId) : Promise.resolve([]),
     ]);
     const data = collectGameFormData(form, jogadores);
     const errors = validateGameForm(data, pelada, activeGame);
     showFormErrors("game-form-errors", errors);
 
     if (errors.length) {
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.classList.remove("is-loading");
+        submitButton.textContent = "Iniciar Jogo";
+      }
       return;
     }
 
@@ -5881,6 +5926,7 @@
     const jogoRecord = {
       id: jogoId,
       peladaId: pelada.id,
+      numero: getNextGameNumber(peladaGames),
       timeA: { id: timeAId, nome: timeA.nome, cor: timeA.cor },
       timeB: { id: timeBId, nome: timeB.nome, cor: timeB.cor },
       placarA: 0,
@@ -5938,8 +5984,9 @@
     setActiveGameId(jogoId);
     state.selectedGameSummaryId = jogoId;
     state.gameDraft = createEmptyGameDraft();
-    await syncNow();
-    await switchSection("ao-vivo");
+    state.liveMessage = "";
+    await switchSection("ao-vivo", { historyMode: "replace" });
+    runBackgroundTask(syncNow, "Falha ao sincronizar início do jogo");
   }
 
   async function renderLiveSection() {
@@ -5958,10 +6005,11 @@
       const latestGame = jogos
         .sort((a, b) => String(b.fim || b.inicio || "").localeCompare(String(a.fim || a.inicio || "")))[0];
       const latestBundle = latestGame ? await readGameBundle(latestGame.id) : null;
+      const latestGameNumber = latestGame ? await resolveGameNumber(latestGame) : 0;
 
       $("#section-content").innerHTML = `
         <div class="live-idle-screen">
-          ${renderLiveIdleCard(latestBundle)}
+          ${renderLiveIdleCard(latestBundle, latestGameNumber)}
         </div>
       `;
       bindLiveSectionEvents();
@@ -5970,10 +6018,11 @@
 
     const { jogo, playersA, playersB } = bundle;
     const remaining = getRemainingGameSeconds(jogo);
+    const gameNumber = await resolveGameNumber(jogo);
 
     $("#section-content").innerHTML = `
       <div class="live-screen" data-game-id="${escapeHtml(jogo.id)}">
-        ${renderLiveScoreCard(bundle, remaining)}
+        ${renderLiveScoreCard(bundle, remaining, gameNumber)}
         ${renderLivePitch(bundle)}
         ${state.liveMessage ? `<p class="live-message-bar" id="live-message">${escapeHtml(state.liveMessage)}</p>` : `<p class="live-message-bar" id="live-message" hidden></p>`}
         ${renderLiveEventsCard(bundle)}
@@ -5985,7 +6034,7 @@
     startLiveTimer(jogo.id);
   }
 
-  function renderLiveIdleCard(bundle) {
+  function renderLiveIdleCard(bundle, gameNumber = 0) {
     if (!bundle) {
       return `
         <section class="live-idle-card">
@@ -6008,7 +6057,7 @@
     return `
       <section class="live-idle-card has-summary">
         <div class="live-idle-heading">
-          <span class="live-idle-kicker">Sem jogo ao vivo</span>
+          <span class="live-idle-kicker">${gameNumber ? `Jogo ${escapeHtml(gameNumber)}` : "Sem jogo ao vivo"}</span>
           <strong>${escapeHtml(getGameStatusLabel(jogo))}</strong>
         </div>
         <p>Nenhuma partida está acontecendo agora. Último jogo registrado:</p>
@@ -6046,7 +6095,7 @@
     return author;
   }
 
-  function renderLiveScoreCard(bundle, remaining) {
+  function renderLiveScoreCard(bundle, remaining, gameNumber = 1) {
     const { jogo } = bundle;
     const liveStatus = jogo.status === "Finalizado" ? "ENCERRADO" : jogo.pausadoEm ? "PAUSADO" : "AO VIVO";
     const pelada = bundle.pelada;
@@ -6056,7 +6105,10 @@
       <section class="live-score-card">
         <div class="live-score-meta">
           <span class="live-match-title">
-            <small>Partida ao vivo</small>
+            <span class="live-match-eyebrow">
+              <b>Jogo ${escapeHtml(gameNumber)}</b>
+              <small>Partida ao vivo</small>
+            </span>
             <strong>${escapeHtml(pelada?.local || "BagreScore")}</strong>
             ${dateLabel ? `<em>${escapeHtml(dateLabel)}</em>` : ""}
           </span>
@@ -6096,7 +6148,24 @@
   function renderLivePitch(bundle) {
     return `
       <section class="live-pitch-card" aria-label="Campo de futebol">
-        <div class="pitch-lines" aria-hidden="true"></div>
+        <div class="pitch-lines" aria-hidden="true">
+          <span class="pitch-halfway"></span>
+          <span class="pitch-center-circle"><i></i></span>
+          <span class="pitch-penalty-area is-top"></span>
+          <span class="pitch-goal-area is-top"></span>
+          <span class="pitch-penalty-spot is-top"></span>
+          <span class="pitch-goal is-top"></span>
+          <span class="pitch-penalty-area is-bottom"></span>
+          <span class="pitch-goal-area is-bottom"></span>
+          <span class="pitch-penalty-spot is-bottom"></span>
+          <span class="pitch-goal is-bottom"></span>
+          <span class="pitch-corner top-left"></span>
+          <span class="pitch-corner top-right"></span>
+          <span class="pitch-corner bottom-left"></span>
+          <span class="pitch-corner bottom-right"></span>
+        </div>
+        <span class="pitch-team-name is-top">${escapeHtml(teamNameFromGame(bundle.jogo, "B"))}</span>
+        <span class="pitch-team-name is-bottom">${escapeHtml(teamNameFromGame(bundle.jogo, "A"))}</span>
         ${renderPitchPlayers(bundle, "A")}
         ${renderPitchPlayers(bundle, "B")}
       </section>
@@ -6107,7 +6176,7 @@
     const players = getLineupPlayers(bundle, teamKey);
     const layout = getLiveTeamLayoutPlayers(players);
     const color = teamColorFromGame(bundle.jogo, teamKey);
-    const positions = getPitchPositions(teamKey);
+    const positions = getPitchPositions(teamKey, layout.linePlayers.length);
     const nodes = [];
 
     if (layout.goalkeeper) {
@@ -6133,31 +6202,27 @@
     };
   }
 
-  function getPitchPositions(teamKey) {
-    const positions = {
-      A: {
-        goalkeeper: { x: 7, y: 50 },
-        line: [
-          { x: 24, y: 14 },
-          { x: 25, y: 33 },
-          { x: 25, y: 67 },
-          { x: 24, y: 86 },
-          { x: 40, y: 50 },
-        ],
-      },
-      B: {
-        goalkeeper: { x: 93, y: 50 },
-        line: [
-          { x: 76, y: 14 },
-          { x: 75, y: 33 },
-          { x: 75, y: 67 },
-          { x: 76, y: 86 },
-          { x: 60, y: 50 },
-        ],
-      },
+  function getPitchPositions(teamKey, lineCount = 0) {
+    const xByCount = {
+      0: [],
+      1: [50],
+      2: [32, 68],
+      3: [20, 50, 80],
+      4: [17, 39, 61, 83],
+      5: [14, 32, 50, 68, 86],
     };
+    const teamA = teamKey === "A";
+    const xs = xByCount[Math.min(5, Math.max(0, lineCount))] || xByCount[5];
+    const baseY = teamA ? 72 : 28;
+    const centerY = teamA ? 65 : 35;
 
-    return positions[teamKey] || positions.A;
+    return {
+      goalkeeper: { x: 50, y: teamA ? 90 : 10 },
+      line: xs.map((x, index) => ({
+        x,
+        y: lineCount >= 3 && index === Math.floor(lineCount / 2) ? centerY : baseY,
+      })),
+    };
   }
 
   function renderPitchPlayerNode(player, teamKey, position, color, isGoalkeeper) {
@@ -7056,23 +7121,25 @@
 
       const playersToEvolve = [...new Set([jogadorId, assistenteId].filter(Boolean))];
 
-      for (const playerId of playersToEvolve) {
-        await aplicarEvolucaoPorEventos(playerId);
-      }
-
       if (Number(updatedJogo[placarField] || 0) >= GOALS_TO_END_GAME) {
         await finalizeGame(jogo.id, "2 gols");
         return;
       }
 
       await renderCurrentSection();
-      await syncLatestMutations();
+      runBackgroundTask(async () => {
+        for (const playerId of playersToEvolve) {
+          await aplicarEvolucaoPorEventos(playerId);
+        }
 
-      const syncedEvent = await getRecord("eventos", evento.id);
-      if (syncedEvent?.cancelado) {
+        await syncLatestMutations();
+
+        const syncedEvent = await getRecord("eventos", evento.id);
+        if (syncedEvent?.cancelado) {
         state.liveMessage = "Gol descartado: a partida jÃ¡ havia sido finalizada em outro dispositivo.";
-        await renderCurrentSection();
-      }
+          if (state.currentSection === "ao-vivo") await renderCurrentSection();
+        }
+      }, "Falha ao concluir processamento do gol");
     } finally {
       pendingGoalGameIds.delete(jogo.id);
     }
@@ -7708,8 +7775,8 @@
     });
 
     state.liveMessage = "Jogo pausado.";
-    await syncNow();
     await renderCurrentSection();
+    runBackgroundTask(syncNow, "Falha ao sincronizar pausa do jogo");
   }
 
   async function resumeGame(jogoId) {
@@ -7737,12 +7804,16 @@
     });
 
     state.liveMessage = "Jogo retomado.";
-    await syncNow();
     await renderCurrentSection();
+    runBackgroundTask(syncNow, "Falha ao sincronizar retomada do jogo");
   }
 
   async function finalizeGame(jogoId, formaEncerramento) {
     if (!requirePermission("jogos:finalizar")) return;
+    if (finalizingGameIds.has(jogoId)) return;
+    finalizingGameIds.add(jogoId);
+
+    try {
     const jogo = await getRecord("jogos", jogoId);
 
     if (!jogo || jogo.status === "Finalizado") {
@@ -7781,16 +7852,23 @@
       auditLog: [createAuditRecord("jogos", jogoId, "finalizar", jogo, { jogo: finalJogo, estatisticas: statsRecords })],
     });
 
-    for (const playerId of [...new Set(escalacoes.map((escalacao) => escalacao.jogadorId))]) {
-      await aplicarEvolucaoPorEventos(playerId);
-    }
-
     stopLiveTimer();
     setActiveGameId(null);
     state.selectedGameSummaryId = jogoId;
     state.liveMessage = `Jogo finalizado por ${formaEncerramento}.`;
-    await syncLatestMutations();
-    await refreshCurrentView();
+    await renderCurrentSection();
+
+    runBackgroundTask(async () => {
+      for (const playerId of [...new Set(escalacoes.map((escalacao) => escalacao.jogadorId))]) {
+        await aplicarEvolucaoPorEventos(playerId);
+      }
+
+      await syncLatestMutations();
+      renderDashboardCards(await readDashboardStats());
+    }, "Falha ao concluir estatísticas do jogo finalizado");
+    } finally {
+      finalizingGameIds.delete(jogoId);
+    }
   }
 
   async function buildResultStats(jogo, escalacoes) {
