@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.15.9";
+  const APP_VERSION = "0.15.10";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -488,6 +488,8 @@
   const GOALS_TO_END_GAME = DEFAULT_RULES.golsParaEncerrar;
   const pendingGoalGameIds = new Set();
   const finalizingGameIds = new Set();
+  const openingPeladaFinishIds = new Set();
+  const finalizingPeladaIds = new Set();
   const GOAL_TYPES = [
     { value: "normal", label: "Normal" },
     { value: "penalti", label: "Pênalti" },
@@ -5573,6 +5575,13 @@
     gameForm?.addEventListener("input", () => syncGameDraftFromForm(gameForm));
     gameForm?.addEventListener("change", () => syncGameDraftFromForm(gameForm));
 
+    // O contêiner é reaproveitado entre renderizações. Vincular a delegação
+    // mais de uma vez fazia um único toque disparar várias confirmações.
+    if (layout.dataset.peladaActionsBound === "true") {
+      return;
+    }
+    layout.dataset.peladaActionsBound = "true";
+
     layout.addEventListener("click", async (event) => {
       const actionButton = event.target.closest("[data-pelada-action]");
 
@@ -5639,10 +5648,20 @@
           return;
         }
 
-        const confirmed = window.confirm("Quer mesmo finalizar esta pelada? Depois disso você escolherá MVP e Bagre da Pelada.");
+        const peladaId = state.selectedPeladaId;
+        actionButton.disabled = true;
+        actionButton.setAttribute("aria-busy", "true");
+        const originalLabel = actionButton.textContent;
+        actionButton.textContent = "Carregando resumo...";
 
-        if (confirmed) {
-          await openPeladaFinishModal(state.selectedPeladaId);
+        try {
+          await openPeladaFinishModal(peladaId);
+        } finally {
+          if (actionButton.isConnected) {
+            actionButton.disabled = false;
+            actionButton.removeAttribute("aria-busy");
+            actionButton.textContent = originalLabel;
+          }
         }
         return;
       }
@@ -5675,21 +5694,31 @@
   }
 
   async function openPeladaFinishModal(peladaId) {
-    const summary = await readPeladaClosureSummary(peladaId);
-
-    if (!summary) {
+    if (!peladaId || openingPeladaFinishIds.has(peladaId) || finalizingPeladaIds.has(peladaId)) {
       return;
     }
 
-    if (!summary.canFinalize) {
-      window.alert(summary.finishDisabledReason || "Não é possível finalizar esta pelada agora.");
-      return;
+    openingPeladaFinishIds.add(peladaId);
+
+    try {
+      const summary = await readPeladaClosureSummary(peladaId);
+
+      if (!summary) {
+        return;
+      }
+
+      if (!summary.canFinalize) {
+        window.alert(summary.finishDisabledReason || "Não é possível finalizar esta pelada agora.");
+        return;
+      }
+
+      const modal = openLiveModal("Finalizar Pelada", renderPeladaFinishModal(summary));
+      const form = modal.querySelector("#finish-pelada-form");
+
+      form?.addEventListener("submit", (event) => handleFinishPeladaSubmit(event, peladaId));
+    } finally {
+      openingPeladaFinishIds.delete(peladaId);
     }
-
-    const modal = openLiveModal("Finalizar Pelada", renderPeladaFinishModal(summary));
-    const form = modal.querySelector("#finish-pelada-form");
-
-    form?.addEventListener("submit", (event) => handleFinishPeladaSubmit(event, peladaId));
   }
 
   async function handleFinishPeladaSubmit(event, peladaId) {
@@ -5697,108 +5726,141 @@
     if (!requirePermission("jogos:finalizar")) return;
 
     const form = event.currentTarget;
-    if (form.dataset.submitting === "true") return;
-    const summary = await readPeladaClosureSummary(peladaId);
-    const pelada = summary?.pelada;
-    const mvpJogadorId = form.elements.mvpJogadorId?.value || "";
-    const bagreJogadorId = form.elements.bagreJogadorId?.value || "";
-    const observacoes = String(form.elements.observacoes?.value || "").trim();
-    const errors = [];
-
-    if (!summary || !pelada) errors.push("Pelada não encontrada.");
-    if (summary && !summary.canFinalize) errors.push(summary.finishDisabledReason || "Não é possível finalizar esta pelada agora.");
-    if (!mvpJogadorId) errors.push("Escolha manualmente o MVP da Pelada.");
-    if (!bagreJogadorId) errors.push("Escolha manualmente o Bagre da Pelada.");
-    if (mvpJogadorId && bagreJogadorId && mvpJogadorId === bagreJogadorId) {
-      errors.push("MVP e Bagre da Pelada devem ser jogadores diferentes.");
-    }
-
-    showFormErrors("finish-pelada-errors", errors);
-
-    if (errors.length) {
-      return;
-    }
+    if (form.dataset.submitting === "true" || finalizingPeladaIds.has(peladaId)) return;
 
     form.dataset.submitting = "true";
-    form.querySelectorAll("button").forEach((button) => {
+    finalizingPeladaIds.add(peladaId);
+    const buttons = [...form.querySelectorAll("button")];
+    const submitButton = form.querySelector('button[type="submit"]');
+    const originalSubmitLabel = submitButton?.textContent || "Finalizar pelada";
+    let completed = false;
+
+    buttons.forEach((button) => {
       button.disabled = true;
     });
+    if (submitButton) submitButton.textContent = "Finalizando...";
 
-    const savedAt = nowIso();
-    const mvpScore = summary.scoreByPlayerId.get(mvpJogadorId)?.pontuacao || 0;
-    const bagreScore = summary.scoreByPlayerId.get(bagreJogadorId)?.bagreScore || 0;
-    const baseEvent = {
-      jogoId: "",
-      peladaId,
-      timeId: "",
-      time: "",
-      assistenteId: "",
-      jogadorSofreuId: "",
-      minuto: "",
-      tipoGol: "",
-      cartao: "",
-      tipoAcaoDefensiva: "",
-      tipoDefesaGoleiro: "",
-      golContra: false,
-      observacoes,
-      criadoPor: getActorId(),
-      createdAt: savedAt,
-      updatedAt: savedAt,
-      revision: 1,
-      cancelado: false,
-      escolhidoManual: true,
-    };
-    const mvpEvent = {
-      ...baseEvent,
-      id: uid(),
-      tipo: "MVP_PELADA",
-      jogadorId: mvpJogadorId,
-      detalhe: `MVP da Pelada - ${pelada.local || "Pelada"}`,
-      pontuacaoCalculada: Number(mvpScore.toFixed(1)),
-    };
-    const bagreEvent = {
-      ...baseEvent,
-      id: uid(),
-      tipo: "BAGRE_PELADA",
-      jogadorId: bagreJogadorId,
-      detalhe: `Bagre da Pelada - ${pelada.local || "Pelada"}`,
-      pontuacaoCalculada: Number(bagreScore.toFixed(1)),
-    };
-    const updatedPelada = {
-      ...pelada,
-      status: "Finalizada",
-      finalizadaEm: savedAt,
-      mvpJogadorId,
-      bagreJogadorId,
-      updatedAt: savedAt,
-      revision: (pelada.revision || 0) + 1,
-    };
+    try {
+      const summary = await readPeladaClosureSummary(peladaId);
+      const pelada = summary?.pelada;
+      const mvpJogadorId = form.elements.mvpJogadorId?.value || "";
+      const bagreJogadorId = form.elements.bagreJogadorId?.value || "";
+      const observacoes = String(form.elements.observacoes?.value || "").trim();
+      const errors = [];
 
-    await putRecords({
-      peladas: [updatedPelada],
-      eventos: [mvpEvent, bagreEvent],
-      syncQueue: [
-        createSyncQueueRecord("peladas", "upsert", peladaId, updatedPelada),
-        createSyncQueueRecord("eventos", "upsert", mvpEvent.id, mvpEvent),
-        createSyncQueueRecord("eventos", "upsert", bagreEvent.id, bagreEvent),
-      ],
-      auditLog: [
-        createAuditRecord("peladas", peladaId, "finalizar-pelada", pelada, updatedPelada),
-        createAuditRecord("eventos", mvpEvent.id, "criar-mvp-pelada", null, mvpEvent),
-        createAuditRecord("eventos", bagreEvent.id, "criar-bagre-pelada", null, bagreEvent),
-      ],
-    });
+      if (!summary || !pelada) errors.push("Pelada não encontrada.");
+      if (pelada && isFinalizedPelada(pelada)) {
+        completed = true;
+        closeLiveModal();
+        state.selectedPeladaId = null;
+        state.selectedGameSummaryId = null;
+        state.peladasView = "gerenciar";
+        await switchSection("peladas", { historyMode: "replace", peladasView: "gerenciar" });
+        return;
+      }
+      if (summary && !summary.canFinalize) errors.push(summary.finishDisabledReason || "Não é possível finalizar esta pelada agora.");
+      if (!mvpJogadorId) errors.push("Escolha manualmente o MVP da Pelada.");
+      if (!bagreJogadorId) errors.push("Escolha manualmente o Bagre da Pelada.");
+      if (mvpJogadorId && bagreJogadorId && mvpJogadorId === bagreJogadorId) {
+        errors.push("MVP e Bagre da Pelada devem ser jogadores diferentes.");
+      }
 
-    for (const playerId of [mvpJogadorId, bagreJogadorId]) {
-      await aplicarEvolucaoPorEventos(playerId);
+      showFormErrors("finish-pelada-errors", errors);
+      if (errors.length) return;
+
+      const savedAt = nowIso();
+      const mvpScore = summary.scoreByPlayerId.get(mvpJogadorId)?.pontuacao || 0;
+      const bagreScore = summary.scoreByPlayerId.get(bagreJogadorId)?.bagreScore || 0;
+      const baseEvent = {
+        jogoId: "",
+        peladaId,
+        timeId: "",
+        time: "",
+        assistenteId: "",
+        jogadorSofreuId: "",
+        minuto: "",
+        tipoGol: "",
+        cartao: "",
+        tipoAcaoDefensiva: "",
+        tipoDefesaGoleiro: "",
+        golContra: false,
+        observacoes,
+        criadoPor: getActorId(),
+        createdAt: savedAt,
+        updatedAt: savedAt,
+        revision: 1,
+        cancelado: false,
+        escolhidoManual: true,
+      };
+      const mvpEvent = {
+        ...baseEvent,
+        id: uid(),
+        tipo: "MVP_PELADA",
+        jogadorId: mvpJogadorId,
+        detalhe: `MVP da Pelada - ${pelada.local || "Pelada"}`,
+        pontuacaoCalculada: Number(mvpScore.toFixed(1)),
+      };
+      const bagreEvent = {
+        ...baseEvent,
+        id: uid(),
+        tipo: "BAGRE_PELADA",
+        jogadorId: bagreJogadorId,
+        detalhe: `Bagre da Pelada - ${pelada.local || "Pelada"}`,
+        pontuacaoCalculada: Number(bagreScore.toFixed(1)),
+      };
+      const updatedPelada = {
+        ...pelada,
+        status: "Finalizada",
+        finalizadaEm: savedAt,
+        mvpJogadorId,
+        bagreJogadorId,
+        updatedAt: savedAt,
+        revision: (pelada.revision || 0) + 1,
+      };
+
+      await putRecords({
+        peladas: [updatedPelada],
+        eventos: [mvpEvent, bagreEvent],
+        syncQueue: [
+          createSyncQueueRecord("peladas", "upsert", peladaId, updatedPelada),
+          createSyncQueueRecord("eventos", "upsert", mvpEvent.id, mvpEvent),
+          createSyncQueueRecord("eventos", "upsert", bagreEvent.id, bagreEvent),
+        ],
+        auditLog: [
+          createAuditRecord("peladas", peladaId, "finalizar-pelada", pelada, updatedPelada),
+          createAuditRecord("eventos", mvpEvent.id, "criar-mvp-pelada", null, mvpEvent),
+          createAuditRecord("eventos", bagreEvent.id, "criar-bagre-pelada", null, bagreEvent),
+        ],
+      });
+
+      completed = true;
+      for (const playerId of [mvpJogadorId, bagreJogadorId]) {
+        try {
+          await aplicarEvolucaoPorEventos(playerId);
+        } catch (error) {
+          console.warn("A pelada foi finalizada, mas uma evolução será recalculada depois.", error);
+        }
+      }
+
+      closeLiveModal();
+      state.selectedPeladaId = null;
+      state.selectedGameSummaryId = null;
+      state.peladasView = "gerenciar";
+      await switchSection("peladas", { historyMode: "replace", peladasView: "gerenciar" });
+      void syncNow();
+    } catch (error) {
+      console.error("Falha ao finalizar pelada", error);
+      showFormErrors("finish-pelada-errors", ["Não foi possível finalizar a pelada. Tente novamente."]);
+    } finally {
+      finalizingPeladaIds.delete(peladaId);
+      if (!completed && form.isConnected) {
+        form.dataset.submitting = "false";
+        buttons.forEach((button) => {
+          button.disabled = false;
+        });
+        if (submitButton) submitButton.textContent = originalSubmitLabel;
+      }
     }
-
-    closeLiveModal();
-    state.selectedPeladaId = null;
-    state.selectedGameSummaryId = null;
-    state.peladasView = "gerenciar";
-    await switchSection("peladas", { historyMode: "replace", peladasView: "gerenciar" });
-    void syncNow();
   }
 
   function collectPeladaFormData(form) {
@@ -10624,15 +10686,16 @@
       return false;
     }
 
-    if (storeName !== "jogos" || change.deleted) {
+    if (!["jogos", "peladas"].includes(storeName) || change.deleted) {
       return true;
     }
 
     const remotePayload = change.payload || {};
-    const localIsFinal = normalizeToken(localRecord.status) === "finalizado";
-    const remoteIsFinal = normalizeToken(remotePayload.status) === "finalizado";
+    const terminalStatus = storeName === "peladas" ? "finalizada" : "finalizado";
+    const localIsFinal = normalizeToken(localRecord.status) === terminalStatus;
+    const remoteIsFinal = normalizeToken(remotePayload.status) === terminalStatus;
 
-    // Finalizado é um estado terminal: respostas antigas nunca reabrem a partida.
+    // Estados finalizados são terminais: respostas antigas nunca reabrem jogo ou pelada.
     if (localIsFinal && !remoteIsFinal) {
       return false;
     }
