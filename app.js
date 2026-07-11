@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.15.7";
+  const APP_VERSION = "0.15.8";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -10531,6 +10531,56 @@
     }
   }
 
+  function getStoreRecordKey(storeName, record) {
+    const schema = STORE_SCHEMAS.find((item) => item.name === storeName);
+    return String(record?.[schema?.keyPath || "id"] || "");
+  }
+
+  function shouldApplyRemoteChange(storeName, localRecord, change, protectedEntities) {
+    const entityKey = `${storeName}:${change.entityId}`;
+
+    if (protectedEntities.has(entityKey)) {
+      return false;
+    }
+
+    if (!localRecord) {
+      return true;
+    }
+
+    const localServerRevision = Number(localRecord.serverRevision || 0);
+    const remoteServerRevision = Number(change.serverRevision || 0);
+
+    if (localServerRevision && remoteServerRevision && remoteServerRevision <= localServerRevision) {
+      return false;
+    }
+
+    if (storeName !== "jogos" || change.deleted) {
+      return true;
+    }
+
+    const remotePayload = change.payload || {};
+    const localIsFinal = normalizeToken(localRecord.status) === "finalizado";
+    const remoteIsFinal = normalizeToken(remotePayload.status) === "finalizado";
+
+    // Finalizado é um estado terminal: respostas antigas nunca reabrem a partida.
+    if (localIsFinal && !remoteIsFinal) {
+      return false;
+    }
+
+    if (remoteIsFinal && !localIsFinal) {
+      return true;
+    }
+
+    const localUpdatedAt = Date.parse(localRecord.updatedAt || "");
+    const remoteUpdatedAt = Date.parse(remotePayload.updatedAt || "");
+
+    if (localUpdatedAt && remoteUpdatedAt && remoteUpdatedAt < localUpdatedAt) {
+      return false;
+    }
+
+    return true;
+  }
+
   async function applySyncResponse(response, batch, config) {
     const acknowledgements = new Map((response.acks || []).map((ack) => [String(ack.id || ""), ack]));
     const blockedEntities = new Set();
@@ -10561,6 +10611,13 @@
       await putRecords({ syncQueue: queueUpdates });
     }
 
+    const currentQueue = await getAllRecords("syncQueue");
+    const protectedEntities = new Set(
+      currentQueue
+        .filter((item) => item.status === "pendente")
+        .map((item) => `${item.storeName}:${item.entityId}`)
+    );
+
     const changesByStore = new Map();
     (response.changes || []).forEach((change) => {
       if (!REMOTE_SYNC_STORES.has(change.storeName)) return;
@@ -10569,13 +10626,33 @@
       changesByStore.get(change.storeName).push(change);
     });
 
+    let appliedChanges = 0;
+
     for (const [storeName, changes] of changesByStore.entries()) {
+      const currentRecords = await getAllRecords(storeName);
+      const currentById = new Map(
+        currentRecords.map((record) => [getStoreRecordKey(storeName, record), record])
+      );
+      const acceptedChanges = changes.filter((change) =>
+        shouldApplyRemoteChange(
+          storeName,
+          currentById.get(String(change.entityId || "")) || null,
+          change,
+          protectedEntities
+        )
+      );
+
+      if (!acceptedChanges.length) {
+        continue;
+      }
+
       const transaction = state.db.transaction(storeName, "readwrite");
       const store = transaction.objectStore(storeName);
 
-      changes.forEach((change) => {
+      acceptedChanges.forEach((change) => {
         if (change.deleted) {
           store.delete(change.entityId);
+          appliedChanges += 1;
           return;
         }
 
@@ -10586,6 +10663,7 @@
           serverRevision: Number(change.serverRevision || 0),
           revision: Number(change.entityRevision || change.payload?.revision || 0),
         });
+        appliedChanges += 1;
       });
 
       await transactionDone(transaction);
@@ -10600,11 +10678,17 @@
     });
 
     if (response.user) persistAuthSession(state.authToken, response.user);
-    return (response.changes || []).length;
+    return appliedChanges;
   }
 
   async function syncNow() {
     if (!state.db || state.syncInProgress) return;
+
+    if (pendingGoalGameIds.size || finalizingGameIds.size) {
+      window.setTimeout(syncNow, 180);
+      return;
+    }
+
     state.syncInProgress = true;
 
     try {
