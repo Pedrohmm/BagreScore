@@ -2845,6 +2845,11 @@ body[data-section="ao-vivo"] .section-heading {
   cursor: pointer;
 }
 
+.pitch-player:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
 .pitch-avatar {
   width: 54px;
   height: 54px;
@@ -9973,6 +9978,79 @@ body.auth-required {
   overflow: hidden;
 }
 
+.my-player-profile-card {
+  display: grid;
+  gap: 18px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.my-player-profile-form {
+  display: grid;
+  gap: 16px;
+}
+
+.my-player-profile-form .form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.my-profile-photo-panel {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  padding: 14px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(255, 90, 0, 0.13), transparent 13rem),
+    rgba(255, 255, 255, 0.035);
+}
+
+.my-profile-avatar {
+  width: 82px;
+  height: 82px;
+  border-color: rgba(255, 90, 0, 0.78);
+  font-size: 1.4rem;
+  box-shadow: 0 0 24px rgba(255, 90, 0, 0.16);
+}
+
+.my-profile-photo-panel strong,
+.my-profile-photo-panel small {
+  display: block;
+}
+
+.my-profile-photo-panel strong {
+  color: #fff;
+  font-size: 1.05rem;
+}
+
+.my-profile-photo-panel small {
+  margin-top: 3px;
+  color: #999;
+}
+
+.my-profile-photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.my-profile-note {
+  border-left: 3px solid var(--orange);
+  margin: 0;
+  padding: 9px 12px;
+  color: #aaa;
+  background: rgba(255, 90, 0, 0.06);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.my-player-profile-form > .primary-button {
+  min-height: 52px;
+}
+
 .account-online-pill {
   border-color: rgba(34, 197, 94, 0.28);
   color: #8dff9b;
@@ -10168,6 +10246,20 @@ body.auth-required {
 }
 
 @media (max-width: 620px) {
+  .my-player-profile-form .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .my-profile-photo-panel {
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .my-profile-avatar {
+    width: 68px;
+    height: 68px;
+  }
+
   .sync-config-form,
   .server-reset-form,
   .change-pin-form .form-grid,

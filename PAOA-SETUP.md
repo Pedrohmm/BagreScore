@@ -47,26 +47,26 @@ Depois disso, a fila local começará a ser enviada e a base remota será baixad
 
 ## 4. Criar contas
 
-Na área **Contas dos usuários**, o administrador pode criar contas com os seguintes perfis:
+Na área **Contas dos usuários**, o fluxo principal usa três perfis:
 
-- **Administrador:** acesso completo e gestão de contas.
-- **Organizador:** peladas, times e controle dos jogos.
-- **Marcador:** gols, assistências, faltas e eventos ao vivo.
-- **Jogador:** estatísticas, histórico e carta.
-- **Público:** consulta básica.
+- **Administrador:** acesso completo, configurações e gestão de contas.
+- **Operador:** gerencia jogadores, peladas, times, jogos, gols, assistências, faltas e demais eventos.
+- **Jogador:** consulta o aplicativo inteiro e pode alterar somente a própria foto, apelido, posição e PIN.
+
+Para uma pelada gerenciada em um único celular, a própria conta Administrador já é suficiente. A conta Operador só é necessária se outra pessoa for usar o aplicativo sem ter acesso às configurações administrativas.
 
 Ao criar uma conta sem informar PIN, o servidor gera um PIN temporário e o mostra uma única vez no aplicativo. Entregue-o diretamente ao usuário.
 
+Para criar uma conta Jogador, primeiro cadastre o atleta e depois selecione-o no campo **Vincular ao jogador**. Um jogador só pode estar vinculado a uma conta ativa. Atributos, overall, tipo de jogador, status e estatísticas não podem ser alterados pela conta Jogador.
+
 ## 5. Teste recomendado
 
-1. Faça login no primeiro celular como administrador.
-2. Crie uma conta de marcador.
-3. Instale ou abra o app em um segundo celular e entre como marcador.
-4. Crie uma pelada no primeiro aparelho.
-5. Sincronize e confirme que ela aparece no segundo.
-6. Desligue a internet do segundo celular e registre um evento.
-7. Religue a internet e confirme a sincronização.
-8. Registre gols próximos em dois celulares e confirme que o placar final corresponde aos eventos aceitos pelo servidor.
+1. Faça login no celular principal como Administrador.
+2. Crie uma pelada, cadastre os jogadores e monte os times.
+3. Inicie um jogo e registre um gol, uma assistência e uma falta.
+4. Confirme que placar, eventos e estatísticas foram atualizados no próprio celular.
+5. Registre o segundo gol e confirme que a partida foi encerrada e salva no histórico.
+6. Abra o aplicativo no PC somente depois da partida e confirme que o histórico foi sincronizado.
 
 ## Atualizações futuras
 

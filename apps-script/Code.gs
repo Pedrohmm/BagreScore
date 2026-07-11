@@ -1,4 +1,4 @@
-var BAGRESCORE_API_VERSION = "1.2.0";
+var BAGRESCORE_API_VERSION = "1.4.0";
 var BAGRESCORE_DB_PROPERTY = "BAGRESCORE_SPREADSHEET_ID";
 var BAGRESCORE_SECRET_PROPERTY = "BAGRESCORE_AUTH_SECRET";
 var BAGRESCORE_REVISION_PROPERTY = "BAGRESCORE_GLOBAL_REVISION";
@@ -12,6 +12,8 @@ var BAGRESCORE_MAX_PULL_CHANGES = 500;
 var BAGRESCORE_PAYLOAD_CHUNK_SIZE = 45000;
 var BAGRESCORE_PAYLOAD_CHUNKS = 12;
 var BAGRESCORE_GOALS_TO_END_GAME = 2;
+var BAGRESCORE_PLAYER_POSITIONS = ["GK", "CB", "MC", "MAT", "SA", "ST", "LW", "RW"];
+var BAGRESCORE_MAX_PROFILE_PHOTO_CHARS = 480000;
 
 var BAGRESCORE_SYNC_STORES = [
   "jogadores",
@@ -93,8 +95,24 @@ var BAGRESCORE_DEFAULT_PROFILES = [
   { id: "administrador", nome: "Administrador", permissoes: ["*"] },
   {
     id: "organizador",
-    nome: "Organizador",
-    permissoes: ["peladas:criar", "times:montar", "jogos:iniciar", "jogos:finalizar", "jogos:alterar"]
+    nome: "Operador",
+    permissoes: [
+      "jogadores:criar",
+      "jogadores:editar",
+      "atributos:editar",
+      "peladas:criar",
+      "times:montar",
+      "jogos:iniciar",
+      "jogos:finalizar",
+      "jogos:alterar",
+      "eventos:criar",
+      "eventos:excluir",
+      "gols:registrar",
+      "faltas:registrar",
+      "estatisticas:visualizar",
+      "historico:visualizar",
+      "carta:visualizar"
+    ]
   },
   {
     id: "marcador",
@@ -104,7 +122,7 @@ var BAGRESCORE_DEFAULT_PROFILES = [
   {
     id: "jogador",
     nome: "Jogador",
-    permissoes: ["estatisticas:visualizar", "historico:visualizar", "carta:visualizar"]
+    permissoes: ["estatisticas:visualizar", "historico:visualizar", "carta:visualizar", "perfil:editar-proprio"]
   },
   { id: "publico", nome: "Público", permissoes: ["publico:visualizar"] }
 ];
@@ -130,6 +148,7 @@ function doPost(e) {
     if (action === "me") return bagreScoreJsonOutput_(bagreScoreHandleMe_(request));
     if (action === "logout") return bagreScoreJsonOutput_(bagreScoreHandleLogout_(request));
     if (action === "changePin") return bagreScoreJsonOutput_(bagreScoreHandleChangePin_(request));
+    if (action === "updateMyPlayerProfile") return bagreScoreJsonOutput_(bagreScoreHandleUpdateMyPlayerProfile_(request));
     if (action === "listUsers") return bagreScoreJsonOutput_(bagreScoreHandleListUsers_(request));
     if (action === "saveUser") return bagreScoreJsonOutput_(bagreScoreHandleSaveUser_(request));
     if (action === "resetData") return bagreScoreJsonOutput_(bagreScoreHandleResetData_(request));
@@ -362,6 +381,84 @@ function bagreScoreHandleChangePin_(request) {
   return { ok: true, message: "PIN alterado.", serverTime: new Date().toISOString() };
 }
 
+function bagreScoreHandleUpdateMyPlayerProfile_(request) {
+  var auth = bagreScoreRequireSession_(request.token, "");
+  var permissions = auth.user.permissoes || [];
+  var canEditOwnProfile = permissions.indexOf("*") >= 0 ||
+    permissions.indexOf("perfil:editar-proprio") >= 0 ||
+    permissions.indexOf("jogadores:editar") >= 0;
+
+  if (!canEditOwnProfile) throw new Error("Seu perfil não permite editar os dados do jogador.");
+
+  var playerId = String(auth.user.jogadorId || "").trim();
+  if (!playerId) throw new Error("Esta conta ainda não está vinculada a um jogador.");
+
+  var input = request.player || {};
+  var nickname = String(input.apelido || "").trim();
+  var position = String(input.posicaoPrincipal || "").trim().toUpperCase();
+  var photo = String(input.foto || "").trim();
+
+  if (nickname.length < 2 || nickname.length > 40) {
+    throw new Error("O apelido deve ter de 2 a 40 caracteres.");
+  }
+  if (BAGRESCORE_PLAYER_POSITIONS.indexOf(position) < 0) {
+    throw new Error("Posição inválida.");
+  }
+  if (photo.length > BAGRESCORE_MAX_PROFILE_PHOTO_CHARS) {
+    throw new Error("A foto ficou muito grande. Escolha uma imagem menor.");
+  }
+  if (photo && !/^data:image\/[a-z0-9.+-]+;base64,/i.test(photo)) {
+    throw new Error("Formato de foto inválido.");
+  }
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+
+  try {
+    var playerSheet = auth.spreadsheet.getSheetByName("jogadores");
+    var found = bagreScoreFindRowByValue_(playerSheet, "entityId", playerId);
+    if (!found || bagreScoreBoolean_(found.record.deleted)) {
+      throw new Error("Jogador vinculado não encontrado.");
+    }
+
+    var currentPlayer = bagreScoreParseEntityPayload_(found.record);
+    var isGoalkeeper = bagreScoreNormalizeToken_(currentPlayer.tipoJogador) === "goleiro" ||
+      String(currentPlayer.posicaoPrincipal || "").toUpperCase() === "GK";
+
+    if (isGoalkeeper && position !== "GK") {
+      throw new Error("Contas de goleiro só podem selecionar a posição GK.");
+    }
+    if (!isGoalkeeper && position === "GK") {
+      throw new Error("A mudança para goleiro deve ser feita pelo administrador.");
+    }
+
+    var updatedPlayer = Object.assign({}, currentPlayer, {
+      apelido: nickname,
+      foto: photo,
+      posicaoPrincipal: position,
+      updatedAt: new Date().toISOString()
+    });
+    var result = bagreScoreWriteEntity_(
+      auth.spreadsheet,
+      "jogadores",
+      playerId,
+      "upsert",
+      updatedPlayer,
+      auth.user.id,
+      String(request.deviceId || auth.session.deviceId || "")
+    );
+
+    return {
+      ok: true,
+      player: bagreScoreParseEntityPayload_(result),
+      serverRevision: Number(result.serverRevision || 0),
+      serverTime: result.serverUpdatedAt || new Date().toISOString()
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function bagreScoreHandleListUsers_(request) {
   var auth = bagreScoreRequireSession_(request.token, "usuarios:gerenciar");
   var rows = bagreScoreReadObjects_(auth.spreadsheet.getSheetByName("usuarios"));
@@ -384,6 +481,7 @@ function bagreScoreHandleSaveUser_(request) {
   var status = String(input.status || "ativo").trim().toLowerCase();
   var foundById = bagreScoreFindRowByValue_(userSheet, "id", userId);
   var foundByLogin = bagreScoreFindRowByValue_(userSheet, "login", login);
+  var linkedPlayerId = String(input.jogadorId || "").trim();
 
   if (!name || !login) throw new Error("Nome e login são obrigatórios.");
   if (!/^[a-z0-9._-]{3,40}$/.test(login)) throw new Error("Login deve ter de 3 a 40 caracteres simples.");
@@ -392,6 +490,22 @@ function bagreScoreHandleSaveUser_(request) {
   }
   if (!bagreScoreGetProfile_(auth.spreadsheet, profileId)) throw new Error("Perfil inválido.");
   if (["ativo", "inativo"].indexOf(status) < 0) throw new Error("Status inválido.");
+  if (profileId === "jogador" && !linkedPlayerId) {
+    throw new Error("A conta Jogador precisa ser vinculada a um jogador cadastrado.");
+  }
+  if (linkedPlayerId) {
+    var linkedPlayer = bagreScoreFindRowByValue_(auth.spreadsheet.getSheetByName("jogadores"), "entityId", linkedPlayerId);
+    if (!linkedPlayer || bagreScoreBoolean_(linkedPlayer.record.deleted)) {
+      throw new Error("Jogador vinculado não encontrado.");
+    }
+
+    var duplicateLink = bagreScoreReadObjects_(userSheet).filter(function (item) {
+      return String(item.record.id || "") !== userId &&
+        String(item.record.jogadorId || "") === linkedPlayerId &&
+        String(item.record.status || "").toLowerCase() === "ativo";
+    })[0];
+    if (duplicateLink) throw new Error("Este jogador já está vinculado a outra conta ativa.");
+  }
   if (userId === auth.user.id && (status !== "ativo" || profileId !== "administrador")) {
     throw new Error("A conta administrativa em uso não pode remover o próprio acesso.");
   }
@@ -415,7 +529,7 @@ function bagreScoreHandleSaveUser_(request) {
     pinHash: record.pinHash,
     salt: record.salt,
     perfilId: profileId,
-    jogadorId: String(input.jogadorId || ""),
+    jogadorId: linkedPlayerId,
     status: status,
     failedAttempts: 0,
     lockedUntil: "",
@@ -843,6 +957,18 @@ function bagreScorePublicUser_(spreadsheet, record) {
 }
 
 function bagreScoreGetProfile_(spreadsheet, profileId) {
+  var defaultProfile = BAGRESCORE_DEFAULT_PROFILES.filter(function (profile) {
+    return profile.id === profileId;
+  })[0];
+
+  if (defaultProfile) {
+    return {
+      id: defaultProfile.id,
+      nome: defaultProfile.nome,
+      permissoes: defaultProfile.permissoes.slice()
+    };
+  }
+
   var found = bagreScoreFindRowByValue_(spreadsheet.getSheetByName("perfis"), "id", profileId);
   if (!found) return null;
   var permissions = [];

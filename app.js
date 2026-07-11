@@ -1,8 +1,8 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.12.0";
-  const MIN_SYNC_API_VERSION = "1.2.0";
+  const APP_VERSION = "0.14.0";
+  const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 5000;
@@ -429,8 +429,24 @@
     },
     {
       id: "organizador",
-      nome: "Organizador",
-      permissoes: ["peladas:criar", "times:montar", "jogos:iniciar", "jogos:finalizar"],
+      nome: "Operador",
+      permissoes: [
+        "jogadores:criar",
+        "jogadores:editar",
+        "atributos:editar",
+        "peladas:criar",
+        "times:montar",
+        "jogos:iniciar",
+        "jogos:finalizar",
+        "jogos:alterar",
+        "eventos:criar",
+        "eventos:excluir",
+        "gols:registrar",
+        "faltas:registrar",
+        "estatisticas:visualizar",
+        "historico:visualizar",
+        "carta:visualizar",
+      ],
     },
     {
       id: "marcador",
@@ -440,7 +456,7 @@
     {
       id: "jogador",
       nome: "Jogador",
-      permissoes: ["estatisticas:visualizar", "historico:visualizar", "carta:visualizar"],
+      permissoes: ["estatisticas:visualizar", "historico:visualizar", "carta:visualizar", "perfil:editar-proprio"],
     },
     {
       id: "publico",
@@ -493,6 +509,7 @@
   const PLAYER_POSITIONS = ["GK", "CB", "MC", "MAT", "SA", "ST", "LW", "RW"];
   const LINE_POSITIONS = ["CB", "MC", "MAT", "SA", "ST", "LW", "RW"];
   const PLAYER_PHOTO_MAX_INPUT_BYTES = 8 * 1024 * 1024;
+  const PLAYER_PROFILE_PHOTO_MAX_CHARS = 480000;
   const PLAYER_PHOTO_MAX_SIZE = 720;
   const PLAYER_PHOTO_QUALITY = 0.84;
   const PLAYER_FORM_STEPS = [
@@ -1790,9 +1807,18 @@
       payload,
       status: "pendente",
       attempts: 0,
+      clientSequence: nextSyncSequence(),
       createdAt: nowIso(),
       updatedAt: nowIso(),
     };
+  }
+
+  function nextSyncSequence() {
+    const storageKey = "bagrescore:sync-sequence";
+    const previous = Number(localStorage.getItem(storageKey) || 0);
+    const next = Math.max(previous + 1, Date.now() * 1000);
+    localStorage.setItem(storageKey, String(next));
+    return next;
   }
 
   function createAuditRecord(entityName, entityId, action, before, after) {
@@ -2953,13 +2979,14 @@
     const pelada = stats.highlightedPelada;
 
     if (!pelada) {
+      const canCreatePelada = hasPermission("peladas:criar");
       return `
         <section class="featured-match-card is-empty" aria-labelledby="home-title">
           <span class="feature-badge">Pelada em destaque</span>
           <span class="featured-empty-icon" aria-hidden="true">+</span>
           <h2 id="home-title">Nenhuma pelada marcada ainda</h2>
-          <p>Crie a próxima rodada e comece a resenha.</p>
-          <button class="primary-button home-primary-action" type="button" data-home-section="peladas">Criar pelada</button>
+          <p>${canCreatePelada ? "Crie a próxima rodada e comece a resenha." : "Quando a próxima rodada for criada, ela aparecerá aqui."}</p>
+          <button class="primary-button home-primary-action" type="button" data-home-section="peladas">${canCreatePelada ? "Criar pelada" : "Ver peladas"}</button>
         </section>
       `;
     }
@@ -3496,6 +3523,7 @@
 
   function renderPlayerCard(player) {
     const statusClass = `status-${String(player.status || "Ativo").toLowerCase()}`;
+    const canEditPlayers = hasPermission("jogadores:editar");
 
     return `
       <article class="player-card ${player.status === "Inativo" ? "is-inactive" : ""}" data-player-id="${escapeHtml(player.id)}">
@@ -3508,7 +3536,7 @@
           </span>
           <span class="player-status ${statusClass}">${escapeHtml(player.status || "Ativo")}</span>
         </button>
-        <div class="player-card-actions">
+        ${canEditPlayers ? `<div class="player-card-actions">
           <button class="ghost-button compact-button" type="button" data-player-action="edit" data-player-id="${escapeHtml(player.id)}">Editar</button>
           ${
             player.status === "Inativo"
@@ -3516,7 +3544,7 @@
               : `<button class="danger-button compact-button" type="button" data-player-action="inactivate" data-player-id="${escapeHtml(player.id)}">Inativar</button>`
           }
           <button class="danger-button compact-button player-delete-button" type="button" data-player-action="delete" data-player-id="${escapeHtml(player.id)}">Excluir</button>
-        </div>
+        </div>` : ""}
       </article>
     `;
   }
@@ -3571,7 +3599,7 @@
           <h3>Estatísticas futuras</h3>
           <p>Este jogador já está disponível para times, gols, assistências, faltas, MVP, bagre da rodada e rankings.</p>
         </div>
-        <div class="player-card-actions">
+        ${hasPermission("jogadores:editar") ? `<div class="player-card-actions">
           <button class="ghost-button compact-button" type="button" data-player-action="edit" data-player-id="${escapeHtml(player.id)}">Editar</button>
           ${
             player.status === "Inativo"
@@ -3579,7 +3607,7 @@
               : `<button class="danger-button compact-button" type="button" data-player-action="inactivate" data-player-id="${escapeHtml(player.id)}">Inativar</button>`
           }
           <button class="danger-button compact-button player-delete-button" type="button" data-player-action="delete" data-player-id="${escapeHtml(player.id)}">Excluir</button>
-        </div>
+        </div>` : ""}
       </aside>
     `;
   }
@@ -3601,11 +3629,11 @@
 
     return `
       <div class="players-action-grid">
-        <button class="players-action-card is-primary" type="button" data-player-action="start-create">
+        ${hasPermission("jogadores:criar") ? `<button class="players-action-card is-primary" type="button" data-player-action="start-create">
           <span>+</span>
           <strong>Cadastrar jogador</strong>
           <small>Abra o cadastro guiado em etapas para criar uma nova carta.</small>
-        </button>
+        </button>` : ""}
         <button class="players-action-card" type="button" data-player-action="toggle-roster">
           <span>${escapeHtml(jogadores.length)}</span>
           <strong>Elenco cadastrado</strong>
@@ -3655,7 +3683,8 @@
     const selectedPlayer =
       jogadores.find((jogador) => jogador.id === state.selectedPlayerId) || null;
     const editingPlayer = jogadores.find((jogador) => jogador.id === state.editingPlayerId) || null;
-    const shouldShowForm = state.playerFormOpen || Boolean(editingPlayer);
+    const shouldShowForm = hasPermission(editingPlayer ? "jogadores:editar" : "jogadores:criar") &&
+      (state.playerFormOpen || Boolean(editingPlayer));
 
     setSectionTitle("Cadastro", "Jogadores");
     state.selectedPlayerId = selectedPlayer?.id || null;
@@ -4445,7 +4474,8 @@
     }, new Map());
 
     if (!selectedPelada) {
-      const activeView = state.peladasView === "criar" ? "criar" : "gerenciar";
+      const canCreatePelada = hasPermission("peladas:criar");
+      const activeView = canCreatePelada && state.peladasView === "criar" ? "criar" : "gerenciar";
       setSectionTitle("Crie e gerencie suas peladas", "Peladas");
 
       $("#section-content").innerHTML = `
@@ -4538,6 +4568,8 @@
   }
 
   function renderPeladasModeNav(activeView) {
+    if (!hasPermission("peladas:criar")) return "";
+
     return `
       <div class="peladas-mode-nav" role="tablist" aria-label="Navegação de peladas">
         <button
@@ -4602,15 +4634,15 @@
                   )
                 )
                 .join("")}</div>
-              <button class="peladas-new-floating" type="button" data-pelada-action="show-create">
+              ${hasPermission("peladas:criar") ? `<button class="peladas-new-floating" type="button" data-pelada-action="show-create">
                 <span aria-hidden="true">+</span>
                 Nova pelada
-              </button>
+              </button>` : ""}
             `
             : `
               <div class="empty-state">
                 <h3>Nenhuma pelada criada</h3>
-                <p>Crie a primeira pelada. Depois, abra o card dela para montar times e iniciar jogos.</p>
+                <p>${hasPermission("peladas:criar") ? "Crie a primeira pelada. Depois, abra o card dela para montar times e iniciar jogos." : "Nenhuma pelada foi publicada ainda."}</p>
               </div>
             `
         }
@@ -4777,7 +4809,7 @@
         </div>
         <div class="pelada-open-actions">
           <span class="pelada-open-status">${escapeHtml(status)}</span>
-          <button
+          ${hasPermission("jogos:finalizar") ? `<button
             class="primary-button compact-button"
             type="button"
             data-pelada-action="finish-pelada"
@@ -4785,13 +4817,15 @@
             title="${escapeHtml(finishTitle)}"
           >
             Finalizar Pelada
-          </button>
+          </button>` : ""}
         </div>
       </section>
     `;
   }
 
   function renderGameSetup(pelada, jogadores) {
+    if (!hasPermission("jogos:iniciar")) return "";
+
     const draft = normalizeGameDraft(jogadores);
 
     if (pelada.status === "Finalizada") {
@@ -5989,11 +6023,11 @@
           <span>Gols</span>
           <strong>${escapeHtml(goalAuthors)}${escapeHtml(extraGoals)}</strong>
         </div>
-        <div class="live-idle-actions">
+        ${hasPermission("jogos:iniciar") ? `<div class="live-idle-actions">
           <button class="primary-button big-touch" type="button" data-live-action="new-game" data-pelada-id="${escapeHtml(jogo.peladaId || "")}">
             Criar nova partida
           </button>
-        </div>
+        </div>` : ""}
       </section>
     `;
   }
@@ -6146,6 +6180,7 @@
         data-player-id="${escapeHtml(player.id)}"
         data-team="${escapeHtml(teamKey)}"
         data-goalkeeper="${isGoalkeeper ? "true" : "false"}"
+        ${hasPermission("eventos:criar") ? "" : "disabled"}
       >
         ${renderPlayerAvatar(player, "player-avatar pitch-avatar")}
         <span class="pitch-player-label">
@@ -6174,6 +6209,8 @@
   }
 
   function renderLiveControlBar(jogo) {
+    if (!hasPermission("jogos:alterar")) return "";
+
     const paused = Boolean(jogo.pausadoEm);
 
     return `
@@ -7013,14 +7050,6 @@
 
       closeLiveModal();
       state.liveMessage = `Gol salvo para ${teamNameFromGame(updatedJogo, teamKey)}.`;
-      await syncLatestMutations();
-
-      const syncedEvent = await getRecord("eventos", evento.id);
-      if (syncedEvent?.cancelado) {
-        state.liveMessage = "Gol descartado: a partida jÃ¡ havia sido finalizada em outro dispositivo.";
-        await renderCurrentSection();
-        return;
-      }
 
       const playersToEvolve = [...new Set([jogadorId, assistenteId].filter(Boolean))];
 
@@ -7028,17 +7057,19 @@
         await aplicarEvolucaoPorEventos(playerId);
       }
 
-      await syncLatestMutations();
-
-      const syncedJogo = await getRecord("jogos", jogo.id);
-      const usesRemoteAuthority = navigator.onLine && Boolean(state.backendUrl) && Boolean(state.authToken);
-
-      if (!usesRemoteAuthority && syncedJogo?.status !== "Finalizado" && Number(updatedJogo[placarField] || 0) >= GOALS_TO_END_GAME) {
+      if (Number(updatedJogo[placarField] || 0) >= GOALS_TO_END_GAME) {
         await finalizeGame(jogo.id, "2 gols");
         return;
       }
 
       await renderCurrentSection();
+      await syncLatestMutations();
+
+      const syncedEvent = await getRecord("eventos", evento.id);
+      if (syncedEvent?.cancelado) {
+        state.liveMessage = "Gol descartado: a partida jÃ¡ havia sido finalizada em outro dispositivo.";
+        await renderCurrentSection();
+      }
     } finally {
       pendingGoalGameIds.delete(jogo.id);
     }
@@ -7632,24 +7663,20 @@
       });
 
       state.liveMessage = `Gol para ${teamNameFromGame(updatedJogo, teamKey)}.`;
+
+      if (Number(updatedJogo[placarField] || 0) >= GOALS_TO_END_GAME) {
+        await finalizeGame(jogoId, "2 gols");
+        return;
+      }
+
+      await renderCurrentSection();
       await syncLatestMutations();
 
       const syncedEvent = await getRecord("eventos", evento.id);
       if (syncedEvent?.cancelado) {
         state.liveMessage = "Gol descartado: a partida jÃ¡ havia sido finalizada em outro dispositivo.";
         await renderCurrentSection();
-        return;
       }
-
-      const syncedJogo = await getRecord("jogos", jogoId);
-      const usesRemoteAuthority = navigator.onLine && Boolean(state.backendUrl) && Boolean(state.authToken);
-
-      if (!usesRemoteAuthority && syncedJogo?.status !== "Finalizado" && Number(updatedJogo[placarField] || 0) >= GOALS_TO_END_GAME) {
-        await finalizeGame(jogoId, "2 gols");
-        return;
-      }
-
-      await renderCurrentSection();
     } finally {
       pendingGoalGameIds.delete(jogoId);
     }
@@ -7759,7 +7786,7 @@
     setActiveGameId(null);
     state.selectedGameSummaryId = jogoId;
     state.liveMessage = `Jogo finalizado por ${formaEncerramento}.`;
-    await syncNow();
+    await syncLatestMutations();
     await refreshCurrentView();
   }
 
@@ -9439,6 +9466,63 @@
     `;
   }
 
+  function renderMyPlayerProfile(player) {
+    if (!player) return "";
+
+    const goalkeeper = isGoalkeeper(player.tipoJogador, player.posicaoPrincipal);
+    const allowedPositions = goalkeeper ? ["GK"] : LINE_POSITIONS;
+
+    return `
+      <section class="data-card my-player-profile-card">
+        <div class="section-heading-inline">
+          <div>
+            <span class="panel-kicker">Meu jogador</span>
+            <h3>Editar meu perfil</h3>
+            <p>Você pode alterar sua foto, apelido e posição. Atributos, overall e estatísticas são protegidos.</p>
+          </div>
+          <span class="status-pill">${escapeHtml(player.overall ?? "-")} OVR</span>
+        </div>
+
+        <form class="my-player-profile-form" id="my-player-profile-form" novalidate>
+          <input type="hidden" name="foto" value="${escapeHtml(player.foto || "")}" />
+          <div class="my-profile-photo-panel">
+            <div id="my-profile-avatar-preview">
+              ${renderPlayerAvatar(player, "player-avatar my-profile-avatar")}
+            </div>
+            <div>
+              <strong>${escapeHtml(player.nome || "Jogador")}</strong>
+              <small>${escapeHtml(player.tipoJogador || "Linha")} · atributos bloqueados</small>
+              <div class="my-profile-photo-actions">
+                <label class="ghost-button compact-button">
+                  <input type="file" name="fotoArquivo" accept="image/*" hidden />
+                  Escolher foto
+                </label>
+                <button class="ghost-button compact-button" type="button" data-my-profile-action="remove-photo" ${player.foto ? "" : "hidden"}>Remover</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <label class="field-label">
+              <span>Apelido</span>
+              <input type="text" name="apelido" minlength="2" maxlength="40" value="${escapeHtml(player.apelido || player.nome || "")}" required />
+            </label>
+            <label class="field-label">
+              <span>Posição</span>
+              <select name="posicaoPrincipal" required>
+                ${renderOptions(allowedPositions, player.posicaoPrincipal || allowedPositions[0], "Selecione")}
+              </select>
+            </label>
+          </div>
+
+          ${goalkeeper ? `<p class="my-profile-note">Para mudar de goleiro para jogador de linha, peça ao administrador. Isso evita alterações incompatíveis com os atributos da carta.</p>` : ""}
+          <button class="primary-button" type="submit">Salvar meu perfil</button>
+          <p class="form-feedback" id="my-player-profile-feedback" role="status" hidden></p>
+        </form>
+      </section>
+    `;
+  }
+
   async function renderConfigSection(counts = {}) {
     const [config, syncQueue, auditLog] = await Promise.all([
       getRecord("configs", "app"),
@@ -9447,6 +9531,9 @@
     ]);
     const pendingSync = syncQueue.filter((item) => item.status !== "sincronizado");
     const syncErrors = pendingSync.filter((item) => item.status === "erro");
+    const linkedPlayer = state.currentUser?.jogadorId
+      ? await getRecord("jogadores", state.currentUser.jogadorId)
+      : null;
     let accountPlayers = [];
 
     if (canManageUsers()) {
@@ -9479,14 +9566,14 @@
           ${state.currentUser ? `<span class="status-pill account-online-pill">Conectado</span>` : ""}
         </div>
 
-        <form class="sync-config-form" id="sync-config-form" novalidate>
+        ${canManageUsers() || !state.backendUrl ? `<form class="sync-config-form" id="sync-config-form" novalidate>
           <label class="field-label">
             <span>URL publicada do Apps Script</span>
             <input type="url" name="appsScriptUrl" value="${escapeHtml(config?.appsScriptUrl || "")}" placeholder="https://script.google.com/macros/s/.../exec" required />
           </label>
           <button class="primary-button" type="submit">Salvar e conectar</button>
           <p class="form-feedback" id="sync-config-feedback" role="status" hidden></p>
-        </form>
+        </form>` : ""}
 
         ${state.currentUser ? `
           <form class="change-pin-form" id="change-pin-form" novalidate>
@@ -9510,6 +9597,8 @@
           </form>
         ` : ""}
       </section>
+
+      ${renderMyPlayerProfile(linkedPlayer)}
 
       ${canManageUsers() ? renderUserManagement(accountPlayers) : ""}
 
@@ -9621,6 +9710,9 @@
 
     $("#sync-config-form")?.addEventListener("submit", handleSyncConfigSubmit);
     $("#change-pin-form")?.addEventListener("submit", handleChangePinSubmit);
+    $("#my-player-profile-form")?.addEventListener("submit", handleMyPlayerProfileSubmit);
+    $("#my-player-profile-form input[name=\"fotoArquivo\"]")?.addEventListener("change", handleMyPlayerProfilePhotoChange);
+    $("[data-my-profile-action=\"remove-photo\"]")?.addEventListener("click", handleMyPlayerProfileRemovePhoto);
     $("#user-admin-form")?.addEventListener("submit", handleUserAdminSubmit);
     $(".user-admin-card")?.addEventListener("click", handleUserAdminClick);
     $("#server-reset-form")?.addEventListener("submit", handleServerResetSubmit);
@@ -9970,13 +10062,112 @@
     }
   }
 
+  function updateMyPlayerProfilePreview(form) {
+    if (!form) return;
+    const preview = $("#my-profile-avatar-preview");
+    const removeButton = $("[data-my-profile-action=\"remove-photo\"]");
+    const player = {
+      nome: state.currentUser?.nome || "Jogador",
+      apelido: String(form.elements.apelido?.value || "").trim(),
+      foto: String(form.elements.foto?.value || "").trim(),
+    };
+
+    if (preview) preview.innerHTML = renderPlayerAvatar(player, "player-avatar my-profile-avatar");
+    if (removeButton) removeButton.hidden = !player.foto;
+  }
+
+  async function handleMyPlayerProfilePhotoChange(event) {
+    const form = event.currentTarget?.form;
+    const feedback = $("#my-player-profile-feedback");
+
+    try {
+      const file = event.currentTarget?.files?.[0];
+      if (!file || !form) return;
+      const photo = await readPlayerPhotoFile(file);
+      if (photo.length > PLAYER_PROFILE_PHOTO_MAX_CHARS) {
+        throw new Error("A foto ficou muito grande depois do processamento. Escolha uma imagem menor.");
+      }
+      form.elements.foto.value = photo;
+      updateMyPlayerProfilePreview(form);
+      if (feedback) feedback.hidden = true;
+    } catch (error) {
+      if (feedback) {
+        feedback.textContent = error.message;
+        feedback.hidden = false;
+      }
+      if (event.currentTarget) event.currentTarget.value = "";
+    }
+  }
+
+  function handleMyPlayerProfileRemovePhoto(event) {
+    const form = event.currentTarget?.closest("form");
+    if (!form) return;
+    form.elements.foto.value = "";
+    if (form.elements.fotoArquivo) form.elements.fotoArquivo.value = "";
+    updateMyPlayerProfilePreview(form);
+  }
+
+  async function handleMyPlayerProfileSubmit(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const feedback = $("#my-player-profile-feedback");
+    const submitButton = form.querySelector('button[type="submit"]');
+    const nickname = String(form.elements.apelido?.value || "").trim();
+    const position = String(form.elements.posicaoPrincipal?.value || "").trim().toUpperCase();
+    const photo = String(form.elements.foto?.value || "").trim();
+
+    if (!state.currentUser?.jogadorId) {
+      feedback.textContent = "Sua conta ainda não está vinculada a um jogador.";
+      feedback.hidden = false;
+      return;
+    }
+    if (nickname.length < 2 || nickname.length > 40 || !PLAYER_POSITIONS.includes(position)) {
+      feedback.textContent = "Confira o apelido e a posição escolhida.";
+      feedback.hidden = false;
+      return;
+    }
+    if (!navigator.onLine) {
+      feedback.textContent = "Conecte-se à internet para alterar seu perfil com segurança.";
+      feedback.hidden = false;
+      return;
+    }
+
+    submitButton.disabled = true;
+    submitButton.textContent = "Salvando...";
+    feedback.hidden = true;
+
+    try {
+      const result = await callAppsScript("updateMyPlayerProfile", {
+        token: state.authToken,
+        deviceId: getDeviceId(),
+        player: {
+          apelido: nickname,
+          foto: photo,
+          posicaoPrincipal: position,
+        },
+      });
+
+      await putRecord("jogadores", result.player);
+      updateMyPlayerProfilePreview(form);
+      feedback.textContent = "Perfil atualizado com segurança.";
+      feedback.hidden = false;
+    } catch (error) {
+      feedback.textContent = error.message;
+      feedback.hidden = false;
+    } finally {
+      submitButton.disabled = false;
+      submitButton.textContent = "Salvar meu perfil";
+    }
+  }
+
   function canManageUsers() {
     const permissions = state.currentUser?.permissoes || [];
     return permissions.includes("*") || permissions.includes("usuarios:gerenciar");
   }
 
   function renderUserManagement(players) {
-    const profiles = state.remoteProfiles.length ? state.remoteProfiles : DEFAULT_PERFIS;
+    const availableProfiles = state.remoteProfiles.length ? state.remoteProfiles : DEFAULT_PERFIS;
+    const profiles = availableProfiles.filter((profile) => ["administrador", "organizador", "jogador"].includes(profile.id));
     const userRows = state.remoteUsers.length
       ? state.remoteUsers.map((user) => `
           <button class="remote-user-row" type="button" data-user-admin-action="edit" data-user-id="${escapeHtml(user.id)}">
@@ -9996,7 +10187,7 @@
           <div>
             <span class="panel-kicker">Acessos</span>
             <h3>Contas dos usuários</h3>
-            <p>Crie contas para organizadores, marcadores e jogadores. O PIN temporário aparece uma única vez após salvar.</p>
+            <p>Use Administrador para configurações, Operador para gerenciar peladas e Jogador para acesso pessoal a estatísticas, ranking e carta.</p>
           </div>
           <span class="count-badge">${state.remoteUsers.length}</span>
         </div>
@@ -10069,6 +10260,14 @@
 
     if (!user.nome || !/^[a-z0-9._-]{3,40}$/.test(user.login)) {
       state.accountMessage = "Informe o nome e um login com pelo menos três caracteres simples.";
+      const feedback = $("#user-admin-feedback");
+      feedback.textContent = state.accountMessage;
+      feedback.hidden = false;
+      return;
+    }
+
+    if (user.perfilId === "jogador" && !user.jogadorId) {
+      state.accountMessage = "Escolha qual jogador será vinculado a esta conta.";
       const feedback = $("#user-admin-feedback");
       feedback.textContent = state.accountMessage;
       feedback.hidden = false;
@@ -10289,8 +10488,13 @@
       const pending = await getAllRecords("syncQueue");
       const now = Date.now();
       const activePending = pending
-        .filter((item) => item.status !== "sincronizado")
+        .filter((item) => item.status === "pendente")
         .filter((item) => !item.nextAttemptAt || new Date(item.nextAttemptAt).getTime() <= now)
+        .sort((a, b) =>
+          Number(a.clientSequence || 0) - Number(b.clientSequence || 0) ||
+          String(a.createdAt || "").localeCompare(String(b.createdAt || "")) ||
+          String(a.id || "").localeCompare(String(b.id || ""))
+        )
         .slice(0, SYNC_BATCH_SIZE);
 
       updateAccountUi();
