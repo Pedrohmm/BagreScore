@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.16.6";
+  const APP_VERSION = "0.16.7";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -9109,7 +9109,6 @@
     const jogador = stats.jogador;
     const activeDefinitions = getActiveAttributeDefinitions(jogador.tipoJogador, jogador.posicaoPrincipal);
     const activeTab = getActiveProfileTab();
-    const canEditPlayer = hasPermission("jogadores:editar");
 
     return `
       <div class="stats-profile player-profile-premium">
@@ -9127,28 +9126,28 @@
             ${renderProfileHeroMetric("Assistências", stats.assistencias)}
           </div>
 
-          <div class="player-card-functional-actions">
-            <span class="player-card-active-state status-${escapeHtml(normalizeToken(jogador.status || "Ativo"))}">
-              <i></i>${escapeHtml(jogador.status || "Ativo")}
-            </span>
-            ${canEditPlayer ? `<button type="button" data-stats-action="edit-player" data-player-id="${escapeHtml(jogador.id)}">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>
-              Editar
-            </button>` : ""}
-            <button class="player-card-more-action" type="button" data-stats-action="show-attributes" aria-label="Ver atributos completos">
-              <i></i><i></i><i></i>
-            </button>
+          <div class="player-card-awards" aria-label="Prêmios em peladas">
+            <article class="player-award-stat is-mvp">
+              <span class="player-award-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 4h8v4a4 4 0 0 1-8 0Z"/><path d="M8 6H4v1a4 4 0 0 0 4 4M16 6h4v1a4 4 0 0 1-4 4M12 12v5M8 21h8M9 17h6v4H9Z"/></svg></span>
+              <span><small>MVPs da pelada</small><strong>${escapeHtml(stats.mvpsPelada || 0)}</strong></span>
+            </article>
+            <article class="player-award-stat is-bagre">
+              <span class="player-award-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 9c2-4 5-5 9-4 2 .5 4 2 5 4-1 5-4 8-8 9-3-1-5-4-6-9Z"/><path d="m19 9 3-2-1 5ZM8 9h.01M8 14c2 1 4 1 6 0"/></svg></span>
+              <span><small>Bagres da pelada</small><strong>${escapeHtml(stats.bagresPelada || 0)}</strong></span>
+            </article>
           </div>
 
           <div class="player-card-context">
-            <div>
-              <span>${escapeHtml(jogador.posicaoPrincipal || "-")} · ${escapeHtml(jogador.tipoJogador || "Linha")}</span>
+            <div class="player-context-heading">
+              <span>Ficha do atleta</span>
               <strong>${escapeHtml(jogador.nome || playerDisplayName(jogador))}</strong>
+              <small>Informações atuais do perfil</small>
             </div>
-            <div class="profile-tags">
-              <span>Pé ${escapeHtml(jogador.peForte || "-")}</span>
-              <span>${escapeHtml(starsText(jogador.estrelas || 1))}</span>
-              <span>${escapeHtml(formatPercent(stats.aproveitamento))} aproveitamento</span>
+            <div class="player-context-facts">
+              <span><small>Função</small><strong>${escapeHtml(jogador.posicaoPrincipal || "-")} · ${escapeHtml(jogador.tipoJogador || "Linha")}</strong></span>
+              <span><small>Pé dominante</small><strong>${escapeHtml(jogador.peForte || "-")}</strong></span>
+              <span><small>Nível</small><strong>${escapeHtml(starsText(jogador.estrelas || 1))}</strong></span>
+              <span><small>Aproveitamento</small><strong>${escapeHtml(formatPercent(stats.aproveitamento))}</strong></span>
             </div>
           </div>
         </section>
@@ -9254,7 +9253,7 @@
         ${getPlayerProfileTabs()
           .map(
             (tab) => `
-              <button class="${tab.id === activeTab ? "active" : ""}" type="button" data-profile-tab="${escapeHtml(tab.id)}">
+              <button class="${tab.id === activeTab ? "active" : ""}" type="button" data-profile-tab="${escapeHtml(tab.id)}" aria-selected="${tab.id === activeTab}">
                 ${escapeHtml(tab.label)}
               </button>
             `
@@ -9639,10 +9638,53 @@
     await refreshCurrentView();
   }
 
+  function bindManualEvolutionForm(statsResult) {
+    const evolutionForm = $("#manual-evolution-form");
+
+    if (!evolutionForm || evolutionForm.dataset.eventsBound === "true") {
+      return;
+    }
+
+    evolutionForm.dataset.eventsBound = "true";
+    evolutionForm.addEventListener("change", (event) => {
+      if (event.target?.name !== "jogadorId") {
+        return;
+      }
+
+      populateManualEvolutionAttributes(evolutionForm, statsResult.jogadores);
+    });
+    evolutionForm.addEventListener("submit", handleManualEvolutionSubmit);
+    populateManualEvolutionAttributes(evolutionForm, statsResult.jogadores);
+  }
+
+  function switchPlayerProfileTab(profileTab, statsResult, root) {
+    const nextTab = getPlayerProfileTabs().some((tab) => tab.id === profileTab) ? profileTab : "resumo";
+    const stats = statsResult.playersStats.find((item) => item.jogadorId === state.selectedStatsPlayerId);
+    const currentPanel = root?.querySelector(".player-profile-panel");
+
+    if (!stats || !currentPanel) {
+      return false;
+    }
+
+    state.selectedProfileTab = nextTab;
+    root.querySelectorAll("[data-profile-tab]").forEach((button) => {
+      const isActive = button.dataset.profileTab === nextTab;
+      button.classList.toggle("active", isActive);
+      button.setAttribute("aria-selected", String(isActive));
+    });
+
+    const activeDefinitions = getActiveAttributeDefinitions(stats.jogador.tipoJogador, stats.jogador.posicaoPrincipal);
+    currentPanel.outerHTML = renderPlayerProfileTabPanel(nextTab, stats, statsResult, activeDefinitions);
+    const nextPanel = root.querySelector(".player-profile-panel");
+    nextPanel?.classList.add("is-entering");
+    nextPanel?.addEventListener("animationend", () => nextPanel.classList.remove("is-entering"), { once: true });
+    bindManualEvolutionForm(statsResult);
+    return true;
+  }
+
   function bindStatsSectionEvents(statsResult) {
     const root = $("#section-content");
     const form = $("#stats-filter-form");
-    const evolutionForm = $("#manual-evolution-form");
 
     form?.addEventListener("change", async (event) => {
       const formData = new FormData(form);
@@ -9673,16 +9715,7 @@
       await renderCurrentSection();
     });
 
-    evolutionForm?.addEventListener("change", (event) => {
-      if (event.target?.name !== "jogadorId") {
-        return;
-      }
-
-      populateManualEvolutionAttributes(evolutionForm, statsResult.jogadores);
-    });
-
-    evolutionForm?.addEventListener("submit", handleManualEvolutionSubmit);
-    populateManualEvolutionAttributes(evolutionForm, statsResult.jogadores);
+    bindManualEvolutionForm(statsResult);
 
     if (!root) {
       return;
@@ -9693,8 +9726,7 @@
       const actionButton = event.target.closest("[data-stats-action]");
 
       if (profileTabButton) {
-        state.selectedProfileTab = profileTabButton.dataset.profileTab || "resumo";
-        await renderCurrentSection();
+        switchPlayerProfileTab(profileTabButton.dataset.profileTab || "resumo", statsResult, root);
         return;
       }
 
@@ -9712,8 +9744,7 @@
       }
 
       if (action === "show-attributes") {
-        state.selectedProfileTab = "atributos";
-        await renderCurrentSection();
+        switchPlayerProfileTab("atributos", statsResult, root);
         window.requestAnimationFrame(() => {
           $(".player-profile-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
         });
