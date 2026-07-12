@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.16.3";
+  const APP_VERSION = "0.16.5";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -9114,12 +9114,7 @@
     return `
       <div class="stats-profile player-profile-premium">
         <header class="player-profile-topline">
-          <button type="button" data-stats-action="back" aria-label="Voltar aos rankings">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
-            <span>Voltar</span>
-          </button>
           <span>Perfil do jogador</span>
-          <i class="profile-status-dot status-${escapeHtml(normalizeToken(jogador.status || "Ativo"))}" title="${escapeHtml(jogador.status || "Ativo")}"></i>
         </header>
 
         <section class="player-card-showcase">

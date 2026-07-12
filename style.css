@@ -13661,3 +13661,21 @@ body.stats-profile-mode .player-bagre-brand {
     font-size: 0.86rem;
   }
 }
+
+/* Player profile header alignment v0.16.4 */
+body.stats-profile-mode .player-profile-topline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+body.stats-profile-mode .player-profile-topline > span {
+  width: 100%;
+  text-align: center;
+}
+
+@media (max-width: 620px) {
+  body.stats-profile-mode .player-profile-topline {
+    display: flex;
+  }
+}
