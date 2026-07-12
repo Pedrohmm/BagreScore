@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.18.9";
+  const APP_VERSION = "0.19.0";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -6729,16 +6729,6 @@
       const action = actionButton.dataset.liveAction;
       const jogoId = $(".live-screen")?.dataset.gameId || state.activeGameId;
 
-      if (action === "back-home") {
-        await switchSection("inicio", { historyMode: "replace" });
-        return;
-      }
-
-      if (action === "settings") {
-        openSettingsDrawer();
-        return;
-      }
-
       if (action === "new-game") {
         const peladaId = actionButton.dataset.peladaId || "";
         state.selectedGameSummaryId = null;
@@ -6752,50 +6742,12 @@
         return;
       }
 
-      if (action === "open-history") {
-        const peladaId = actionButton.dataset.peladaId || "";
-        const gameId = actionButton.dataset.gameId || "";
-
-        if (peladaId) {
-          await switchSection("inicio", { historyMode: "replace" });
-          await switchSection("peladas", { peladasView: "gerenciar" });
-          await switchSection("peladas", { peladaId });
-
-          if (gameId) {
-            await switchSection("peladas", { peladaId, gameId });
-          }
-        } else {
-          await switchSection("peladas");
-        }
-        return;
-      }
-
-      if (action === "open-goal-modal") {
-        await openGoalModal(jogoId);
-        return;
-      }
-
       if (!jogoId) {
         return;
       }
 
       if (action === "player-actions") {
         await openPlayerActionsPanel(jogoId, actionButton.dataset.playerId || "");
-        return;
-      }
-
-      if (action === "open-foul-modal") {
-        await openFoulModal(jogoId);
-        return;
-      }
-
-      if (action === "open-defensive-modal") {
-        await openDefensiveActionModal(jogoId);
-        return;
-      }
-
-      if (action === "open-save-modal") {
-        await openGoalkeeperSaveModal(jogoId);
         return;
       }
 
@@ -6921,159 +6873,6 @@
     }
   }
 
-  async function openGoalModal(jogoId) {
-    const bundle = await readGameBundle(jogoId);
-
-    if (!bundle || bundle.jogo.status === "Finalizado") {
-      state.liveMessage = "Não é possível registrar gol em jogo finalizado.";
-      await renderCurrentSection();
-      return;
-    }
-
-    const modal = openLiveModal(
-      "Adicionar Gol",
-      `
-        <form class="event-form" id="goal-form" novalidate>
-          <div class="form-errors" id="goal-form-errors" hidden></div>
-
-          <fieldset class="event-fieldset">
-            <legend>1. Time que recebe o gol no placar *</legend>
-            <div class="segmented-options">
-              <label><input type="radio" name="goalTeam" value="A" checked /> ${escapeHtml(teamNameFromGame(bundle.jogo, "A"))}</label>
-              <label><input type="radio" name="goalTeam" value="B" /> ${escapeHtml(teamNameFromGame(bundle.jogo, "B"))}</label>
-            </div>
-          </fieldset>
-
-          <div class="form-grid">
-            <label class="field-label">
-              <span>Tipo do gol *</span>
-              <select name="tipoGol">
-                ${renderModalOptions(GOAL_TYPES, "normal", "Selecione")}
-              </select>
-            </label>
-            <label class="field-label">
-              <span>Jogador *</span>
-              <select name="jogadorId"></select>
-            </label>
-          </div>
-
-          <fieldset class="event-fieldset" id="assist-fieldset">
-            <legend>3. Teve assistência?</legend>
-            <div class="segmented-options">
-              <label><input type="radio" name="hasAssist" value="nao" checked /> Não</label>
-              <label><input type="radio" name="hasAssist" value="sim" /> Sim</label>
-            </div>
-            <label class="field-label" id="assist-select-wrap" hidden>
-              <span>Assistente</span>
-              <select name="assistenteId"></select>
-            </label>
-          </fieldset>
-
-          <label class="field-label">
-            <span>Observação</span>
-            <textarea name="observacoes" rows="3"></textarea>
-          </label>
-
-          <div class="form-actions">
-            <button class="primary-button big-touch" type="submit">Salvar gol</button>
-            <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
-          </div>
-        </form>
-      `
-    );
-    const form = modal.querySelector("#goal-form");
-
-    populateGoalModal(form, bundle);
-    form.addEventListener("change", () => populateGoalModal(form, bundle));
-    form.addEventListener("submit", (event) => handleGoalSubmit(event, bundle.jogo.id));
-  }
-
-  function populateGoalModal(form, bundle) {
-    const teamKey = form.elements.goalTeam?.value || "A";
-    const tipoGol = form.elements.tipoGol?.value || "normal";
-    const isOwnGoal = tipoGol === "gol_contra";
-    const authorTeam = isOwnGoal ? oppositeTeam(teamKey) : teamKey;
-    const authorPlayers = getLineupPlayers(bundle, authorTeam);
-    const previousAuthor = form.elements.jogadorId?.value || "";
-    const hasPreviousAuthor = authorPlayers.some((player) => player.id === previousAuthor);
-
-    form.elements.jogadorId.innerHTML = renderPlayerOptions(
-      authorPlayers,
-      hasPreviousAuthor ? previousAuthor : "",
-      isOwnGoal ? "Quem fez o gol contra" : "Quem fez o gol"
-    );
-
-    const selectedAuthor = form.elements.jogadorId.value;
-    const assistWrap = form.querySelector("#assist-select-wrap");
-    const assistFieldset = form.querySelector("#assist-fieldset");
-    const assistYes = form.querySelector('input[name="hasAssist"][value="sim"]');
-    const assistNo = form.querySelector('input[name="hasAssist"][value="nao"]');
-    const assistPlayers = getLineupPlayers(bundle, teamKey).filter((player) => player.id !== selectedAuthor);
-
-    if (isOwnGoal) {
-      assistNo.checked = true;
-      assistYes.disabled = true;
-      form.elements.assistenteId.innerHTML = renderPlayerOptions([], "", "Sem assistência");
-      assistWrap.hidden = true;
-      assistFieldset.classList.add("is-muted");
-      return;
-    }
-
-    assistYes.disabled = false;
-    assistFieldset.classList.remove("is-muted");
-    const showAssist = form.elements.hasAssist?.value === "sim";
-    assistWrap.hidden = !showAssist;
-    form.elements.assistenteId.innerHTML = renderPlayerOptions(assistPlayers, form.elements.assistenteId?.value || "", "Escolha o assistente");
-  }
-
-  async function handleGoalSubmit(event, jogoId) {
-    event.preventDefault();
-    if (!requirePermission("gols:registrar")) return;
-
-    const form = event.currentTarget;
-    const bundle = await readGameBundle(jogoId);
-    const jogo = bundle?.jogo;
-    const teamKey = form.elements.goalTeam?.value || "";
-    const tipoGol = form.elements.tipoGol?.value || "";
-    const isOwnGoal = tipoGol === "gol_contra";
-    const authorTeam = isOwnGoal ? oppositeTeam(teamKey) : teamKey;
-    const jogadorId = form.elements.jogadorId?.value || "";
-    const hasAssist = form.elements.hasAssist?.value === "sim" && !isOwnGoal;
-    const assistenteId = hasAssist ? form.elements.assistenteId?.value || "" : "";
-    const errors = [];
-
-    if (!jogo || jogo.status === "Finalizado") errors.push("Não é possível adicionar gol em jogo finalizado.");
-    if (!["A", "B"].includes(teamKey)) errors.push("Escolha o time do gol.");
-    if (!GOAL_TYPES.some((item) => item.value === tipoGol)) errors.push("Escolha o tipo do gol.");
-    if (!jogadorId) errors.push("Escolha o jogador.");
-    if (jogadorId && !isPlayerInTeam(bundle, jogadorId, authorTeam)) {
-      errors.push(isOwnGoal ? "Gol contra deve ser de jogador do time adversário." : "Jogador deve estar no time escolhido.");
-    }
-    if (hasAssist && !assistenteId) errors.push("Escolha o assistente.");
-    if (assistenteId && !isPlayerInTeam(bundle, assistenteId, teamKey)) {
-      errors.push("Assistente deve ser do mesmo time beneficiado pelo gol.");
-    }
-    if (assistenteId && assistenteId === jogadorId) {
-      errors.push("Autor do gol e assistente não podem ser a mesma pessoa.");
-    }
-
-    showFormErrors("goal-form-errors", errors);
-
-    if (errors.length) {
-      return;
-    }
-
-    await saveGoalEvent({
-      jogo,
-      teamKey,
-      jogadorId,
-      assistenteId,
-      tipoGol,
-      golContra: isOwnGoal,
-      observacoes: String(form.elements.observacoes?.value || "").trim(),
-    });
-  }
-
   async function saveGoalEvent({ jogo, teamKey, jogadorId, assistenteId, tipoGol, golContra, observacoes }) {
     if (!jogo?.id || pendingGoalGameIds.has(jogo.id)) {
       state.liveMessage = "Este gol jÃ¡ estÃ¡ sendo processado.";
@@ -7160,99 +6959,6 @@
     } finally {
       pendingGoalGameIds.delete(jogo.id);
     }
-  }
-
-  async function openFoulModal(jogoId) {
-    const bundle = await readGameBundle(jogoId);
-
-    if (!bundle || bundle.jogo.status === "Finalizado") {
-      state.liveMessage = "Não é possível registrar falta em jogo finalizado.";
-      await renderCurrentSection();
-      return;
-    }
-
-    const allPlayers = [...bundle.playersA, ...bundle.playersB];
-    const modal = openLiveModal(
-      "Adicionar Falta",
-      `
-        <form class="event-form" id="foul-form" novalidate>
-          <div class="form-errors" id="foul-form-errors" hidden></div>
-          <div class="form-grid">
-            <label class="field-label">
-              <span>Quem fez a falta *</span>
-              <select name="jogadorId">
-                ${renderPlayerOptions(allPlayers, "", "Escolha quem fez")}
-              </select>
-            </label>
-            <label class="field-label">
-              <span>Quem sofreu a falta *</span>
-              <select name="jogadorSofreuId">
-                ${renderPlayerOptions(allPlayers, "", "Escolha quem sofreu")}
-              </select>
-            </label>
-            <label class="field-label">
-              <span>Cartão</span>
-              <select name="cartao">
-                ${renderModalOptions(CARD_TYPES, "nenhum", "Selecione")}
-              </select>
-            </label>
-            <label class="field-label wide-field">
-              <span>Observação</span>
-              <textarea name="observacoes" rows="3"></textarea>
-            </label>
-          </div>
-          <div class="form-actions">
-            <button class="primary-button big-touch" type="submit">Salvar falta</button>
-            <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
-          </div>
-        </form>
-      `
-    );
-
-    modal.querySelector("#foul-form").addEventListener("submit", (event) =>
-      handleFoulSubmit(event, bundle.jogo.id)
-    );
-  }
-
-  async function handleFoulSubmit(event, jogoId) {
-    event.preventDefault();
-    if (!requirePermission("faltas:registrar")) return;
-
-    const form = event.currentTarget;
-    const bundle = await readGameBundle(jogoId);
-    const jogo = bundle?.jogo;
-    const jogadorId = form.elements.jogadorId?.value || "";
-    const jogadorSofreuId = form.elements.jogadorSofreuId?.value || "";
-    const cartao = form.elements.cartao?.value || "nenhum";
-    const errors = [];
-
-    if (!jogo || jogo.status === "Finalizado") errors.push("Não é possível adicionar falta em jogo finalizado.");
-    if (!jogadorId) errors.push("Escolha quem fez a falta.");
-    if (!jogadorSofreuId) errors.push("Escolha quem sofreu a falta.");
-    if (jogadorId && jogadorSofreuId && jogadorId === jogadorSofreuId) {
-      errors.push("Quem fez e quem sofreu não podem ser a mesma pessoa.");
-    }
-    if (jogadorId && !getLineupTeamForPlayer(bundle, jogadorId)) {
-      errors.push("Quem fez a falta precisa estar escalado.");
-    }
-    if (jogadorSofreuId && !getLineupTeamForPlayer(bundle, jogadorSofreuId)) {
-      errors.push("Quem sofreu a falta precisa estar escalado.");
-    }
-
-    showFormErrors("foul-form-errors", errors);
-
-    if (errors.length) {
-      return;
-    }
-
-    await saveFoulEvent({
-      jogo,
-      bundle,
-      jogadorId,
-      jogadorSofreuId,
-      cartao,
-      observacoes: String(form.elements.observacoes?.value || "").trim(),
-    });
   }
 
   async function saveFoulEvent({ jogo, bundle, jogadorId, jogadorSofreuId, cartao, observacoes }) {
@@ -7413,109 +7119,6 @@
     await renderCurrentSection();
   }
 
-  async function openDefensiveActionModal(jogoId) {
-    const bundle = await readGameBundle(jogoId);
-
-    if (!bundle || bundle.jogo.status === "Finalizado") {
-      state.liveMessage = "Não é possível registrar ação defensiva em jogo finalizado.";
-      await renderCurrentSection();
-      return;
-    }
-
-    const modal = openLiveModal(
-      "Desarme",
-      `
-        <form class="event-form" id="defensive-action-form" novalidate>
-          <div class="form-errors" id="defensive-action-errors" hidden></div>
-
-          <fieldset class="event-fieldset">
-            <legend>Time do jogador *</legend>
-            <div class="segmented-options">
-              <label><input type="radio" name="teamKey" value="A" checked /> ${escapeHtml(teamNameFromGame(bundle.jogo, "A"))}</label>
-              <label><input type="radio" name="teamKey" value="B" /> ${escapeHtml(teamNameFromGame(bundle.jogo, "B"))}</label>
-            </div>
-          </fieldset>
-
-          <div class="form-grid">
-            <label class="field-label">
-              <span>Jogador *</span>
-              <select name="jogadorId"></select>
-            </label>
-            <label class="field-label">
-              <span>Tipo da ação *</span>
-              <select name="tipoAcaoDefensiva">
-                ${renderModalOptions(DEFENSIVE_ACTION_TYPES, "desarme", "Selecione")}
-              </select>
-            </label>
-            <label class="field-label wide-field">
-              <span>Observação</span>
-              <textarea name="observacoes" rows="3"></textarea>
-            </label>
-          </div>
-
-          <div class="form-actions">
-            <button class="primary-button big-touch" type="submit">Salvar ação defensiva</button>
-            <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
-          </div>
-        </form>
-      `
-    );
-    const form = modal.querySelector("#defensive-action-form");
-
-    populateTeamPlayerSelect(form, bundle, "jogadorId");
-    form.addEventListener("change", () => populateTeamPlayerSelect(form, bundle, "jogadorId"));
-    form.addEventListener("submit", (event) => handleDefensiveActionSubmit(event, bundle.jogo.id));
-  }
-
-  function populateTeamPlayerSelect(form, bundle, selectName, filterFn = null) {
-    const teamKey = form.elements.teamKey?.value || "A";
-    const players = getLineupPlayers(bundle, teamKey).filter((player) => !filterFn || filterFn(player));
-    const select = form.elements[selectName];
-    const previousValue = select?.value || "";
-    const selectedValue = players.some((player) => player.id === previousValue) ? previousValue : "";
-
-    if (select) {
-      select.innerHTML = renderPlayerOptions(players, selectedValue, "Escolha o jogador");
-    }
-  }
-
-  async function handleDefensiveActionSubmit(event, jogoId) {
-    event.preventDefault();
-    if (!requirePermission("eventos:criar")) return;
-
-    const form = event.currentTarget;
-    const bundle = await readGameBundle(jogoId);
-    const jogo = bundle?.jogo;
-    const teamKey = form.elements.teamKey?.value || "";
-    const jogadorId = form.elements.jogadorId?.value || "";
-    const tipoAcaoDefensiva = form.elements.tipoAcaoDefensiva?.value || "";
-    const errors = [];
-
-    if (!jogo || jogo.status === "Finalizado") errors.push("Não é possível registrar ação defensiva em jogo finalizado.");
-    if (!["A", "B"].includes(teamKey)) errors.push("Escolha o time.");
-    if (!jogadorId) errors.push("Escolha o jogador.");
-    if (jogadorId && !isPlayerInTeam(bundle, jogadorId, teamKey)) {
-      errors.push("Jogador deve estar escalado no time escolhido.");
-    }
-    if (!DEFENSIVE_ACTION_TYPES.some((item) => item.value === tipoAcaoDefensiva)) {
-      errors.push("Escolha o tipo da ação defensiva.");
-    }
-
-    showFormErrors("defensive-action-errors", errors);
-
-    if (errors.length) {
-      return;
-    }
-
-    await saveDefensiveActionEvent({
-      jogo,
-      teamKey,
-      jogadorId,
-      tipoAcaoDefensiva,
-      observacoes: String(form.elements.observacoes?.value || "").trim(),
-    });
-  }
-
   async function saveDefensiveActionEvent({ jogo, teamKey, jogadorId, tipoAcaoDefensiva, observacoes }) {
     const savedAt = nowIso();
     const actionLabel = getDefensiveActionLabel(tipoAcaoDefensiva);
@@ -7555,101 +7158,6 @@
     state.liveMessage = `${actionLabel} salvo.`;
     await syncNow();
     await renderCurrentSection();
-  }
-
-  async function openGoalkeeperSaveModal(jogoId) {
-    const bundle = await readGameBundle(jogoId);
-
-    if (!bundle || bundle.jogo.status === "Finalizado") {
-      state.liveMessage = "Não é possível registrar defesa em jogo finalizado.";
-      await renderCurrentSection();
-      return;
-    }
-
-    const modal = openLiveModal(
-      "Defesa Difícil",
-      `
-        <form class="event-form" id="goalkeeper-save-form" novalidate>
-          <div class="form-errors" id="goalkeeper-save-errors" hidden></div>
-
-          <fieldset class="event-fieldset">
-            <legend>Time do goleiro *</legend>
-            <div class="segmented-options">
-              <label><input type="radio" name="teamKey" value="A" checked /> ${escapeHtml(teamNameFromGame(bundle.jogo, "A"))}</label>
-              <label><input type="radio" name="teamKey" value="B" /> ${escapeHtml(teamNameFromGame(bundle.jogo, "B"))}</label>
-            </div>
-          </fieldset>
-
-          <div class="form-grid">
-            <label class="field-label">
-              <span>Goleiro *</span>
-              <select name="jogadorId"></select>
-            </label>
-            <label class="field-label">
-              <span>Tipo da defesa *</span>
-              <select name="tipoDefesaGoleiro">
-                ${renderModalOptions(GOALKEEPER_SAVE_TYPES, "dificil", "Selecione")}
-              </select>
-            </label>
-            <label class="field-label wide-field">
-              <span>Observação</span>
-              <textarea name="observacoes" rows="3"></textarea>
-            </label>
-          </div>
-
-          <div class="form-actions">
-            <button class="primary-button big-touch" type="submit">Salvar defesa</button>
-            <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
-          </div>
-        </form>
-      `
-    );
-    const form = modal.querySelector("#goalkeeper-save-form");
-
-    populateTeamPlayerSelect(form, bundle, "jogadorId", isGoalkeeperCandidate);
-    form.addEventListener("change", () => populateTeamPlayerSelect(form, bundle, "jogadorId", isGoalkeeperCandidate));
-    form.addEventListener("submit", (event) => handleGoalkeeperSaveSubmit(event, bundle.jogo.id));
-  }
-
-  async function handleGoalkeeperSaveSubmit(event, jogoId) {
-    event.preventDefault();
-    if (!requirePermission("eventos:criar")) return;
-
-    const form = event.currentTarget;
-    const bundle = await readGameBundle(jogoId);
-    const jogo = bundle?.jogo;
-    const teamKey = form.elements.teamKey?.value || "";
-    const jogadorId = form.elements.jogadorId?.value || "";
-    const tipoDefesaGoleiro = form.elements.tipoDefesaGoleiro?.value || "";
-    const goalkeeper = [...(bundle?.playersA || []), ...(bundle?.playersB || [])].find((player) => player.id === jogadorId);
-    const errors = [];
-
-    if (!jogo || jogo.status === "Finalizado") errors.push("Não é possível registrar defesa em jogo finalizado.");
-    if (!["A", "B"].includes(teamKey)) errors.push("Escolha o time.");
-    if (!jogadorId) errors.push("Escolha o goleiro.");
-    if (jogadorId && !isPlayerInTeam(bundle, jogadorId, teamKey)) {
-      errors.push("Goleiro deve estar escalado no time escolhido.");
-    }
-    if (jogadorId && goalkeeper && !isGoalkeeperCandidate(goalkeeper)) {
-      errors.push("Escolha um jogador cadastrado como goleiro ou GK.");
-    }
-    if (!GOALKEEPER_SAVE_TYPES.some((item) => item.value === tipoDefesaGoleiro)) {
-      errors.push("Escolha o tipo da defesa.");
-    }
-
-    showFormErrors("goalkeeper-save-errors", errors);
-
-    if (errors.length) {
-      return;
-    }
-
-    await saveGoalkeeperSaveEvent({
-      jogo,
-      teamKey,
-      jogadorId,
-      tipoDefesaGoleiro,
-      observacoes: String(form.elements.observacoes?.value || "").trim(),
-    });
   }
 
   async function saveGoalkeeperSaveEvent({ jogo, teamKey, jogadorId, tipoDefesaGoleiro, observacoes }) {
