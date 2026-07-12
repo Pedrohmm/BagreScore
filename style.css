@@ -10784,6 +10784,23 @@ body[data-section="ao-vivo"] .bottom-nav {
   line-height: 1;
   text-transform: uppercase;
   white-space: nowrap;
+  -webkit-appearance: none;
+  appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.bottom-nav .bottom-nav-item:focus:not(:focus-visible),
+.bottom-nav .quick-action:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.bottom-nav .bottom-nav-item:active,
+.bottom-nav .quick-action:active {
+  border-radius: 16px;
+  background: rgba(255, 90, 0, 0.08);
+  transform: scale(0.98);
 }
 
 .bottom-nav .bottom-nav-item > span:last-child {

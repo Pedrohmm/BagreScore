@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.19.0";
+  const APP_VERSION = "0.19.1";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -981,6 +981,7 @@
     const sectionContent = $("#section-content");
 
     sectionSwitchInProgress = true;
+    setActiveSection(targetSection);
 
     try {
       if (shouldAnimate) {
@@ -1030,7 +1031,6 @@
         }
       }
 
-      setActiveSection(targetSection);
       await renderCurrentSection();
 
       if (targetSection !== previousSection) {
