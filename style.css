@@ -15934,3 +15934,27 @@ body[data-section="ao-vivo"] .live-idle-score-center > strong > i {
     font-size: 2.85rem;
   }
 }
+
+/* Force the final-summary heading onto the scoreboard center line v0.18.7 */
+body[data-section="ao-vivo"] .live-idle-heading {
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: none;
+  justify-items: center;
+  align-items: center;
+  text-align: center;
+}
+
+body[data-section="ao-vivo"] .live-idle-heading-copy {
+  width: 100%;
+  grid-column: 1;
+  grid-row: auto;
+  justify-items: center;
+  text-align: center;
+}
+
+body[data-section="ao-vivo"] .live-idle-heading > strong {
+  grid-column: 1;
+  grid-row: auto;
+  justify-self: center;
+}
