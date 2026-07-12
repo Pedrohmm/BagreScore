@@ -13885,6 +13885,129 @@ body.stats-profile-mode .profile-metric-grid span:hover {
   }
 }
 
+/* Keep the transitioned ranking view inside the mobile viewport v0.18.9 */
+body[data-section="ranking"] {
+  overflow-x: clip;
+}
+
+body[data-section="ranking"] .workspace-panel,
+body[data-section="ranking"] #section-content,
+body[data-section="ranking"] .ranking-premium-page,
+body[data-section="ranking"] .ranking-leaderboard-page,
+body[data-section="ranking"] .ranking-leaderboard-screen,
+body[data-section="ranking"] .ranking-view-content,
+body[data-section="ranking"] .ranking-board-slot,
+body[data-section="ranking"] .ranking-podium-stage,
+body[data-section="ranking"] .ranking-rest-board {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+body[data-section="ranking"] .ranking-leaderboard-screen {
+  overflow: hidden;
+}
+
+body[data-section="ranking"] .ranking-leaderboard-top,
+body[data-section="ranking"] .ranking-leaderboard-top > div {
+  min-width: 0;
+  max-width: 100%;
+}
+
+body[data-section="ranking"] .ranking-leaderboard-top p {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+body[data-section="ranking"] .ranking-mode-tabs {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  box-sizing: border-box;
+}
+
+body[data-section="ranking"] .ranking-mode-tabs button {
+  min-width: 0;
+  overflow: hidden;
+  padding-inline: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-section="ranking"] .ranking-category-rail {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overscroll-behavior-inline: contain;
+}
+
+body[data-section="ranking"] .ranking-leaderboard-board .ranking-podium-places,
+body[data-section="ranking"] .ranking-leaderboard-board .ranking-podium-place,
+body[data-section="ranking"] .ranking-rest-list,
+body[data-section="ranking"] .ranking-rest-row {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 620px) {
+  body[data-section="ranking"] .ranking-leaderboard-screen {
+    width: 100%;
+    border-radius: 18px;
+    padding: 11px;
+  }
+
+  body[data-section="ranking"] .ranking-mode-tabs button {
+    min-height: 46px;
+    padding-inline: 5px;
+    font-size: clamp(0.7rem, 3.4vw, 0.83rem);
+  }
+
+  body[data-section="ranking"] .ranking-category-rail {
+    width: calc(100% + 22px);
+    max-width: calc(100% + 22px);
+    margin-inline: -11px;
+    padding-inline: 11px;
+  }
+
+  body[data-section="ranking"] .ranking-leaderboard-board {
+    width: 100%;
+    padding: 11px;
+  }
+
+  body[data-section="ranking"] .ranking-leaderboard-board .ranking-podium-places {
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  body[data-section="ranking"] .ranking-rest-row {
+    width: 100%;
+  }
+}
+
+@media (max-width: 360px) {
+  body[data-section="ranking"] .ranking-leaderboard-screen {
+    padding: 9px;
+  }
+
+  body[data-section="ranking"] .ranking-leaderboard-board {
+    padding: 9px;
+  }
+
+  body[data-section="ranking"] .ranking-leaderboard-board .ranking-podium-places {
+    gap: 3px;
+  }
+
+  body[data-section="ranking"] .ranking-leaderboard-board .ranking-podium-place,
+  body[data-section="ranking"] .ranking-leaderboard-board .ranking-podium-place.is-first {
+    padding-inline: 4px;
+  }
+}
+
 @media (max-width: 390px) {
   body.stats-profile-mode .player-award-stat {
     grid-template-columns: 40px minmax(0, 1fr);
