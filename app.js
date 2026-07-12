@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.17.0";
+  const APP_VERSION = "0.18.0";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -6027,7 +6027,14 @@
       <div class="live-screen" data-game-id="${escapeHtml(jogo.id)}">
         ${renderLiveScoreCard(bundle, remaining, gameNumber)}
         ${renderLivePitch(bundle)}
-        ${state.liveMessage ? `<p class="live-message-bar" id="live-message">${escapeHtml(state.liveMessage)}</p>` : `<p class="live-message-bar" id="live-message" hidden></p>`}
+        ${state.liveMessage ? `
+          <p class="live-message-bar" id="live-message">
+            <span class="live-message-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg>
+            </span>
+            <span>${escapeHtml(state.liveMessage)}</span>
+          </p>
+        ` : `<p class="live-message-bar" id="live-message" hidden></p>`}
         ${renderLiveEventsCard(bundle)}
         ${renderLiveControlBar(jogo)}
       </div>
@@ -6101,30 +6108,40 @@
   function renderLiveScoreCard(bundle, remaining, gameNumber = 1) {
     const { jogo } = bundle;
     const liveStatus = jogo.status === "Finalizado" ? "ENCERRADO" : jogo.pausadoEm ? "PAUSADO" : "AO VIVO";
+    const statusClass = jogo.status === "Finalizado" ? "is-ended" : jogo.pausadoEm ? "is-paused" : "is-live";
     const pelada = bundle.pelada;
     const dateLabel = formatDateLabel(pelada?.data || jogo.inicio?.slice(0, 10) || jogo.createdAt?.slice(0, 10) || "");
 
     return `
       <section class="live-score-card">
-        <div class="live-score-meta">
-          <span class="live-match-title">
-            <span class="live-match-eyebrow">
-              <b>Jogo ${escapeHtml(gameNumber)}</b>
-              <small>Partida ao vivo</small>
+        <svg class="live-score-frame" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <path class="live-score-frame-main" d="M1 13 7 1h66l6 7h14l6 12v79H1Z"/>
+          <path class="live-score-frame-accent" d="M2 13 8 2h64l6 7h14l6 11"/>
+          <path class="live-score-frame-detail" d="M1 79h10l5 7h68l5-7h10"/>
+        </svg>
+        <div class="live-score-content">
+          <div class="live-score-meta">
+            <span class="live-match-title">
+              <span class="live-match-eyebrow">
+                <b>Jogo ${escapeHtml(gameNumber)}</b>
+              </span>
+              <span class="live-venue-line">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s6-5.3 6-11a6 6 0 1 0-12 0c0 5.7 6 11 6 11Z"/><circle cx="12" cy="10" r="2"/></svg>
+                <strong>${escapeHtml(pelada?.local || "BagreScore")}</strong>
+              </span>
+              ${dateLabel ? `<em><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v3m10-3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z"/></svg>${escapeHtml(dateLabel)}</em>` : ""}
             </span>
-            <strong>${escapeHtml(pelada?.local || "BagreScore")}</strong>
-            ${dateLabel ? `<em>${escapeHtml(dateLabel)}</em>` : ""}
-          </span>
-          <span class="live-status-dot ${jogo.status === "Finalizado" ? "is-ended" : ""}">${escapeHtml(liveStatus)}</span>
-        </div>
-        <div class="live-score-board">
-          ${renderLiveTeamBadge(bundle, "A")}
-          <div class="live-score-center">
-            <strong><span id="live-score-a">${escapeHtml(jogo.placarA ?? 0)}</span> : <span id="live-score-b">${escapeHtml(jogo.placarB ?? 0)}</span></strong>
-            <span class="timer" id="live-timer">${escapeHtml(formatClock(remaining))}</span>
-            <small class="live-period"><i></i><span id="live-status">${escapeHtml(getGameStatusLabel(jogo))}</span></small>
+            <span class="live-status-dot ${statusClass}">${escapeHtml(liveStatus)}</span>
           </div>
-          ${renderLiveTeamBadge(bundle, "B")}
+          <div class="live-score-board">
+            ${renderLiveTeamBadge(bundle, "A")}
+            <div class="live-score-center">
+              <strong><span id="live-score-a">${escapeHtml(jogo.placarA ?? 0)}</span> : <span id="live-score-b">${escapeHtml(jogo.placarB ?? 0)}</span></strong>
+              <span class="timer" id="live-timer">${escapeHtml(formatClock(remaining))}</span>
+              <small class="live-period"><i></i><span id="live-status">${escapeHtml(getGameStatusLabel(jogo))}</span></small>
+            </div>
+            ${renderLiveTeamBadge(bundle, "B")}
+          </div>
         </div>
       </section>
     `;
@@ -6151,22 +6168,46 @@
   function renderLivePitch(bundle) {
     return `
       <section class="live-pitch-card" aria-label="Campo de futebol">
-        <div class="pitch-lines" aria-hidden="true">
-          <span class="pitch-halfway"></span>
-          <span class="pitch-center-circle"><i></i></span>
-          <span class="pitch-penalty-area is-top"></span>
-          <span class="pitch-goal-area is-top"></span>
-          <span class="pitch-penalty-spot is-top"></span>
-          <span class="pitch-goal is-top"></span>
-          <span class="pitch-penalty-area is-bottom"></span>
-          <span class="pitch-goal-area is-bottom"></span>
-          <span class="pitch-penalty-spot is-bottom"></span>
-          <span class="pitch-goal is-bottom"></span>
-          <span class="pitch-corner top-left"></span>
-          <span class="pitch-corner top-right"></span>
-          <span class="pitch-corner bottom-left"></span>
-          <span class="pitch-corner bottom-right"></span>
-        </div>
+        <svg class="pitch-svg" viewBox="0 0 360 600" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="pitch-depth" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#2d7737"/>
+              <stop offset="0.48" stop-color="#205f2d"/>
+              <stop offset="1" stop-color="#184824"/>
+            </linearGradient>
+            <pattern id="pitch-stripes" width="90" height="600" patternUnits="userSpaceOnUse">
+              <rect width="45" height="600" fill="rgba(255,255,255,.035)"/>
+              <rect x="45" width="45" height="600" fill="rgba(0,0,0,.045)"/>
+            </pattern>
+            <pattern id="goal-net" width="7" height="7" patternUnits="userSpaceOnUse">
+              <path d="M0 0h7v7" fill="none" stroke="rgba(255,255,255,.22)" stroke-width=".7"/>
+            </pattern>
+            <radialGradient id="pitch-light" cx="50%" cy="42%" r="68%">
+              <stop offset="0" stop-color="rgba(136,255,151,.12)"/>
+              <stop offset="1" stop-color="rgba(0,0,0,.2)"/>
+            </radialGradient>
+          </defs>
+          <rect x="1" y="1" width="358" height="598" rx="18" fill="url(#pitch-depth)"/>
+          <rect x="1" y="1" width="358" height="598" rx="18" fill="url(#pitch-stripes)"/>
+          <rect x="1" y="1" width="358" height="598" rx="18" fill="url(#pitch-light)"/>
+          <g class="pitch-svg-lines" fill="none" vector-effect="non-scaling-stroke">
+            <rect x="13" y="13" width="334" height="574" rx="8"/>
+            <path d="M13 300h334"/>
+            <circle cx="180" cy="300" r="54"/>
+            <circle class="pitch-svg-dot" cx="180" cy="300" r="3"/>
+            <path d="M83 13v96h194V13M132 13v44h96V13"/>
+            <path d="M83 587v-96h194v96M132 587v-44h96v44"/>
+            <path d="M126 109a58 58 0 0 0 108 0M126 491a58 58 0 0 1 108 0"/>
+            <circle class="pitch-svg-dot" cx="180" cy="82" r="3"/>
+            <circle class="pitch-svg-dot" cx="180" cy="518" r="3"/>
+            <path d="M13 32a19 19 0 0 0 19-19M328 13a19 19 0 0 0 19 19M13 568a19 19 0 0 1 19 19M328 587a19 19 0 0 1 19-19"/>
+          </g>
+          <g class="pitch-svg-goals">
+            <rect x="145" y="3" width="70" height="11" rx="2" fill="url(#goal-net)"/>
+            <rect x="145" y="586" width="70" height="11" rx="2" fill="url(#goal-net)"/>
+          </g>
+          <path class="pitch-svg-shine" d="M22 28v196M338 376v196"/>
+        </svg>
         <span class="pitch-team-name is-top">${escapeHtml(teamNameFromGame(bundle.jogo, "B"))}</span>
         <span class="pitch-team-name is-bottom">${escapeHtml(teamNameFromGame(bundle.jogo, "A"))}</span>
         ${renderPitchPlayers(bundle, "A")}
@@ -6257,9 +6298,12 @@
   function renderLiveEventsCard(bundle) {
     return `
       <section class="live-events-card">
+        <svg class="live-events-frame" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M1 10 7 1h92v89l-7 9H1Z"/>
+        </svg>
         <div class="live-card-heading">
           <h3>Eventos da partida</h3>
-          <span>Tempo real</span>
+          <span><i></i>Tempo real</span>
         </div>
         ${renderEventTimeline(bundle)}
       </section>

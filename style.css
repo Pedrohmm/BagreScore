@@ -11574,7 +11574,7 @@ body[data-section="ao-vivo"] .live-screen {
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: none;
   }
 }
 
@@ -13966,5 +13966,892 @@ body.is-section-switching .bottom-nav {
   .bottom-nav .bottom-nav-item,
   .bottom-nav .nav-glyph {
     transition: none;
+  }
+}
+
+/* BagreScore live match SVG interface v0.18.0 */
+body[data-section="ao-vivo"] {
+  background:
+    radial-gradient(circle at 50% 9%, rgba(255, 72, 0, 0.08), transparent 22rem),
+    radial-gradient(circle at 50% 52%, rgba(20, 92, 43, 0.08), transparent 28rem),
+    #030403;
+}
+
+body[data-section="ao-vivo"] .workspace-panel {
+  padding-top: 8px;
+}
+
+body[data-section="ao-vivo"] #section-content,
+body[data-section="ao-vivo"].is-section-switching #section-content {
+  transform: none;
+  transition: opacity 95ms ease-out;
+  will-change: opacity;
+}
+
+body[data-section="ao-vivo"] .live-screen {
+  gap: 14px;
+  width: min(760px, 100%);
+  margin-inline: auto;
+  animation: live-svg-screen-enter 180ms cubic-bezier(0.2, 0.75, 0.28, 1) both;
+}
+
+@keyframes live-svg-screen-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+body[data-section="ao-vivo"] .live-score-card {
+  position: relative;
+  isolation: isolate;
+  display: block;
+  overflow: hidden;
+  border: 0;
+  border-radius: 24px 24px 18px 18px;
+  padding: 0;
+  background: transparent;
+  box-shadow:
+    0 20px 46px rgba(0, 0, 0, 0.44),
+    0 0 40px rgba(255, 78, 0, 0.035);
+}
+
+body[data-section="ao-vivo"] .live-score-frame {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+body[data-section="ao-vivo"] .live-score-frame-main {
+  fill: rgba(8, 10, 9, 0.985);
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-width: 0.42;
+  vector-effect: non-scaling-stroke;
+}
+
+body[data-section="ao-vivo"] .live-score-frame-accent {
+  fill: none;
+  stroke: #ff5a00;
+  stroke-width: 0.52;
+  vector-effect: non-scaling-stroke;
+}
+
+body[data-section="ao-vivo"] .live-score-frame-detail {
+  fill: none;
+  stroke: rgba(255, 90, 0, 0.56);
+  stroke-width: 0.38;
+  vector-effect: non-scaling-stroke;
+}
+
+body[data-section="ao-vivo"] .live-score-content {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  padding: 18px 17px 20px;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(255, 90, 0, 0.08), transparent 13rem),
+    radial-gradient(circle at 50% 110%, rgba(20, 115, 54, 0.16), transparent 18rem),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.018), transparent 42%);
+}
+
+body[data-section="ao-vivo"] .live-score-meta {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body[data-section="ao-vivo"] .live-match-title {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+body[data-section="ao-vivo"] .live-match-eyebrow {
+  display: flex;
+}
+
+body[data-section="ao-vivo"] .live-match-eyebrow b {
+  border: 1px solid rgba(255, 90, 0, 0.58);
+  border-radius: 9px;
+  padding: 5px 9px;
+  color: #ff9a5f;
+  background: rgba(255, 90, 0, 0.08);
+  box-shadow: inset 0 0 16px rgba(255, 90, 0, 0.035);
+  font-size: 0.69rem;
+  font-weight: 950;
+  letter-spacing: 0.07em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+body[data-section="ao-vivo"] .live-venue-line,
+body[data-section="ao-vivo"] .live-match-title > em {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+body[data-section="ao-vivo"] .live-venue-line svg,
+body[data-section="ao-vivo"] .live-match-title > em svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: #ff6a16;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+body[data-section="ao-vivo"] .live-venue-line strong {
+  overflow: hidden;
+  color: #f7f7f7;
+  font-size: clamp(1.04rem, 4.8vw, 1.38rem);
+  font-weight: 900;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-section="ao-vivo"] .live-match-title > em {
+  color: #9c9f9d;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 650;
+}
+
+body[data-section="ao-vivo"] .live-status-dot {
+  display: inline-flex;
+  min-height: 34px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(255, 61, 61, 0.55);
+  border-radius: 10px;
+  padding: 7px 10px;
+  color: #ff7777;
+  background: rgba(157, 9, 15, 0.22);
+  box-shadow:
+    inset 0 0 16px rgba(255, 31, 38, 0.08),
+    0 0 18px rgba(255, 31, 38, 0.09);
+  font-size: 0.69rem;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+}
+
+body[data-section="ao-vivo"] .live-status-dot::before {
+  width: 7px;
+  height: 7px;
+  background: #ff3b42;
+  box-shadow: 0 0 10px rgba(255, 50, 58, 0.95);
+  animation: live-red-pulse 1.65s ease-in-out infinite;
+}
+
+@keyframes live-red-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.48; transform: scale(0.76); }
+}
+
+body[data-section="ao-vivo"] .live-status-dot.is-paused {
+  border-color: rgba(255, 159, 67, 0.45);
+  color: #ffb06f;
+  background: rgba(151, 76, 12, 0.2);
+  box-shadow: none;
+}
+
+body[data-section="ao-vivo"] .live-status-dot.is-paused::before {
+  background: #ff9b50;
+  box-shadow: 0 0 9px rgba(255, 155, 80, 0.6);
+  animation: none;
+}
+
+body[data-section="ao-vivo"] .live-status-dot.is-ended {
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #b7b9b8;
+  background: rgba(255, 255, 255, 0.045);
+  box-shadow: none;
+}
+
+body[data-section="ao-vivo"] .live-status-dot.is-ended::before {
+  background: #858887;
+  box-shadow: none;
+  animation: none;
+}
+
+body[data-section="ao-vivo"] .live-score-board {
+  position: relative;
+  display: grid;
+  min-height: 144px;
+  grid-template-columns: minmax(0, 1fr) minmax(112px, 1.18fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 0;
+  padding: 5px 2px 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body[data-section="ao-vivo"] .live-score-board::before {
+  content: "";
+  position: absolute;
+  inset: 4px 14% 0;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(22, 111, 49, 0.11), transparent 69%);
+  filter: blur(4px);
+}
+
+body[data-section="ao-vivo"] .live-team-badge {
+  display: grid;
+  min-width: 0;
+  justify-items: center;
+  gap: 8px;
+}
+
+body[data-section="ao-vivo"] .live-team-badge > span {
+  display: grid;
+  width: 66px;
+  height: 66px;
+  place-items: center;
+  border: 3px solid var(--team-color);
+  border-radius: 50%;
+  color: #f9f9f9;
+  background:
+    radial-gradient(circle at 38% 28%, rgba(255, 255, 255, 0.1), transparent 38%),
+    linear-gradient(145deg, #181b1a, #050606);
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, var(--team-color), transparent 91%),
+    0 0 22px color-mix(in srgb, var(--team-color), transparent 69%),
+    inset 0 0 20px rgba(0, 0, 0, 0.7);
+  font-size: 1.1rem;
+  font-weight: 950;
+}
+
+body[data-section="ao-vivo"] .live-team-badge strong {
+  max-width: 104px;
+  overflow: hidden;
+  color: #f2f3f2;
+  font-size: 0.76rem;
+  font-weight: 850;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-section="ao-vivo"] .live-score-center {
+  display: grid;
+  min-width: 0;
+  justify-items: center;
+  gap: 5px;
+}
+
+body[data-section="ao-vivo"] .live-score-center > strong {
+  color: #fdfefd;
+  font-size: clamp(3rem, 14.5vw, 4.85rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 850;
+  letter-spacing: -0.07em;
+  line-height: 0.9;
+  text-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+}
+
+body[data-section="ao-vivo"] .live-score-center .timer {
+  min-width: 102px;
+  border: 1px solid rgba(72, 255, 91, 0.19);
+  border-radius: 9px;
+  padding: 5px 10px 4px;
+  color: #55f65c;
+  background: rgba(2, 28, 8, 0.66);
+  box-shadow:
+    inset 0 0 14px rgba(55, 255, 72, 0.035),
+    0 0 12px rgba(55, 255, 72, 0.025);
+  font-size: clamp(1.05rem, 5.4vw, 1.45rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  text-align: center;
+}
+
+body[data-section="ao-vivo"] .live-period {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #b9bcba;
+  font-size: 0.64rem;
+  font-weight: 850;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+body[data-section="ao-vivo"] .live-period i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ff5a00;
+  box-shadow: 0 0 9px rgba(255, 90, 0, 0.72);
+}
+
+body[data-section="ao-vivo"] .live-pitch-card {
+  position: relative;
+  isolation: isolate;
+  height: clamp(520px, 139vw, 760px);
+  min-height: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 26px;
+  background: transparent;
+  box-shadow:
+    0 24px 54px rgba(0, 0, 0, 0.44),
+    0 0 0 1px rgba(255, 90, 0, 0.11);
+}
+
+body[data-section="ao-vivo"] .live-pitch-card::before {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  z-index: -1;
+  border: 1px solid rgba(255, 90, 0, 0.36);
+  border-radius: 29px;
+  background:
+    linear-gradient(135deg, rgba(255, 90, 0, 0.17), transparent 14%, transparent 86%, rgba(255, 90, 0, 0.13)),
+    #090b0a;
+  clip-path: polygon(5% 0, 95% 0, 100% 4%, 100% 96%, 95% 100%, 5% 100%, 0 96%, 0 4%);
+  opacity: 1;
+  pointer-events: none;
+}
+
+body[data-section="ao-vivo"] .live-pitch-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: 25px;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.2), transparent 9%, transparent 91%, rgba(0, 0, 0, 0.2)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 10%, transparent 90%, rgba(0, 0, 0, 0.12));
+  pointer-events: none;
+}
+
+body[data-section="ao-vivo"] .pitch-svg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  border-radius: 25px;
+  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.24));
+  pointer-events: none;
+}
+
+body[data-section="ao-vivo"] .pitch-svg-lines {
+  stroke: rgba(238, 255, 240, 0.49);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+body[data-section="ao-vivo"] .pitch-svg-dot {
+  fill: rgba(239, 255, 241, 0.64);
+  stroke: none;
+}
+
+body[data-section="ao-vivo"] .pitch-svg-goals {
+  stroke: rgba(255, 255, 255, 0.52);
+  stroke-width: 1.3;
+}
+
+body[data-section="ao-vivo"] .pitch-svg-shine {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+body[data-section="ao-vivo"] .pitch-team-name {
+  position: absolute;
+  left: 21px;
+  z-index: 3;
+  max-width: 42%;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 0.64rem;
+  font-weight: 950;
+  letter-spacing: 0.09em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+body[data-section="ao-vivo"] .pitch-team-name.is-top {
+  top: 24px;
+}
+
+body[data-section="ao-vivo"] .pitch-team-name.is-bottom {
+  bottom: 24px;
+}
+
+body[data-section="ao-vivo"] .pitch-player {
+  z-index: 5;
+  width: 78px;
+  padding: 0;
+  filter: drop-shadow(0 7px 9px rgba(0, 0, 0, 0.42));
+  transition: transform 135ms ease, filter 135ms ease;
+}
+
+body[data-section="ao-vivo"] .pitch-player:not(:disabled):hover,
+body[data-section="ao-vivo"] .pitch-player:not(:disabled):focus-visible,
+body[data-section="ao-vivo"] .pitch-player:not(:disabled):active {
+  z-index: 8;
+  filter: brightness(1.1) drop-shadow(0 8px 12px rgba(0, 0, 0, 0.48));
+  transform: translate(-50%, -50%) scale(1.055);
+}
+
+body[data-section="ao-vivo"] .pitch-avatar {
+  width: 51px;
+  height: 51px;
+  border: 2px solid var(--team-color);
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.12), transparent 40%),
+    #0b0d0c;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--team-color), transparent 88%),
+    0 0 15px color-mix(in srgb, var(--team-color), transparent 47%);
+}
+
+body[data-section="ao-vivo"] .pitch-player.is-goalkeeper .pitch-avatar {
+  border-color: #39dfa1;
+  box-shadow:
+    0 0 0 3px rgba(57, 223, 161, 0.12),
+    0 0 16px rgba(57, 223, 161, 0.38);
+}
+
+body[data-section="ao-vivo"] .pitch-player-label {
+  display: inline-flex;
+  max-width: 92px;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.17);
+  border-radius: 7px;
+  padding: 4px 7px;
+  background: rgba(3, 5, 4, 0.91);
+  box-shadow: 0 5px 12px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(7px);
+}
+
+body[data-section="ao-vivo"] .pitch-player strong {
+  max-width: 62px;
+  overflow: hidden;
+  color: #fff;
+  font-size: 0.61rem;
+  font-weight: 950;
+  letter-spacing: 0.01em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+body[data-section="ao-vivo"] .pitch-player small {
+  color: var(--team-color);
+  font-size: 0.55rem;
+  font-weight: 950;
+}
+
+body[data-section="ao-vivo"] .live-message-bar {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 90, 0, 0.43);
+  border-radius: 11px;
+  padding: 10px 13px;
+  color: #f0f0f0;
+  background:
+    linear-gradient(90deg, rgba(255, 90, 0, 0.11), transparent 58%),
+    rgba(9, 10, 9, 0.96);
+  box-shadow: inset 3px 0 0 #ff5a00;
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
+body[data-section="ao-vivo"] .live-message-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 9px;
+  color: #ff6a16;
+  background: rgba(255, 90, 0, 0.11);
+}
+
+body[data-section="ao-vivo"] .live-message-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+body[data-section="ao-vivo"] .live-events-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 0;
+  border-radius: 18px;
+  padding: 15px 14px 9px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.055), transparent 13rem),
+    rgba(7, 8, 7, 0.985);
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.35);
+}
+
+body[data-section="ao-vivo"] .live-events-frame {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+body[data-section="ao-vivo"] .live-events-frame path {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 0.42;
+  vector-effect: non-scaling-stroke;
+}
+
+body[data-section="ao-vivo"] .live-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 1px 10px;
+}
+
+body[data-section="ao-vivo"] .live-card-heading h3 {
+  margin: 0;
+  color: #f5f5f5;
+  font-size: clamp(0.92rem, 4.2vw, 1.08rem);
+  font-weight: 900;
+  letter-spacing: 0.015em;
+  text-transform: uppercase;
+}
+
+body[data-section="ao-vivo"] .live-card-heading span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(255, 90, 0, 0.31);
+  border-radius: 8px;
+  padding: 5px 8px;
+  color: #ff8b48;
+  background: rgba(255, 90, 0, 0.06);
+  font-size: 0.61rem;
+  font-weight: 950;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+body[data-section="ao-vivo"] .live-card-heading span i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ff5a00;
+  box-shadow: 0 0 8px rgba(255, 90, 0, 0.78);
+}
+
+body[data-section="ao-vivo"] .live-events-card > p {
+  margin: 10px 3px 13px;
+  color: #8e9290;
+  font-size: 0.79rem;
+}
+
+body[data-section="ao-vivo"] .live-events-card .event-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.012);
+}
+
+body[data-section="ao-vivo"] .live-events-card .event-list li {
+  display: grid;
+  min-height: 48px;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 0;
+  padding: 8px 11px;
+  background: transparent;
+}
+
+body[data-section="ao-vivo"] .live-events-card .event-list li:last-child {
+  border-bottom: 0;
+}
+
+body[data-section="ao-vivo"] .live-events-card .event-list li strong {
+  color: #ff711f;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 950;
+}
+
+body[data-section="ao-vivo"] .live-events-card .event-list li span {
+  color: #d9dcda;
+  font-size: 0.79rem;
+  line-height: 1.35;
+  text-align: left;
+}
+
+body[data-section="ao-vivo"] .live-control-bar {
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  z-index: 75;
+  grid-template-columns: 1fr 1fr 1.12fr;
+  gap: 7px;
+  width: min(746px, calc(100% - 14px));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  padding: 7px;
+  background:
+    radial-gradient(circle at 50% 140%, rgba(255, 90, 0, 0.08), transparent 18rem),
+    rgba(5, 6, 5, 0.965);
+  box-shadow:
+    0 -12px 34px rgba(0, 0, 0, 0.58),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+  backdrop-filter: blur(18px);
+  clip-path: polygon(2% 0, 98% 0, 100% 16%, 100% 100%, 0 100%, 0 16%);
+}
+
+body[data-section="ao-vivo"] .live-control-button,
+body[data-section="ao-vivo"] .live-control-bar .big-touch {
+  display: flex;
+  min-width: 0;
+  min-height: 62px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 12px;
+  padding: 7px 4px;
+  color: #d9d9d9;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.035), transparent),
+    rgba(7, 8, 7, 0.9);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+  font-size: 0.7rem;
+  font-weight: 850;
+  line-height: 1;
+}
+
+body[data-section="ao-vivo"] .live-control-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 9px;
+  color: #ff6812;
+  background: rgba(255, 90, 0, 0.08);
+}
+
+body[data-section="ao-vivo"] .live-control-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+body[data-section="ao-vivo"] .live-control-button.is-finish {
+  border-color: rgba(255, 78, 78, 0.42);
+  color: #ffd9d9;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 75, 75, 0.13), transparent 5rem),
+    rgba(73, 12, 15, 0.54);
+}
+
+body[data-section="ao-vivo"] .live-control-button.is-finish .live-control-icon {
+  color: #ff6268;
+  background: rgba(255, 64, 71, 0.1);
+}
+
+body[data-section="ao-vivo"] .live-screen:has(.live-control-bar) {
+  padding-bottom: calc(190px + env(safe-area-inset-bottom));
+}
+
+@media (max-width: 420px) {
+  body[data-section="ao-vivo"] .workspace-panel {
+    padding-top: 4px;
+  }
+
+  body[data-section="ao-vivo"] .live-screen {
+    gap: 11px;
+  }
+
+  body[data-section="ao-vivo"] .live-score-card {
+    border-radius: 20px 20px 16px 16px;
+  }
+
+  body[data-section="ao-vivo"] .live-score-content {
+    gap: 8px;
+    padding: 14px 12px 16px;
+  }
+
+  body[data-section="ao-vivo"] .live-match-eyebrow b {
+    padding: 4px 7px;
+    font-size: 0.61rem;
+  }
+
+  body[data-section="ao-vivo"] .live-venue-line strong {
+    font-size: 1.02rem;
+  }
+
+  body[data-section="ao-vivo"] .live-status-dot {
+    min-height: 30px;
+    padding: 6px 8px;
+    font-size: 0.6rem;
+  }
+
+  body[data-section="ao-vivo"] .live-score-board {
+    min-height: 126px;
+    grid-template-columns: minmax(0, 1fr) minmax(100px, 1.12fr) minmax(0, 1fr);
+    gap: 3px;
+    padding-inline: 0;
+  }
+
+  body[data-section="ao-vivo"] .live-team-badge > span {
+    width: 57px;
+    height: 57px;
+    border-width: 2px;
+    font-size: 0.96rem;
+  }
+
+  body[data-section="ao-vivo"] .live-team-badge strong {
+    max-width: 86px;
+    font-size: 0.68rem;
+  }
+
+  body[data-section="ao-vivo"] .live-score-center > strong {
+    font-size: clamp(2.72rem, 14vw, 3.7rem);
+  }
+
+  body[data-section="ao-vivo"] .live-score-center .timer {
+    min-width: 90px;
+    font-size: 1.06rem;
+  }
+
+  body[data-section="ao-vivo"] .live-pitch-card {
+    height: clamp(510px, 145vw, 620px);
+    border-radius: 22px;
+  }
+
+  body[data-section="ao-vivo"] .live-pitch-card::before,
+  body[data-section="ao-vivo"] .pitch-svg,
+  body[data-section="ao-vivo"] .live-pitch-card::after {
+    border-radius: 22px;
+  }
+
+  body[data-section="ao-vivo"] .pitch-player {
+    width: 68px;
+  }
+
+  body[data-section="ao-vivo"] .pitch-avatar {
+    width: 45px;
+    height: 45px;
+  }
+
+  body[data-section="ao-vivo"] .pitch-player-label {
+    max-width: 82px;
+    gap: 3px;
+    padding: 3px 6px;
+  }
+
+  body[data-section="ao-vivo"] .pitch-player strong {
+    max-width: 54px;
+    font-size: 0.56rem;
+  }
+
+  body[data-section="ao-vivo"] .pitch-player small {
+    font-size: 0.5rem;
+  }
+
+  body[data-section="ao-vivo"] .live-events-card {
+    padding: 13px 11px 8px;
+  }
+
+  body[data-section="ao-vivo"] .live-events-card .event-list li {
+    min-height: 45px;
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 8px;
+    padding: 7px 9px;
+  }
+
+  body[data-section="ao-vivo"] .live-control-bar {
+    gap: 5px;
+    padding: 6px;
+  }
+
+  body[data-section="ao-vivo"] .live-control-button,
+  body[data-section="ao-vivo"] .live-control-bar .big-touch {
+    min-height: 58px;
+    font-size: 0.64rem;
+  }
+}
+
+@media (max-width: 350px) {
+  body[data-section="ao-vivo"] .live-score-content {
+    padding-inline: 9px;
+  }
+
+  body[data-section="ao-vivo"] .live-status-dot {
+    gap: 5px;
+    padding-inline: 6px;
+  }
+
+  body[data-section="ao-vivo"] .live-score-board {
+    grid-template-columns: minmax(0, 1fr) 94px minmax(0, 1fr);
+  }
+
+  body[data-section="ao-vivo"] .live-team-badge > span {
+    width: 51px;
+    height: 51px;
+  }
+
+  body[data-section="ao-vivo"] .live-score-center > strong {
+    font-size: 2.5rem;
+  }
+
+  body[data-section="ao-vivo"] .live-pitch-card {
+    height: 500px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-section="ao-vivo"] .live-screen,
+  body[data-section="ao-vivo"] .live-status-dot::before,
+  body[data-section="ao-vivo"] .live-message-bar:not([hidden]) {
+    animation: none;
   }
 }
