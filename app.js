@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.16.9";
+  const APP_VERSION = "0.17.0";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -22,6 +22,8 @@
     "temporadas",
     "estatisticasCache",
   ]);
+  const STATS_SOURCE_STORES = new Set(["jogadores", "atributos", "peladas", "jogos", "escalacoes", "eventos"]);
+  const statsCalculationCache = new Map();
 
   const STORE_SCHEMAS = [
     {
@@ -1047,10 +1049,6 @@
     return team?.cor || (teamKey === "A" ? "#ff5a00" : "#4a4a4a");
   }
 
-  function scoreByTeam(jogo, teamKey) {
-    return Number(teamKey === "A" ? jogo?.placarA || 0 : jogo?.placarB || 0);
-  }
-
   function getGameWinner(jogo) {
     const placarA = Number(jogo.placarA || 0);
     const placarB = Number(jogo.placarB || 0);
@@ -1812,6 +1810,7 @@
     const transaction = state.db.transaction(storeName, "readwrite");
     transaction.objectStore(storeName).put(record);
     await transactionDone(transaction);
+    invalidateStatsCache([storeName]);
     return record;
   }
 
@@ -1825,6 +1824,7 @@
     });
 
     await transactionDone(transaction);
+    invalidateStatsCache(storeNames);
   }
 
   async function deleteRecords(keysByStore) {
@@ -1842,6 +1842,13 @@
     });
 
     await transactionDone(transaction);
+    invalidateStatsCache(storeNames);
+  }
+
+  function invalidateStatsCache(storeNames = []) {
+    if (storeNames.some((storeName) => STATS_SOURCE_STORES.has(storeName))) {
+      statsCalculationCache.clear();
+    }
   }
 
   async function countRecords(storeName) {
@@ -2483,7 +2490,25 @@
     };
   }
 
+  function getStatsCalculationCacheKey(filters = {}) {
+    return JSON.stringify({
+      periodo: filters.periodo || "all",
+      peladaId: filters.peladaId || "",
+      month: filters.month || "",
+      temporadaId: filters.temporadaId || "",
+      jogadorId: filters.jogadorId || "",
+      posicao: filters.posicao || "",
+    });
+  }
+
   async function calcularEstatisticasJogadores(filters = state.statsFilters) {
+    const cacheKey = getStatsCalculationCacheKey(filters);
+    const cachedResult = statsCalculationCache.get(cacheKey);
+
+    if (cachedResult) {
+      return cachedResult;
+    }
+
     const [jogadores, peladas, jogos, escalacoes, eventos] = await Promise.all([
       readPlayersWithAttributes(),
       getAllRecords("peladas"),
@@ -2503,6 +2528,12 @@
     );
     const finalizedGames = selectedGames.filter((jogo) => jogo.status === "Finalizado");
     const filteredPlayers = jogadores.filter((jogador) => playerMatchesStatsFilters(jogador, filters));
+    const lineupsByGameId = escalacoes.reduce((map, escalacao) => {
+      const gameLineups = map.get(escalacao.jogoId) || [];
+      gameLineups.push(escalacao);
+      map.set(escalacao.jogoId, gameLineups);
+      return map;
+    }, new Map());
     const statsByPlayerId = new Map(
       filteredPlayers.map((jogador) => [jogador.id, createEmptyPlayerStats(jogador)])
     );
@@ -2510,9 +2541,7 @@
 
     finalizedGames.forEach((jogo) => {
       const pelada = peladaById.get(jogo.peladaId);
-      escalacoes
-        .filter((escalacao) => escalacao.jogoId === jogo.id)
-        .forEach((escalacao) => {
+      (lineupsByGameId.get(jogo.id) || []).forEach((escalacao) => {
           const stats = statsByPlayerId.get(escalacao.jogadorId);
 
           if (!stats) {
@@ -2543,7 +2572,7 @@
           if (result === "empate") stats.empates += 1;
           stats.historico.push(history);
           historyByPlayerGame.set(`${escalacao.jogadorId}:${jogo.id}`, history);
-        });
+      });
     });
 
     const scopedEvents = eventos.filter((evento) => {
@@ -2708,7 +2737,7 @@
       return eventType === "defesa_goleiro" && ["dificil", "penalti", "cara_a_cara", "reflexo"].includes(tipoDefesa);
     }).length;
 
-    return {
+    const result = {
       filters,
       jogadores,
       peladas,
@@ -2732,6 +2761,8 @@
         mediaGolsPorJogo: safeDivide(golsRegistrados, finalizedGames.length),
       },
     };
+    statsCalculationCache.set(cacheKey, result);
+    return result;
   }
 
   function gameMatchesStatsFilters(jogo, peladaById, filters) {
@@ -2853,21 +2884,16 @@
   }
 
   async function readDashboardStats() {
-    const [jogadores, peladas, eventos, jogos, statsResult] = await Promise.all([
-      readPlayersWithAttributes(),
-      readPeladasSorted(),
-      getAllRecords("eventos"),
-      getAllRecords("jogos"),
-      calcularEstatisticasJogadores({
-        periodo: "all",
-        peladaId: "",
-        month: "",
-        temporadaId: "",
-        jogadorId: "",
-        posicao: "",
-        sortBy: "gols",
-      }),
-    ]);
+    const statsResult = await calcularEstatisticasJogadores({
+      periodo: "all",
+      peladaId: "",
+      month: "",
+      temporadaId: "",
+      jogadorId: "",
+      posicao: "",
+      sortBy: "gols",
+    });
+    const { jogadores, peladas, eventos, jogos } = statsResult;
 
     const jogadorPorId = new Map(jogadores.map((jogador) => [jogador.id, jogador]));
     const eventosValidos = eventos.filter((evento) => !evento.cancelado && !evento.deletedAt);
@@ -3147,88 +3173,6 @@
           </span>
         </span>
       </button>
-    `;
-  }
-
-  function renderLastMatchHomeCard(stats) {
-    const jogo = stats.latestGame;
-
-    if (!jogo) {
-      return `
-        <section class="home-section-block">
-          <div class="home-section-heading">
-            <h3>Última partida</h3>
-          </div>
-          <article class="last-match-card is-empty">
-            <p>Nenhuma partida registrada ainda.</p>
-          </article>
-        </section>
-      `;
-    }
-
-    const pelada = stats.peladas.find((item) => item.id === jogo.peladaId);
-    const gameEvents = stats.eventos.filter((evento) => evento.jogoId === jogo.id);
-    const goals = gameEvents.filter((evento) => normalizeToken(evento.tipo) === "gol");
-
-    return `
-      <section class="home-section-block">
-        <div class="home-section-heading">
-          <h3>Última partida</h3>
-          <button type="button" data-home-action="open-game-summary" data-pelada-id="${escapeHtml(jogo.peladaId)}" data-game-id="${escapeHtml(jogo.id)}">Ver resumo</button>
-        </div>
-        <article class="last-match-card">
-          <div class="last-match-card-top">
-            <span>Placar final</span>
-            <strong>${escapeHtml(pelada?.local || "Pelada")}</strong>
-          </div>
-          <div class="last-match-score">
-            <span class="last-team">
-              <i>${escapeHtml(teamInitials(teamNameFromGame(jogo, "A")))}</i>
-              <b>${escapeHtml(teamNameFromGame(jogo, "A"))}</b>
-            </span>
-            <strong>${escapeHtml(jogo.placarA ?? 0)} x ${escapeHtml(jogo.placarB ?? 0)}</strong>
-            <span class="last-team">
-              <i>${escapeHtml(teamInitials(teamNameFromGame(jogo, "B")))}</i>
-              <b>${escapeHtml(teamNameFromGame(jogo, "B"))}</b>
-            </span>
-          </div>
-          <div class="last-match-chips">
-            <span>${escapeHtml(formatDateLabel(pelada?.data || jogo.inicio?.slice(0, 10) || ""))}</span>
-            ${jogo.inicio ? `<span>${escapeHtml(jogo.inicio.slice(11, 16))}</span>` : ""}
-            <span>${escapeHtml(getGameWinner(jogo) === "Empate" ? "Empate" : `Vencedor: ${getGameWinner(jogo)}`)}</span>
-          </div>
-          ${renderHomeGoalAuthors(goals, stats.playerById)}
-        </article>
-      </section>
-    `;
-  }
-
-  function teamInitials(name) {
-    return String(name || "T")
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
-      .join("");
-  }
-
-  function renderHomeGoalAuthors(goals, playerById) {
-    if (!goals.length) {
-      return `<p class="last-match-goals"><span>Gols: nenhum</span></p>`;
-    }
-
-    return `
-      <div class="last-match-goals">
-        ${goals
-          .slice(0, 4)
-          .map((evento) => {
-            const author = playerNameFromMap(playerById, evento.jogadorId);
-            const minute = evento.minuto ? `${evento.minuto}'` : "";
-            const label = evento.golContra ? `Gol contra de ${author}` : `${minute} ${author}`;
-            return `<span>${escapeHtml(label.trim())}</span>`;
-          })
-          .join("")}
-      </div>
     `;
   }
 
@@ -3616,69 +3560,6 @@
           <button class="danger-button compact-button player-delete-button" type="button" data-player-action="delete" data-player-id="${escapeHtml(player.id)}">Excluir</button>
         </div>` : ""}
       </article>
-    `;
-  }
-
-  function renderPlayerDetail(player) {
-    if (!player) {
-      return `
-        <aside class="empty-state player-detail-empty">
-          <h3>Detalhes do jogador</h3>
-          <p>Clique em um card para ver dados completos, atributos e espaço reservado para estatísticas futuras.</p>
-        </aside>
-      `;
-    }
-
-    const activeDefinitions = getActiveAttributeDefinitions(player.tipoJogador, player.posicaoPrincipal);
-
-    return `
-      <aside class="player-detail">
-        <div class="player-detail-header">
-          ${renderPlayerAvatar(player, "player-avatar large")}
-          <div>
-            <span class="panel-kicker">${escapeHtml(player.tipoJogador || "Linha")}</span>
-            <h3>${escapeHtml(playerDisplayName(player))}</h3>
-            <p>${escapeHtml(player.nome || "")}</p>
-          </div>
-        </div>
-        <div class="player-detail-score">
-          <span><strong>${escapeHtml(player.overall ?? "-")}</strong> overall</span>
-          <span>${escapeHtml(starsText(player.estrelas || 1))}</span>
-          <span>${escapeHtml(player.posicaoPrincipal || "-")}${player.posicaoSecundaria ? ` / ${escapeHtml(player.posicaoSecundaria)}` : ""}</span>
-        </div>
-        <dl class="detail-list">
-          <div><dt>Status</dt><dd>${escapeHtml(player.status || "-")}</dd></div>
-          <div><dt>Pé forte</dt><dd>${escapeHtml(player.peForte || "-")}</dd></div>
-          <div><dt>Idade</dt><dd>${escapeHtml(player.idade || "-")}</dd></div>
-        </dl>
-        <div class="attribute-bars">
-          ${activeDefinitions
-            .map((attribute) => {
-              const value = normalizeAttributeValue(player.attributes?.[attribute.key]);
-              return `
-                <div class="attribute-bar">
-                  <span>${escapeHtml(attribute.label)}</span>
-                  <meter min="1" max="99" value="${value}"></meter>
-                  <strong>${value}</strong>
-                </div>
-              `;
-            })
-            .join("")}
-        </div>
-        <div class="future-stats">
-          <h3>Estatísticas futuras</h3>
-          <p>Este jogador já está disponível para times, gols, assistências, faltas, MVP, bagre da rodada e rankings.</p>
-        </div>
-        ${hasPermission("jogadores:editar") ? `<div class="player-card-actions">
-          <button class="ghost-button compact-button" type="button" data-player-action="edit" data-player-id="${escapeHtml(player.id)}">Editar</button>
-          ${
-            player.status === "Inativo"
-              ? `<button class="ghost-button compact-button" type="button" data-player-action="reactivate" data-player-id="${escapeHtml(player.id)}">Reativar</button>`
-              : `<button class="danger-button compact-button" type="button" data-player-action="inactivate" data-player-id="${escapeHtml(player.id)}">Inativar</button>`
-          }
-          <button class="danger-button compact-button player-delete-button" type="button" data-player-action="delete" data-player-id="${escapeHtml(player.id)}">Excluir</button>
-        </div>` : ""}
-      </aside>
     `;
   }
 
@@ -5296,45 +5177,6 @@
     return `${playerDisplayName(stats.jogador)} - ${metricLabel(metric, stats[metric], stats)}`;
   }
 
-  function renderPeladaAwardWinner(summary, awardType) {
-    const evento = summary.awards?.[awardType];
-
-    if (!evento?.jogadorId) {
-      return "Ainda não escolhido";
-    }
-
-    return playerDisplayName(summary.playerById.get(evento.jogadorId) || { nome: "Jogador" });
-  }
-
-  function renderPeladaHistoryOverview(summary) {
-    const status = getPeladaStatusLabel(summary.pelada, summary.jogos);
-
-    return `
-      <div class="pelada-history-overview">
-        <div class="pelada-award-strip">
-          <span><strong>Status</strong>${escapeHtml(status)}</span>
-          <span><strong>MVP escolhido</strong>${escapeHtml(renderPeladaAwardWinner(summary, "mvp"))}</span>
-          <span><strong>Bagre escolhido</strong>${escapeHtml(renderPeladaAwardWinner(summary, "bagre"))}</span>
-        </div>
-        <div class="event-summary-grid">
-          <span><strong>${escapeHtml(summary.totals.jogosRealizados)}</strong> jogos realizados</span>
-          <span><strong>${escapeHtml(summary.totals.gols)}</strong> gols</span>
-          <span><strong>${escapeHtml(summary.totals.assistencias)}</strong> assistências</span>
-          <span><strong>${escapeHtml(summary.totals.faltas)}</strong> faltas</span>
-          <span><strong>${escapeHtml(summary.totals.acoesDefensivas)}</strong> ações defensivas</span>
-          <span><strong>${escapeHtml(summary.totals.defesasDificeis)}</strong> defesas difíceis</span>
-        </div>
-        <div class="pelada-leaders-list">
-          <span><strong>Artilheiro</strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.artilheiro, "gols"))}</span>
-          <span><strong>Garçom</strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.assistencias, "assistencias"))}</span>
-          <span><strong>Maior G/A</strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.participacoesGol, "participacoesGol"))}</span>
-          <span><strong>Mais vitórias</strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.vitorias, "vitorias"))}</span>
-          <span><strong>Goleiro destaque</strong>${escapeHtml(renderPeladaLeaderText(summary.leaders.goleiroDefesas, "defesasDificeis"))}</span>
-        </div>
-      </div>
-    `;
-  }
-
   function renderPeladaSuggestionCard(title, stats, scoreKey, scoreLabel) {
     const suggestionType = scoreKey === "bagreScore" ? "bagre" : "mvp";
 
@@ -6828,34 +6670,6 @@
     });
   }
 
-  function renderFinishedLiveSummary(bundle) {
-    const { jogo, playersA, playersB } = bundle;
-
-    return `
-      <section class="data-card finished-live-summary">
-        <div class="players-toolbar">
-          <div>
-            <span class="panel-kicker">${escapeHtml(jogo.formaEncerramento || "Finalizado")}</span>
-            <h3>Último jogo salvo</h3>
-          </div>
-          <button class="ghost-button compact-button" type="button" data-live-action="open-history" data-pelada-id="${escapeHtml(jogo.peladaId)}" data-game-id="${escapeHtml(jogo.id)}">Ver na pelada</button>
-        </div>
-        <div class="summary-score">
-          <span>${escapeHtml(teamNameFromGame(jogo, "A"))}</span>
-          <strong>${escapeHtml(jogo.placarA ?? 0)} x ${escapeHtml(jogo.placarB ?? 0)}</strong>
-          <span>${escapeHtml(teamNameFromGame(jogo, "B"))}</span>
-        </div>
-        <p>Vencedor: ${escapeHtml(jogo.vencedor || getGameWinner(jogo))}</p>
-        <div class="summary-columns">
-          ${renderSummaryTeam(teamNameFromGame(jogo, "A"), playersA)}
-          ${renderSummaryTeam(teamNameFromGame(jogo, "B"), playersB)}
-        </div>
-        ${renderEventSummaryStats(bundle)}
-        ${renderEventTimeline(bundle)}
-      </section>
-    `;
-  }
-
   function bindLiveSectionEvents() {
     const liveRoot = $("#section-content");
 
@@ -7842,77 +7656,6 @@
     await renderCurrentSection();
   }
 
-  async function addProvisionalGoal(jogoId, teamKey) {
-    if (!requirePermission("eventos:criar")) return;
-    if (!["A", "B"].includes(teamKey) || pendingGoalGameIds.has(jogoId)) {
-      return;
-    }
-
-    pendingGoalGameIds.add(jogoId);
-
-    try {
-      const jogo = await getRecord("jogos", jogoId);
-
-      if (!jogo || jogo.status !== "Em andamento") {
-        return;
-      }
-
-      const savedAt = nowIso();
-      const placarField = teamKey === "A" ? "placarA" : "placarB";
-      const updatedJogo = {
-        ...jogo,
-        [placarField]: Number(jogo[placarField] || 0) + 1,
-        updatedAt: savedAt,
-        revision: (jogo.revision || 0) + 1,
-      };
-      const evento = {
-        id: uid(),
-        jogoId,
-        tipo: "gol",
-        jogadorId: "",
-        assistenteId: "",
-        timeId: teamKey === "A" ? jogo.timeA?.id : jogo.timeB?.id,
-        time: teamKey,
-        minuto: Math.min(DEFAULT_RULES.duracaoJogoMinutos, Math.floor(getElapsedGameSeconds(jogo) / 60) + 1),
-        detalhe: `Gol provisorio - ${teamNameFromGame(jogo, teamKey)}`,
-        criadoPor: getActorId(),
-        createdAt: savedAt,
-        updatedAt: savedAt,
-        revision: 1,
-        provisorio: true,
-        cancelado: false,
-      };
-
-      await putRecords({
-        jogos: [updatedJogo],
-        eventos: [evento],
-        syncQueue: [
-          createSyncQueueRecord("jogos", "upsert", jogoId, updatedJogo),
-          createSyncQueueRecord("eventos", "upsert", evento.id, evento),
-        ],
-        auditLog: [createAuditRecord("jogos", jogoId, "gol-provisorio", jogo, { jogo: updatedJogo, evento })],
-      });
-
-      state.liveMessage = `Gol para ${teamNameFromGame(updatedJogo, teamKey)}.`;
-
-      if (Number(updatedJogo[placarField] || 0) >= GOALS_TO_END_GAME) {
-        await finalizeGame(jogoId, "2 gols");
-        return;
-      }
-
-      await renderCurrentSection();
-      await syncLatestMutations();
-
-      const syncedEvent = await getRecord("eventos", evento.id);
-      if (syncedEvent?.cancelado) {
-        state.liveMessage = "Gol descartado: a partida jÃ¡ havia sido finalizada em outro dispositivo.";
-        await renderCurrentSection();
-      }
-    } finally {
-      pendingGoalGameIds.delete(jogoId);
-    }
-  }
-
   async function pauseGame(jogoId) {
     if (!requirePermission("jogos:alterar")) return;
     const jogo = await getRecord("jogos", jogoId);
@@ -8509,16 +8252,6 @@
     return Math.max(3, statsResult.playersStats.length || 3);
   }
 
-  function getRankingModeTitle(mode) {
-    const titles = {
-      geral: "Ranking Top 3",
-      atributos: "Ranking por atributos",
-      goleiros: "Ranking dos goleiros",
-    };
-
-    return titles[mode] || titles.geral;
-  }
-
   function getRankingModeDescription(mode) {
     const descriptions = {
       geral: "Escolha uma categoria e veja o pódio em destaque, com o restante da classificação logo abaixo.",
@@ -8527,43 +8260,6 @@
     };
 
     return descriptions[mode] || descriptions.geral;
-  }
-
-  function renderRankingPremiumHero(statsResult) {
-    const summary = [
-      {
-        label: "Maior overall",
-        entry: getOverallRankingEntries(statsResult, 1)[0],
-      },
-      {
-        label: "Mais MVP",
-        entry: getMetricRankingEntries(statsResult.playersStats, "mvpsPelada", { limit: 1 })[0],
-      },
-      {
-        label: "Melhor aproveitamento",
-        entry: getMetricRankingEntries(statsResult.playersStats, "aproveitamento", {
-          limit: 1,
-          requireGames: true,
-        })[0],
-      },
-      {
-        label: "Bagre da última pelada",
-        entry: getLatestPeladaAwardEntry(statsResult, "bagre_pelada"),
-      },
-    ];
-
-    return `
-      <section class="ranking-premium-hero">
-        <div class="ranking-hero-copy">
-          <span>BagreScore Ranking</span>
-          <h2>Ranking</h2>
-          <p>Os líderes da pelada em cards, estatísticas e atributos. Tudo calculado automaticamente pelo que aconteceu em campo.</p>
-        </div>
-        <div class="ranking-hero-summary">
-          ${summary.map((item) => renderRankingHeroSummaryCard(item.label, item.entry)).join("")}
-        </div>
-      </section>
-    `;
   }
 
   function getLatestPeladaAwardEntry(statsResult, awardType) {
@@ -8595,29 +8291,6 @@
     const timestamp = new Date(value).getTime();
 
     return Number.isFinite(timestamp) ? timestamp : 0;
-  }
-
-  function renderRankingHeroSummaryCard(label, entry) {
-    if (!entry) {
-      return `
-        <article class="ranking-hero-stat is-empty">
-          <span>${escapeHtml(label)}</span>
-          <strong>Sem dados</strong>
-          <small>Aguardando registros</small>
-        </article>
-      `;
-    }
-
-    const jogador = entry.stats.jogador;
-
-    return `
-      <button class="ranking-hero-stat" type="button" data-ranking-action="profile" data-player-id="${escapeHtml(entry.stats.jogadorId)}">
-        ${renderPlayerAvatar(jogador, "player-avatar small")}
-        <span>${escapeHtml(label)}</span>
-        <strong>${escapeHtml(playerDisplayName(jogador))}</strong>
-        <small>${escapeHtml(entry.value)}</small>
-      </button>
-    `;
   }
 
   function renderRankingModeTabs(activeMode) {
@@ -8762,98 +8435,6 @@
     `;
   }
 
-  function renderRankingOverview(statsResult) {
-    const podium = [
-      ["Maior Overall", getOverallRankingEntries(statsResult, 1)[0]],
-      ["Artilheiro", getMetricRankingEntries(statsResult.playersStats, "gols", { limit: 1 })[0]],
-      ["Garçom", getMetricRankingEntries(statsResult.playersStats, "assistencias", { limit: 1 })[0]],
-      [
-        "Melhor aproveitamento",
-        getMetricRankingEntries(statsResult.playersStats, "aproveitamento", {
-          limit: 1,
-          requireGames: true,
-        })[0],
-      ],
-    ];
-    const metricRankings = [
-      ["Maior Overall", getOverallRankingEntries(statsResult)],
-      ["Artilharia", getMetricRankingEntries(statsResult.playersStats, "gols")],
-      ["Assistências", getMetricRankingEntries(statsResult.playersStats, "assistencias")],
-      ["Participações em gol", getMetricRankingEntries(statsResult.playersStats, "participacoesGol")],
-      ["Mais vitórias", getMetricRankingEntries(statsResult.playersStats, "vitorias")],
-      [
-        "Melhor aproveitamento",
-        getMetricRankingEntries(statsResult.playersStats, "aproveitamento", { requireGames: true }),
-      ],
-      ["Mais jogos", getMetricRankingEntries(statsResult.playersStats, "jogos")],
-      [
-        "Melhor média de gols",
-        getMetricRankingEntries(statsResult.playersStats, "golsPorJogo", { requireGames: true }),
-      ],
-      ["Mais faltas cometidas", getMetricRankingEntries(statsResult.playersStats, "faltasCometidas")],
-      ["Mais faltas sofridas", getMetricRankingEntries(statsResult.playersStats, "faltasSofridas")],
-      ["Mais ações defensivas", getMetricRankingEntries(statsResult.playersStats, "acoesDefensivas")],
-      ["Mais desarmes", getMetricRankingEntries(statsResult.playersStats, "desarmes")],
-      ["Mais bloqueios", getMetricRankingEntries(statsResult.playersStats, "bloqueios")],
-      ["Defesas difíceis", getMetricRankingEntries(statsResult.playersStats, "defesasDificeis")],
-      ["MVPs da Pelada", getMetricRankingEntries(statsResult.playersStats, "mvpsPelada")],
-      ["Bagres da Pelada", getMetricRankingEntries(statsResult.playersStats, "bagresPelada")],
-    ];
-    const lineAttributeRankings = LINE_ATTRIBUTES.map((attribute) => [
-      `Maior ${attribute.label}`,
-      getAttributeRankingEntries(statsResult, attribute.key),
-    ]);
-    const goalkeeperRankings = GOALKEEPER_ATTRIBUTES.map((attribute) => [
-      `Maior ${attribute.label}`,
-      getAttributeRankingEntries(statsResult, attribute.key),
-    ]);
-
-    return `
-      <div class="ranking-page">
-        <section class="data-card ranking-podium-section">
-          <div class="players-toolbar">
-            <div>
-              <span class="panel-kicker">Top da pelada</span>
-              <h3>Pódio Geral</h3>
-              <p>Resumo rápido dos líderes usando as estatísticas e cartas já salvas.</p>
-            </div>
-          </div>
-          <div class="ranking-podium-grid">
-            ${podium.map(([title, entry]) => renderPodiumCard(title, entry)).join("")}
-          </div>
-        </section>
-
-        <section class="ranking-board-grid">
-          ${metricRankings.map(([title, entries]) => renderTopRankingCard(title, entries)).join("")}
-        </section>
-
-        <section class="ranking-group-card">
-          <div class="players-toolbar">
-            <div>
-              <span class="panel-kicker">Cartinhas</span>
-              <h3>Rankings por atributo</h3>
-            </div>
-          </div>
-          <div class="ranking-board-grid">
-            ${lineAttributeRankings.map(([title, entries]) => renderTopRankingCard(title, entries)).join("")}
-          </div>
-        </section>
-
-        <section class="ranking-group-card">
-          <div class="players-toolbar">
-            <div>
-              <span class="panel-kicker">Goleiros</span>
-              <h3>Rankings de goleiro</h3>
-            </div>
-          </div>
-          <div class="ranking-board-grid">
-            ${goalkeeperRankings.map(([title, entries]) => renderTopRankingCard(title, entries)).join("")}
-          </div>
-        </section>
-      </div>
-    `;
-  }
-
   function getOverallRankingEntries(statsResult, limit = 3) {
     return statsResult.playersStats
       .filter((stats) => stats.jogador)
@@ -8904,73 +8485,6 @@
         stats,
         value: `${normalizeAttributeValue(stats.jogador.attributes?.[attributeKey])} ${getAttributeLabel(attributeKey)}`,
       }));
-  }
-
-  function renderPodiumCard(title, entry) {
-    if (!entry) {
-      return `
-        <article class="ranking-podium-card is-empty">
-          <span class="metric-label">${escapeHtml(title)}</span>
-          <strong>Sem dados</strong>
-        </article>
-      `;
-    }
-
-    const { stats, value } = entry;
-    const jogador = stats.jogador;
-
-    return `
-      <button class="ranking-podium-card" type="button" data-ranking-action="profile" data-player-id="${escapeHtml(stats.jogadorId)}">
-        ${renderPlayerAvatar(jogador, "player-avatar large")}
-        <span>
-          <span class="metric-label">${escapeHtml(title)}</span>
-          <strong>${escapeHtml(playerDisplayName(jogador))}</strong>
-          <small>${escapeHtml(jogador.posicaoPrincipal || "-")} - ${escapeHtml(jogador.overall || "-")} OVR</small>
-          <em>${escapeHtml(value)}</em>
-        </span>
-      </button>
-    `;
-  }
-
-  function renderTopRankingCard(title, entries) {
-    return `
-      <section class="data-card top-ranking-card">
-        <div>
-          <span class="panel-kicker">Top 3</span>
-          <h3>${escapeHtml(title)}</h3>
-        </div>
-        ${renderTopRankingRows(entries)}
-      </section>
-    `;
-  }
-
-  function renderTopRankingRows(entries) {
-    if (!entries.length) {
-      return `<div class="empty-state compact-empty"><p>Sem dados para este ranking.</p></div>`;
-    }
-
-    return `
-      <div class="ranking-mini-list">
-        ${entries.map((entry, index) => renderTopRankingRow(entry, index + 1)).join("")}
-      </div>
-    `;
-  }
-
-  function renderTopRankingRow(entry, position) {
-    const { stats, value } = entry;
-    const jogador = stats.jogador;
-
-    return `
-      <button class="ranking-mini-row" type="button" data-ranking-action="profile" data-player-id="${escapeHtml(stats.jogadorId)}">
-        <span class="ranking-position">${position}º</span>
-        ${renderPlayerAvatar(jogador, "player-avatar small")}
-        <span class="ranking-player">
-          <strong>${escapeHtml(playerDisplayName(jogador))}</strong>
-          <small>${escapeHtml(jogador.posicaoPrincipal || "-")} - ${escapeHtml(jogador.overall || "-")} OVR</small>
-        </span>
-        <strong class="ranking-value">${escapeHtml(value)}</strong>
-      </button>
-    `;
   }
 
   function bindRankingSectionEvents() {
@@ -9406,110 +8920,6 @@
     return `
       <div class="player-profile-panel">
         ${(panels[activeTab] || panels.resumo)()}
-      </div>
-    `;
-  }
-
-  function renderPlayerStatsProfileLegacy(stats, statsResult) {
-    const jogador = stats.jogador;
-    const activeDefinitions = getActiveAttributeDefinitions(jogador.tipoJogador, jogador.posicaoPrincipal);
-
-    return `
-      <div class="stats-profile">
-        <section class="data-card profile-hero">
-          <button class="ghost-button compact-button" type="button" data-stats-action="back">Voltar aos rankings</button>
-          <div class="profile-hero-main">
-            ${renderPlayerAvatar(jogador, "player-avatar large")}
-            <div>
-              <span class="panel-kicker">${escapeHtml(jogador.posicaoPrincipal || "-")} - ${escapeHtml(jogador.tipoJogador || "Linha")}</span>
-              <h3>${escapeHtml(playerDisplayName(jogador))}</h3>
-              <p>${escapeHtml(jogador.nome || "")}</p>
-              <div class="profile-tags">
-                <span>${escapeHtml(jogador.peForte || "-")}</span>
-                <span>${escapeHtml(jogador.overall || "-")} OVR</span>
-                <span>${escapeHtml(starsText(jogador.estrelas || 1))}</span>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        ${renderManualEvolutionCard(statsResult.jogadores, jogador.id)}
-
-        <section class="profile-grid">
-          <article class="data-card">
-            <h3>Atributos</h3>
-            <div class="attribute-bars">
-              ${activeDefinitions
-                .map((attribute) => {
-                  const value = normalizeAttributeValue(jogador.attributes?.[attribute.key]);
-                  return `
-                    <div class="attribute-bar">
-                      <span>${escapeHtml(attribute.label)}</span>
-                      <meter min="1" max="99" value="${value}"></meter>
-                      <strong>${value}</strong>
-                    </div>
-                  `;
-                })
-                .join("")}
-            </div>
-          </article>
-
-          <article class="data-card">
-            <h3>Resumo competitivo</h3>
-            ${renderProfileMetricGrid(stats, [
-              ["Jogos", "jogos"],
-              ["Vitórias", "vitorias"],
-              ["Empates", "empates"],
-              ["Derrotas", "derrotas"],
-              ["Aproveitamento", "aproveitamento"],
-              ["Gols", "gols"],
-              ["Assistências", "assistencias"],
-              ["G/A", "participacoesGol"],
-              ["Gols por jogo", "golsPorJogo"],
-              ["Assistências por jogo", "assistenciasPorJogo"],
-              ["G/A por jogo", "gaPorJogo"],
-            ])}
-          </article>
-
-          <article class="data-card">
-            <h3>Disciplina e especiais</h3>
-            ${renderProfileMetricGrid(stats, [
-              ["Faltas cometidas", "faltasCometidas"],
-              ["Faltas sofridas", "faltasSofridas"],
-              ["Amarelos", "cartoesAmarelos"],
-              ["Vermelhos", "cartoesVermelhos"],
-              ["Gols de pênalti", "golsPenalti"],
-              ["Gols de falta", "golsFalta"],
-              ["Gols de cabeça", "golsCabeca"],
-              ["Gols contra", "golsContra"],
-              ["MVPs da Pelada", "mvpsPelada"],
-              ["Bagres da Pelada", "bagresPelada"],
-            ])}
-          </article>
-
-          <article class="data-card">
-            <h3>Defesa e goleiro</h3>
-            ${renderProfileMetricGrid(stats, [
-              ["Ações defensivas", "acoesDefensivas"],
-              ["Desarmes", "desarmes"],
-              ["Interceptações", "interceptacoes"],
-              ["Bloqueios", "bloqueios"],
-              ["Cortes", "cortes"],
-              ["Defesas difíceis", "defesasDificeis"],
-              ["Defesas de pênalti", "defesasPenalti"],
-            ])}
-          </article>
-        </section>
-
-        <section class="data-card">
-          <h3>Histórico dos últimos jogos</h3>
-          ${renderPlayerGameHistory(stats)}
-        </section>
-
-        <section class="data-card">
-          <h3>Histórico de prêmios da pelada</h3>
-          ${renderPlayerAwardHistory(stats)}
-        </section>
       </div>
     `;
   }
@@ -10729,6 +10139,7 @@
 
     storesToClear.forEach((storeName) => transaction.objectStore(storeName).clear());
     await transactionDone(transaction);
+    invalidateStatsCache(storesToClear);
 
     await putRecord("configs", {
       ...config,
@@ -10948,6 +10359,9 @@
       updatedAt: nowIso(),
     });
 
+    if (appliedChanges) {
+      invalidateStatsCache([...changesByStore.keys()]);
+    }
     if (response.user) persistAuthSession(state.authToken, response.user);
     return appliedChanges;
   }
