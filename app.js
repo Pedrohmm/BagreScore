@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.16.0";
+  const APP_VERSION = "0.16.2";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -970,7 +970,7 @@
       showSectionLoadingState(targetSection, "Abrindo suas configurações...");
     }
 
-    if (targetSection === "jogadores" && previousSection !== "jogadores") {
+    if (targetSection === "jogadores" && previousSection !== "jogadores" && !options.preservePlayerState) {
       state.playerFormOpen = false;
       state.playerFormStep = "basicos";
       state.playersListOpen = false;
@@ -9109,6 +9109,7 @@
     const jogador = stats.jogador;
     const activeDefinitions = getActiveAttributeDefinitions(jogador.tipoJogador, jogador.posicaoPrincipal);
     const activeTab = getActiveProfileTab();
+    const canEditPlayer = hasPermission("jogadores:editar");
 
     return `
       <div class="stats-profile player-profile-premium">
@@ -9121,30 +9122,40 @@
           <i class="profile-status-dot status-${escapeHtml(normalizeToken(jogador.status || "Ativo"))}" title="${escapeHtml(jogador.status || "Ativo")}"></i>
         </header>
 
-        <section class="player-profile-stage">
+        <section class="player-card-showcase">
           ${renderPlayerBagreCard(jogador, activeDefinitions)}
-          <article class="player-profile-overview">
-            <div class="profile-identity-copy">
-              <span class="panel-kicker">${escapeHtml(jogador.posicaoPrincipal || "-")} · ${escapeHtml(jogador.tipoJogador || "Linha")}</span>
-              <h2>${escapeHtml(playerDisplayName(jogador))}</h2>
-              <p>${escapeHtml(jogador.nome || "Jogador da pelada")}</p>
-              <div class="profile-tags">
-                <span>Pé ${escapeHtml(jogador.peForte || "-")}</span>
-                <span>${escapeHtml(jogador.status || "-")}</span>
-                <span>${escapeHtml(starsText(jogador.estrelas || 1))}</span>
-              </div>
+
+          <div class="profile-performance-strip" aria-label="Desempenho do jogador">
+            ${renderProfileHeroMetric("Jogos", stats.jogos)}
+            ${renderProfileHeroMetric("Vitórias", stats.vitorias)}
+            ${renderProfileHeroMetric("Gols", stats.gols)}
+            ${renderProfileHeroMetric("Assistências", stats.assistencias)}
+          </div>
+
+          <div class="player-card-functional-actions">
+            <span class="player-card-active-state status-${escapeHtml(normalizeToken(jogador.status || "Ativo"))}">
+              <i></i>${escapeHtml(jogador.status || "Ativo")}
+            </span>
+            ${canEditPlayer ? `<button type="button" data-stats-action="edit-player" data-player-id="${escapeHtml(jogador.id)}">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>
+              Editar
+            </button>` : ""}
+            <button class="player-card-more-action" type="button" data-stats-action="show-attributes" aria-label="Ver atributos completos">
+              <i></i><i></i><i></i>
+            </button>
+          </div>
+
+          <div class="player-card-context">
+            <div>
+              <span>${escapeHtml(jogador.posicaoPrincipal || "-")} · ${escapeHtml(jogador.tipoJogador || "Linha")}</span>
+              <strong>${escapeHtml(jogador.nome || playerDisplayName(jogador))}</strong>
             </div>
-            <div class="profile-performance-strip">
-              ${renderProfileHeroMetric("Jogos", stats.jogos)}
-              ${renderProfileHeroMetric("Vitórias", stats.vitorias)}
-              ${renderProfileHeroMetric("Gols", stats.gols)}
-              ${renderProfileHeroMetric("Assistências", stats.assistencias)}
+            <div class="profile-tags">
+              <span>Pé ${escapeHtml(jogador.peForte || "-")}</span>
+              <span>${escapeHtml(starsText(jogador.estrelas || 1))}</span>
+              <span>${escapeHtml(formatPercent(stats.aproveitamento))} aproveitamento</span>
             </div>
-            <div class="profile-season-note">
-              <span>Desempenho geral</span>
-              <strong>${escapeHtml(formatPercent(stats.aproveitamento))} de aproveitamento</strong>
-            </div>
-          </article>
+          </div>
         </section>
 
         ${renderPlayerProfileTabs(activeTab)}
@@ -9173,6 +9184,35 @@
   function renderPlayerBagreCard(jogador, activeDefinitions) {
     return `
       <article class="player-bagre-card" aria-label="Carta BagreScore de ${escapeHtml(playerDisplayName(jogador))}">
+        <svg class="player-bagre-frame" viewBox="0 0 360 560" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="bagre-frame-metal" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#ff6a0a"/>
+              <stop offset="0.18" stop-color="#626262"/>
+              <stop offset="0.5" stop-color="#171717"/>
+              <stop offset="0.82" stop-color="#555"/>
+              <stop offset="1" stop-color="#ff5a00"/>
+            </linearGradient>
+            <linearGradient id="bagre-frame-orange" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#ff8a35"/>
+              <stop offset="0.48" stop-color="#ff5a00"/>
+              <stop offset="1" stop-color="#9b2d00"/>
+            </linearGradient>
+            <filter id="bagre-frame-glow" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="3" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <path class="frame-outer" d="M42 4H276L320 27H346L358 43V470L326 512L180 558L34 512L2 470V43L18 25Z"/>
+          <path class="frame-metal" d="M43 10H274L318 33H342L351 47V465L319 504L180 548L41 504L9 465V48L23 32Z"/>
+          <path class="frame-inner" d="M48 18H270L313 40H335L343 52V458L311 496L180 538L49 496L17 458V54L29 40Z"/>
+          <path class="frame-accent frame-accent-left" d="M22 56V205L34 221V446L48 468"/>
+          <path class="frame-accent frame-accent-right" d="M338 54V197L326 213V445L312 468"/>
+          <path class="frame-shoulder" d="M18 33L54 14H273L316 36"/>
+          <path class="frame-footer" d="M51 499L180 541L309 499"/>
+          <path class="frame-tech-left" d="M31 230H47V405H31M38 246H47"/>
+          <path class="frame-tech-right" d="M329 224H313V401H329M322 240H313"/>
+        </svg>
         <div class="player-bagre-card-top">
           <span class="player-bagre-rating">
             <strong>${escapeHtml(jogador.overall || "-")}</strong>
@@ -9674,6 +9714,29 @@
         state.selectedStatsPlayerId = actionButton.dataset.playerId || null;
         state.selectedProfileTab = "resumo";
         await renderCurrentSection();
+        return;
+      }
+
+      if (action === "show-attributes") {
+        state.selectedProfileTab = "atributos";
+        await renderCurrentSection();
+        window.requestAnimationFrame(() => {
+          $(".player-profile-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+        return;
+      }
+
+      if (action === "edit-player" && hasPermission("jogadores:editar")) {
+        const playerId = actionButton.dataset.playerId || state.selectedStatsPlayerId;
+        state.selectedPlayerId = playerId;
+        state.editingPlayerId = playerId;
+        state.playerFormOpen = true;
+        state.playerFormStep = "basicos";
+        state.playersListOpen = false;
+        await switchSection("jogadores", { preservePlayerState: true });
+        window.requestAnimationFrame(() => {
+          $("#player-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
         return;
       }
 

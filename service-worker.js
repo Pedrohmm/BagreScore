@@ -1,14 +1,14 @@
-const CACHE_VERSION = "bagrescore-v0.16.0";
+const CACHE_VERSION = "bagrescore-v0.16.2";
 const PRECACHE_URLS = [
   "./",
   "./index.html",
-  "./style.css?v=0.16.0",
-  "./app.js?v=0.16.0",
-  "./manifest.json?v=0.16.0",
-  "./assets/icons/icon-192.png?v=0.16.0",
-  "./assets/icons/icon-512.png?v=0.16.0",
-  "./assets/icons/icon-maskable-512.png?v=0.16.0",
-  "./assets/icons/apple-touch-icon.png?v=0.16.0",
+  "./style.css?v=0.16.2",
+  "./app.js?v=0.16.2",
+  "./manifest.json?v=0.16.2",
+  "./assets/icons/icon-192.png?v=0.16.2",
+  "./assets/icons/icon-512.png?v=0.16.2",
+  "./assets/icons/icon-maskable-512.png?v=0.16.2",
+  "./assets/icons/apple-touch-icon.png?v=0.16.2",
   "./assets/icons/bagrescore-logo.png",
   "./assets/icons/bagrescore-logo-header.png",
 ];
