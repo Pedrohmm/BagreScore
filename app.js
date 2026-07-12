@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.18.4";
+  const APP_VERSION = "0.18.5";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -6073,19 +6073,24 @@
     return `
       <section class="live-idle-card has-summary">
         <div class="live-idle-heading">
-          <span class="live-idle-kicker">${gameNumber ? `Jogo ${escapeHtml(gameNumber)}` : "Sem jogo ao vivo"}</span>
+          <span class="live-idle-heading-copy">
+            <span class="live-idle-kicker">${gameNumber ? `Jogo ${escapeHtml(gameNumber)}` : "Último jogo"}</span>
+            <small>Última partida registrada</small>
+          </span>
           <strong>${escapeHtml(getGameStatusLabel(jogo))}</strong>
         </div>
-        <p>Nenhuma partida está acontecendo agora. Último jogo registrado:</p>
-        <div class="live-idle-score">
-          <span>${escapeHtml(teamNameFromGame(jogo, "A"))}</span>
-          <strong>${escapeHtml(jogo.placarA ?? 0)} x ${escapeHtml(jogo.placarB ?? 0)}</strong>
-          <span>${escapeHtml(teamNameFromGame(jogo, "B"))}</span>
+        <div class="live-idle-score" aria-label="Placar final">
+          ${renderLiveIdleTeam(jogo, "A")}
+          <span class="live-idle-score-center">
+            <small>Placar final</small>
+            <strong><span>${escapeHtml(jogo.placarA ?? 0)}</span><i aria-hidden="true">-</i><span>${escapeHtml(jogo.placarB ?? 0)}</span></strong>
+          </span>
+          ${renderLiveIdleTeam(jogo, "B")}
         </div>
         <div class="live-idle-meta">
-          <span>${escapeHtml(pelada?.local || "Pelada")}</span>
-          <span>${escapeHtml(dateLabel)}</span>
-          <span>Vencedor: ${escapeHtml(winner)}</span>
+          <span><small>Local</small><strong>${escapeHtml(pelada?.local || "Pelada")}</strong></span>
+          <span><small>Data</small><strong>${escapeHtml(dateLabel)}</strong></span>
+          <span><small>Resultado</small><strong>${escapeHtml(winner)}</strong></span>
         </div>
         <div class="live-idle-goals">
           <span>Gols</span>
@@ -6097,6 +6102,25 @@
           </button>
         </div>` : ""}
       </section>
+    `;
+  }
+
+  function getLiveTeamInitials(name, fallback = "") {
+    return String(name || "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || fallback;
+  }
+
+  function renderLiveIdleTeam(jogo, teamKey) {
+    const name = teamNameFromGame(jogo, teamKey);
+    return `
+      <span class="live-idle-team" style="--team-color: ${escapeHtml(teamColorFromGame(jogo, teamKey))};">
+        <i aria-hidden="true">${escapeHtml(getLiveTeamInitials(name, teamKey))}</i>
+        <strong>${escapeHtml(name)}</strong>
+      </span>
     `;
   }
 
@@ -6148,12 +6172,7 @@
   function renderLiveTeamBadge(bundle, teamKey) {
     const jogo = bundle.jogo;
     const name = teamNameFromGame(jogo, teamKey);
-    const initials = name
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
-      .join("") || teamKey;
+    const initials = getLiveTeamInitials(name, teamKey);
 
     return `
       <div class="live-team-badge" style="--team-color: ${escapeHtml(teamColorFromGame(jogo, teamKey))};">
