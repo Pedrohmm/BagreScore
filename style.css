@@ -15847,3 +15847,90 @@ body[data-section="ao-vivo"] .live-idle-actions .primary-button {
     font-size: 2.35rem;
   }
 }
+
+/* Final score number fix and centered summary heading v0.18.6 */
+body[data-section="ao-vivo"] .live-idle-heading {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding-top: 4px;
+  text-align: center;
+}
+
+body[data-section="ao-vivo"] .live-idle-heading-copy {
+  justify-items: center;
+  gap: 6px;
+}
+
+body[data-section="ao-vivo"] .live-idle-kicker {
+  color: #ff8a47;
+  font-size: clamp(0.98rem, 4.7vw, 1.18rem);
+  letter-spacing: 0.13em;
+  text-shadow: 0 0 18px rgba(255, 90, 0, 0.16);
+}
+
+body[data-section="ao-vivo"] .live-idle-heading-copy small {
+  color: #c0c3c1;
+  font-size: clamp(0.73rem, 3.5vw, 0.87rem);
+  font-weight: 750;
+  letter-spacing: 0.015em;
+}
+
+body[data-section="ao-vivo"] .live-idle-heading > strong {
+  justify-self: center;
+}
+
+body[data-section="ao-vivo"] .live-idle-score-center > strong {
+  min-width: 0;
+  overflow: visible;
+  font-size: clamp(3.25rem, 14vw, 4.75rem);
+  line-height: 0.92;
+  white-space: nowrap;
+}
+
+body[data-section="ao-vivo"] .live-idle-score-center > strong > span {
+  display: inline-block;
+  min-width: 0.68em;
+  overflow: visible;
+  color: #fff;
+  font-size: 1em;
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  letter-spacing: -0.055em;
+  line-height: 0.92;
+  text-align: center;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+body[data-section="ao-vivo"] .live-idle-score-center > strong > i {
+  flex: 0 0 auto;
+  overflow: visible;
+  line-height: 1;
+}
+
+@media (max-width: 420px) {
+  body[data-section="ao-vivo"] .live-idle-heading {
+    gap: 8px;
+  }
+
+  body[data-section="ao-vivo"] .live-idle-kicker {
+    font-size: 0.96rem;
+  }
+
+  body[data-section="ao-vivo"] .live-idle-heading-copy small {
+    font-size: 0.75rem;
+  }
+
+  body[data-section="ao-vivo"] .live-idle-score-center > strong {
+    gap: 8px;
+    font-size: 3.35rem;
+  }
+}
+
+@media (max-width: 350px) {
+  body[data-section="ao-vivo"] .live-idle-score-center > strong {
+    gap: 6px;
+    font-size: 2.85rem;
+  }
+}
