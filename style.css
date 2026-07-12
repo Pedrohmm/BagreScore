@@ -15311,3 +15311,109 @@ body[data-section="ao-vivo"] .live-game-state .live-period {
     gap: 3px;
   }
 }
+
+/* Harmonized scoreboard hierarchy v0.18.3 */
+body[data-section="ao-vivo"] .live-score-content {
+  gap: 6px;
+  padding: 15px 17px 18px;
+}
+
+body[data-section="ao-vivo"] .live-score-meta {
+  min-height: 28px;
+}
+
+body[data-section="ao-vivo"] .live-score-status {
+  display: flex;
+  min-height: 26px;
+  align-items: center;
+  justify-content: center;
+}
+
+body[data-section="ao-vivo"] .live-score-status .live-status-dot {
+  min-height: 25px;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 0.56rem;
+  line-height: 1;
+}
+
+body[data-section="ao-vivo"] .live-score-status .live-status-dot::before {
+  width: 6px;
+  height: 6px;
+}
+
+body[data-section="ao-vivo"] .live-score-board {
+  min-height: 148px;
+  grid-template-columns: minmax(0, 1fr) minmax(132px, 1.2fr) minmax(0, 1fr);
+  align-items: center;
+  padding: 0 2px 2px;
+}
+
+body[data-section="ao-vivo"] .live-score-center {
+  gap: 10px;
+}
+
+body[data-section="ao-vivo"] .live-score-center > strong {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  letter-spacing: -0.055em;
+}
+
+body[data-section="ao-vivo"] .live-score-center > strong i {
+  color: #989c9a;
+  font-size: 0.54em;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0;
+  transform: translateY(1px);
+}
+
+body[data-section="ao-vivo"] .live-score-center .timer {
+  min-width: 98px;
+}
+
+@media (max-width: 420px) {
+  body[data-section="ao-vivo"] .live-score-content {
+    gap: 5px;
+    padding: 12px 12px 15px;
+  }
+
+  body[data-section="ao-vivo"] .live-score-meta {
+    min-height: 25px;
+  }
+
+  body[data-section="ao-vivo"] .live-score-status {
+    min-height: 23px;
+  }
+
+  body[data-section="ao-vivo"] .live-score-status .live-status-dot {
+    min-height: 22px;
+    padding: 4px 7px;
+    font-size: 0.51rem;
+  }
+
+  body[data-section="ao-vivo"] .live-score-board {
+    min-height: 135px;
+    grid-template-columns: minmax(0, 1fr) minmax(116px, 1.16fr) minmax(0, 1fr);
+  }
+
+  body[data-section="ao-vivo"] .live-score-center {
+    gap: 8px;
+  }
+
+  body[data-section="ao-vivo"] .live-score-center > strong {
+    gap: 8px;
+  }
+}
+
+@media (max-width: 350px) {
+  body[data-section="ao-vivo"] .live-score-board {
+    grid-template-columns: minmax(0, 1fr) 108px minmax(0, 1fr);
+  }
+
+  body[data-section="ao-vivo"] .live-score-center > strong {
+    gap: 6px;
+  }
+}

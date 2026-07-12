@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.18.2";
+  const APP_VERSION = "0.18.3";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -6129,15 +6129,14 @@
               <b>Jogo ${escapeHtml(gameNumber)}</b>
             </span>
           </div>
+          <div class="live-score-status">
+            <span class="live-status-dot ${statusClass}">${escapeHtml(liveStatus)}</span>
+          </div>
           <div class="live-score-board">
             ${renderLiveTeamBadge(bundle, "A")}
             <div class="live-score-center">
-              <strong><span id="live-score-a">${escapeHtml(jogo.placarA ?? 0)}</span> : <span id="live-score-b">${escapeHtml(jogo.placarB ?? 0)}</span></strong>
+              <strong><span id="live-score-a">${escapeHtml(jogo.placarA ?? 0)}</span> <i aria-hidden="true">-</i> <span id="live-score-b">${escapeHtml(jogo.placarB ?? 0)}</span></strong>
               <span class="timer" id="live-timer">${escapeHtml(formatClock(remaining))}</span>
-              <span class="live-game-state">
-                <span class="live-status-dot ${statusClass}">${escapeHtml(liveStatus)}</span>
-                <small class="live-period"><span id="live-status">${escapeHtml(getGameStatusLabel(jogo))}</span></small>
-              </span>
             </div>
             ${renderLiveTeamBadge(bundle, "B")}
           </div>
