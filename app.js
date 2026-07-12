@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.18.0";
+  const APP_VERSION = "0.18.1";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -500,6 +500,12 @@
     { value: "cabeca", label: "Cabeça" },
     { value: "gol_contra", label: "Gol contra" },
     { value: "outro", label: "Outro" },
+  ];
+  const QUICK_GOAL_TYPES = [
+    { value: "normal", label: "Normal", detail: "Jogada aberta", icon: "N" },
+    { value: "penalti", label: "Pênalti", detail: "Cobrança da marca", icon: "P" },
+    { value: "falta", label: "Falta", detail: "Cobrança direta", icon: "F" },
+    { value: "cabeca", label: "Cabeça", detail: "Finalização aérea", icon: "C" },
   ];
   const CARD_TYPES = [
     { value: "nenhum", label: "Nenhum" },
@@ -6351,17 +6357,13 @@
     const actions = isGoalkeeper
       ? [
           ["save", "Defesa difícil", "DD"],
-          ["assist", "Assistência", "A"],
           ["foul-suffered", "Falta sofrida", "FS"],
-          ["foul-committed", "Falta cometida", "FC"],
           ["yellow-card", "Cartão amarelo", "CA"],
           ["red-card", "Cartão vermelho", "CV"],
         ]
       : [
           ["goal", "Gol", "G"],
-          ["assist", "Assistência", "A"],
           ["foul-suffered", "Falta sofrida", "FS"],
-          ["foul-committed", "Falta cometida", "FC"],
           ["defensive", "Desarme", "D"],
           ["yellow-card", "Cartão amarelo", "CA"],
           ["red-card", "Cartão vermelho", "CV"],
@@ -6387,7 +6389,7 @@
             ${actions
               .map(
                 ([action, label, icon], index) => `
-                  <button class="player-action-button ${index === 0 ? "is-primary" : ""}" type="button" data-player-event-action="${escapeHtml(action)}">
+                  <button class="player-action-button action-${escapeHtml(action)} ${index === 0 ? "is-primary" : ""}" type="button" data-player-event-action="${escapeHtml(action)}">
                     <span class="player-action-icon" aria-hidden="true">${escapeHtml(icon)}</span>
                     <strong>${escapeHtml(label)}</strong>
                   </button>
@@ -6418,13 +6420,8 @@
       return;
     }
 
-    if (action === "assist") {
-      openPlayerAssistModal(bundle, player);
-      return;
-    }
-
-    if (action === "foul-suffered" || action === "foul-committed") {
-      openPlayerFoulQuickModal(bundle, player, action);
+    if (action === "foul-suffered") {
+      openPlayerFoulQuickModal(bundle, player);
       return;
     }
 
@@ -6458,10 +6455,30 @@
   }
 
   function goalTypeFromQuickForm(form) {
-    if (form.elements.isPenalty?.value === "sim") return "penalti";
-    if (form.elements.isFreeKick?.value === "sim") return "falta";
-    if (form.elements.isHeader?.value === "sim") return "cabeca";
-    return "normal";
+    const selectedType = form.elements.tipoGol?.value || "normal";
+    return QUICK_GOAL_TYPES.some((item) => item.value === selectedType) ? selectedType : "normal";
+  }
+
+  function renderQuickGoalTypeOptions(selectedValue = "normal") {
+    return `
+      <fieldset class="event-fieldset goal-method-fieldset">
+        <legend>Como foi o gol?</legend>
+        <p class="goal-method-hint">Escolha somente um método.</p>
+        <div class="goal-method-options">
+          ${QUICK_GOAL_TYPES.map((item) => `
+            <label>
+              <input type="radio" name="tipoGol" value="${escapeHtml(item.value)}" ${item.value === selectedValue ? "checked" : ""} />
+              <span class="goal-method-icon" aria-hidden="true">${escapeHtml(item.icon)}</span>
+              <span class="goal-method-copy">
+                <strong>${escapeHtml(item.label)}</strong>
+                <small>${escapeHtml(item.detail)}</small>
+              </span>
+              <i class="goal-method-check" aria-hidden="true"></i>
+            </label>
+          `).join("")}
+        </div>
+      </fieldset>
+    `;
   }
 
   function openPlayerGoalModal(bundle, player) {
@@ -6480,9 +6497,7 @@
             <span>Quem deu a assistência?</span>
             <select name="assistenteId">${renderPlayerOptions(assistPlayers, "", "Escolha o assistente")}</select>
           </label>
-          <label class="quick-question"><span>Foi pênalti?</span>${renderYesNoRadios("isPenalty", "nao")}</label>
-          <label class="quick-question"><span>Foi falta?</span>${renderYesNoRadios("isFreeKick", "nao")}</label>
-          <label class="quick-question"><span>Foi de cabeça?</span>${renderYesNoRadios("isHeader", "nao")}</label>
+          ${renderQuickGoalTypeOptions("normal")}
           <label class="field-label">
             <span>Observação</span>
             <textarea name="observacoes" rows="2"></textarea>
@@ -6504,9 +6519,11 @@
       event.preventDefault();
       const hasAssist = form.elements.hasAssist?.value === "sim";
       const assistenteId = hasAssist ? form.elements.assistenteId?.value || "" : "";
+      const tipoGol = goalTypeFromQuickForm(form);
       const errors = [];
 
       if (hasAssist && !assistenteId) errors.push("Escolha quem deu a assistência.");
+      if (!QUICK_GOAL_TYPES.some((item) => item.value === tipoGol)) errors.push("Escolha como foi o gol.");
       showFormErrors("player-goal-errors", errors);
       if (errors.length) return;
 
@@ -6515,7 +6532,7 @@
         teamKey,
         jogadorId: player.id,
         assistenteId,
-        tipoGol: goalTypeFromQuickForm(form),
+        tipoGol,
         golContra: false,
         observacoes: String(form.elements.observacoes?.value || "").trim(),
       });
@@ -6556,61 +6573,27 @@
     });
   }
 
-  function openPlayerAssistModal(bundle, player) {
-    const teamKey = getLineupTeamForPlayer(bundle, player.id);
-    const scorers = getLineupPlayers(bundle, teamKey).filter((item) => item.id !== player.id);
+  function openPlayerFoulQuickModal(bundle, player) {
+    const playerTeam = getLineupTeamForPlayer(bundle, player.id);
+    const opponentTeam = oppositeTeam(playerTeam);
+    const opponentPlayers = getLineupPlayers(bundle, opponentTeam);
     const modal = openLiveModal(
-      `Assistência - ${playerDisplayName(player)}`,
+      `Falta sofrida - ${playerDisplayName(player)}`,
       `
-        <form class="event-form player-goal-form" id="player-assist-form" novalidate>
-          <div class="form-errors" id="player-assist-errors" hidden></div>
-          <label class="field-label">
-            <span>Quem fez o gol?</span>
-            <select name="jogadorId">${renderPlayerOptions(scorers, "", "Escolha quem fez o gol")}</select>
-          </label>
-          <label class="quick-question"><span>Foi pênalti?</span>${renderYesNoRadios("isPenalty", "nao")}</label>
-          <label class="quick-question"><span>Foi falta?</span>${renderYesNoRadios("isFreeKick", "nao")}</label>
-          <label class="quick-question"><span>Foi de cabeça?</span>${renderYesNoRadios("isHeader", "nao")}</label>
-          <div class="form-actions">
-            <button class="primary-button big-touch" type="submit">Confirmar assistência</button>
-            <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
-          </div>
-        </form>
-      `
-    );
-    const form = modal.querySelector("#player-assist-form");
-
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const scorerId = form.elements.jogadorId?.value || "";
-      const errors = [];
-      if (!scorerId) errors.push("Escolha quem fez o gol.");
-      showFormErrors("player-assist-errors", errors);
-      if (errors.length) return;
-
-      await saveGoalEvent({
-        jogo: bundle.jogo,
-        teamKey,
-        jogadorId: scorerId,
-        assistenteId: player.id,
-        tipoGol: goalTypeFromQuickForm(form),
-        golContra: false,
-        observacoes: "",
-      });
-    });
-  }
-
-  function openPlayerFoulQuickModal(bundle, player, mode) {
-    const allPlayers = [...bundle.playersA, ...bundle.playersB].filter((item) => item.id !== player.id);
-    const committed = mode === "foul-committed";
-    const modal = openLiveModal(
-      committed ? `Falta cometida - ${playerDisplayName(player)}` : `Falta sofrida - ${playerDisplayName(player)}`,
-      `
-        <form class="event-form" id="player-foul-form" novalidate>
+        <form class="event-form player-foul-form" id="player-foul-form" novalidate>
           <div class="form-errors" id="player-foul-errors" hidden></div>
+          <div class="foul-victim-card">
+            ${renderPlayerAvatar(player, "player-avatar foul-victim-avatar")}
+            <span>
+              <small>Sofreu a falta</small>
+              <strong>${escapeHtml(playerDisplayName(player))}</strong>
+              <em>${escapeHtml(teamNameFromGame(bundle.jogo, playerTeam))}</em>
+            </span>
+          </div>
           <label class="field-label">
-            <span>${committed ? "Quem sofreu?" : "Quem fez a falta?"}</span>
-            <select name="otherPlayerId">${renderPlayerOptions(allPlayers, "", "Escolha o jogador")}</select>
+            <span>Quem cometeu a falta?</span>
+            <select name="otherPlayerId">${renderPlayerOptions(opponentPlayers, "", "Escolha o adversário")}</select>
+            <small class="field-helper">Somente jogadores do ${escapeHtml(teamNameFromGame(bundle.jogo, opponentTeam))}.</small>
           </label>
           <label class="field-label">
             <span>Cartão</span>
@@ -6629,15 +6612,18 @@
       event.preventDefault();
       const otherPlayerId = form.elements.otherPlayerId?.value || "";
       const errors = [];
-      if (!otherPlayerId) errors.push("Escolha o outro jogador do lance.");
+      if (!otherPlayerId) errors.push("Escolha o adversário que cometeu a falta.");
+      if (otherPlayerId && !isPlayerInTeam(bundle, otherPlayerId, opponentTeam)) {
+        errors.push("Quem cometeu a falta precisa ser do time adversário.");
+      }
       showFormErrors("player-foul-errors", errors);
       if (errors.length) return;
 
       await saveFoulEvent({
         jogo: bundle.jogo,
         bundle,
-        jogadorId: committed ? player.id : otherPlayerId,
-        jogadorSofreuId: committed ? otherPlayerId : player.id,
+        jogadorId: otherPlayerId,
+        jogadorSofreuId: player.id,
         cartao: form.elements.cartao?.value || "nenhum",
         observacoes: "",
       });

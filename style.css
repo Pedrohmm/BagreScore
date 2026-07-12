@@ -14855,3 +14855,346 @@ body[data-section="ao-vivo"] .live-screen:has(.live-control-bar) {
     animation: none;
   }
 }
+
+/* Cleaner live player actions and single-choice goal flow v0.18.1 */
+#live-modal .player-action-panel-modern {
+  gap: 12px;
+}
+
+#live-modal .player-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+#live-modal .player-action-button {
+  display: grid;
+  min-height: 68px;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  padding: 10px;
+  color: #d7d9d8;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.025), transparent),
+    rgba(10, 11, 10, 0.92);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  text-align: left;
+}
+
+#live-modal .player-action-button:hover,
+#live-modal .player-action-button:focus-visible {
+  border-color: rgba(255, 90, 0, 0.38);
+  color: #fff;
+  background: rgba(255, 90, 0, 0.065);
+}
+
+#live-modal .player-action-button.is-primary {
+  border-color: rgba(255, 90, 0, 0.44);
+  color: #fff;
+  background:
+    radial-gradient(circle at 0 50%, rgba(255, 90, 0, 0.17), transparent 5rem),
+    rgba(24, 15, 10, 0.92);
+}
+
+#live-modal .player-action-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid rgba(255, 90, 0, 0.2);
+  border-radius: 11px;
+  color: #ff7b30;
+  background: rgba(255, 90, 0, 0.07);
+  font-size: 0.67rem;
+  font-weight: 950;
+  letter-spacing: 0.02em;
+}
+
+#live-modal .player-action-button strong {
+  min-width: 0;
+  color: inherit;
+  font-size: 0.76rem;
+  font-weight: 850;
+  line-height: 1.2;
+}
+
+#live-modal .player-action-button.action-yellow-card .player-action-icon {
+  border-color: rgba(255, 204, 48, 0.26);
+  color: #ffd65c;
+  background: rgba(255, 204, 48, 0.075);
+}
+
+#live-modal .player-action-button.action-red-card .player-action-icon,
+#live-modal .player-action-button.action-own-goal .player-action-icon {
+  border-color: rgba(255, 84, 84, 0.28);
+  color: #ff8585;
+  background: rgba(255, 84, 84, 0.075);
+}
+
+/* Hide the oversized native radio focus box and keep an accessible custom control. */
+#live-modal .segmented-options label {
+  position: relative;
+}
+
+#live-modal .segmented-options input[type="radio"] {
+  position: absolute;
+  width: 1px;
+  min-width: 0;
+  height: 1px;
+  min-height: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  overflow: hidden;
+  opacity: 0;
+  outline: 0;
+  pointer-events: none;
+}
+
+#live-modal .segmented-options label::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.025);
+  box-shadow: inset 0 0 0 4px rgba(8, 9, 8, 0.96);
+}
+
+#live-modal .segmented-options label:has(input:checked)::before {
+  border-color: #ff6a16;
+  background: #ff5a00;
+  box-shadow:
+    inset 0 0 0 4px rgba(35, 17, 8, 0.96),
+    0 0 10px rgba(255, 90, 0, 0.28);
+}
+
+#live-modal .segmented-options label:has(input:focus-visible) {
+  outline: 2px solid rgba(255, 90, 0, 0.5);
+  outline-offset: 2px;
+}
+
+#live-modal .goal-method-fieldset {
+  display: grid;
+  gap: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 17px;
+  padding: 13px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.055), transparent 10rem),
+    rgba(255, 255, 255, 0.018);
+}
+
+#live-modal .goal-method-fieldset legend {
+  padding: 0 5px;
+  color: #f2f2f2;
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
+#live-modal .goal-method-hint {
+  margin: -2px 0 1px;
+  color: #868a88;
+  font-size: 0.69rem;
+}
+
+#live-modal .goal-method-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+#live-modal .goal-method-options label {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 68px;
+  grid-template-columns: 32px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.085);
+  border-radius: 13px;
+  padding: 9px;
+  color: #d6d8d7;
+  background: rgba(8, 9, 8, 0.82);
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+
+#live-modal .goal-method-options label:has(input:checked) {
+  border-color: rgba(255, 90, 0, 0.52);
+  color: #fff;
+  background:
+    linear-gradient(135deg, rgba(255, 90, 0, 0.12), transparent),
+    rgba(18, 12, 9, 0.94);
+  box-shadow: inset 0 0 0 1px rgba(255, 90, 0, 0.04);
+}
+
+#live-modal .goal-method-options label:active {
+  transform: scale(0.985);
+}
+
+#live-modal .goal-method-options input[type="radio"] {
+  position: absolute;
+  width: 1px;
+  min-width: 0;
+  height: 1px;
+  min-height: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  overflow: hidden;
+  opacity: 0;
+  outline: 0;
+  pointer-events: none;
+}
+
+#live-modal .goal-method-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid rgba(255, 90, 0, 0.19);
+  border-radius: 10px;
+  color: #ff7c31;
+  background: rgba(255, 90, 0, 0.065);
+  font-size: 0.7rem;
+  font-weight: 950;
+}
+
+#live-modal .goal-method-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+#live-modal .goal-method-copy strong {
+  overflow: hidden;
+  color: inherit;
+  font-size: 0.74rem;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#live-modal .goal-method-copy small {
+  overflow: hidden;
+  color: #868a88;
+  font-size: 0.59rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#live-modal .goal-method-check {
+  width: 14px;
+  height: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 50%;
+  background: transparent;
+}
+
+#live-modal .goal-method-options label:has(input:checked) .goal-method-check {
+  border-color: #ff6a16;
+  background: #ff5a00;
+  box-shadow:
+    inset 0 0 0 3px #1a0e08,
+    0 0 9px rgba(255, 90, 0, 0.3);
+}
+
+#live-modal .goal-method-options label:has(input:focus-visible) {
+  outline: 2px solid rgba(255, 90, 0, 0.5);
+  outline-offset: 2px;
+}
+
+#live-modal .foul-victim-card {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+  border: 1px solid rgba(255, 90, 0, 0.2);
+  border-radius: 15px;
+  padding: 10px;
+  background:
+    linear-gradient(90deg, rgba(255, 90, 0, 0.085), transparent 70%),
+    rgba(255, 255, 255, 0.018);
+}
+
+#live-modal .foul-victim-avatar {
+  width: 48px;
+  height: 48px;
+  border: 1px solid rgba(255, 90, 0, 0.46);
+}
+
+#live-modal .foul-victim-card > span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+#live-modal .foul-victim-card small,
+#live-modal .foul-victim-card em {
+  color: #8e9290;
+  font-size: 0.65rem;
+  font-style: normal;
+}
+
+#live-modal .foul-victim-card strong {
+  overflow: hidden;
+  color: #fff;
+  font-size: 0.86rem;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#live-modal .field-helper {
+  display: block;
+  margin-top: -3px;
+  color: #777b79;
+  font-size: 0.64rem;
+  line-height: 1.35;
+}
+
+@media (max-width: 420px) {
+  #live-modal .player-action-grid {
+    gap: 6px;
+  }
+
+  #live-modal .player-action-button {
+    min-height: 62px;
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 8px;
+    border-radius: 12px;
+    padding: 8px;
+  }
+
+  #live-modal .player-action-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+  }
+
+  #live-modal .goal-method-fieldset {
+    padding: 11px;
+  }
+
+  #live-modal .goal-method-options label {
+    min-height: 62px;
+    grid-template-columns: 29px minmax(0, 1fr) 14px;
+    gap: 6px;
+    padding: 7px;
+  }
+
+  #live-modal .goal-method-icon {
+    width: 29px;
+    height: 29px;
+  }
+
+  #live-modal .goal-method-copy small {
+    font-size: 0.55rem;
+  }
+}
