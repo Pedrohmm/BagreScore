@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.15.10";
+  const APP_VERSION = "0.16.0";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -3565,6 +3565,7 @@
   function renderPlayerCard(player) {
     const statusClass = `status-${String(player.status || "Ativo").toLowerCase()}`;
     const canEditPlayers = hasPermission("jogadores:editar");
+    const miniAttributes = getActiveAttributeDefinitions(player.tipoJogador, player.posicaoPrincipal).slice(0, 3);
 
     return `
       <article class="player-card ${player.status === "Inativo" ? "is-inactive" : ""}" data-player-id="${escapeHtml(player.id)}">
@@ -3572,10 +3573,13 @@
           ${renderPlayerAvatar(player)}
           <span class="player-card-info">
             <strong>${escapeHtml(playerDisplayName(player))}</strong>
-            <span>${escapeHtml(player.posicaoPrincipal || "-")} - Overall ${escapeHtml(player.overall ?? "-")}</span>
-            <span>${escapeHtml(starsText(player.estrelas || 1))} - Pé ${escapeHtml(player.peForte || "-")}</span>
+            <span>${escapeHtml(player.posicaoPrincipal || "-")} · ${escapeHtml(player.tipoJogador || "Linha")} · Pé ${escapeHtml(player.peForte || "-")}</span>
+            <span class="player-card-mini-attrs">
+              ${miniAttributes.map((attribute) => `<small><b>${escapeHtml(normalizeAttributeValue(player.attributes?.[attribute.key]))}</b> ${escapeHtml(attribute.label)}</small>`).join("")}
+            </span>
+            <span class="player-status ${statusClass}"><i></i>${escapeHtml(player.status || "Ativo")}</span>
           </span>
-          <span class="player-status ${statusClass}">${escapeHtml(player.status || "Ativo")}</span>
+          <span class="player-card-overall"><strong>${escapeHtml(player.overall ?? "-")}</strong><small>OVR</small></span>
         </button>
         ${canEditPlayers ? `<div class="player-card-actions">
           <button class="ghost-button compact-button" type="button" data-player-action="edit" data-player-id="${escapeHtml(player.id)}">Editar</button>
@@ -9108,22 +9112,37 @@
 
     return `
       <div class="stats-profile player-profile-premium">
-        <section class="player-profile-hero">
-          ${renderPlayerFutCard(jogador, activeDefinitions)}
+        <header class="player-profile-topline">
+          <button type="button" data-stats-action="back" aria-label="Voltar aos rankings">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+            <span>Voltar</span>
+          </button>
+          <span>Perfil do jogador</span>
+          <i class="profile-status-dot status-${escapeHtml(normalizeToken(jogador.status || "Ativo"))}" title="${escapeHtml(jogador.status || "Ativo")}"></i>
+        </header>
+
+        <section class="player-profile-stage">
+          ${renderPlayerBagreCard(jogador, activeDefinitions)}
           <article class="player-profile-overview">
-            <span class="panel-kicker">${escapeHtml(jogador.posicaoPrincipal || "-")} · ${escapeHtml(jogador.tipoJogador || "Linha")}</span>
-            <h2>${escapeHtml(playerDisplayName(jogador))}</h2>
-            <p>${escapeHtml(jogador.nome || "Jogador da pelada")}</p>
-            <div class="profile-tags">
-              <span>${escapeHtml(jogador.peForte || "-")}</span>
-              <span>${escapeHtml(jogador.status || "-")}</span>
-              <span>${escapeHtml(starsText(jogador.estrelas || 1))}</span>
+            <div class="profile-identity-copy">
+              <span class="panel-kicker">${escapeHtml(jogador.posicaoPrincipal || "-")} · ${escapeHtml(jogador.tipoJogador || "Linha")}</span>
+              <h2>${escapeHtml(playerDisplayName(jogador))}</h2>
+              <p>${escapeHtml(jogador.nome || "Jogador da pelada")}</p>
+              <div class="profile-tags">
+                <span>Pé ${escapeHtml(jogador.peForte || "-")}</span>
+                <span>${escapeHtml(jogador.status || "-")}</span>
+                <span>${escapeHtml(starsText(jogador.estrelas || 1))}</span>
+              </div>
             </div>
-            <div class="profile-hero-metrics">
+            <div class="profile-performance-strip">
               ${renderProfileHeroMetric("Jogos", stats.jogos)}
               ${renderProfileHeroMetric("Vitórias", stats.vitorias)}
-              ${renderProfileHeroMetric("G/A", stats.participacoesGol)}
-              ${renderProfileHeroMetric("Aproveitamento", formatPercent(stats.aproveitamento))}
+              ${renderProfileHeroMetric("Gols", stats.gols)}
+              ${renderProfileHeroMetric("Assistências", stats.assistencias)}
+            </div>
+            <div class="profile-season-note">
+              <span>Desempenho geral</span>
+              <strong>${escapeHtml(formatPercent(stats.aproveitamento))} de aproveitamento</strong>
             </div>
           </article>
         </section>
@@ -9151,19 +9170,24 @@
     ];
   }
 
-  function renderPlayerFutCard(jogador, activeDefinitions) {
+  function renderPlayerBagreCard(jogador, activeDefinitions) {
     return `
-      <article class="player-fut-card">
-        <div class="player-fut-card-top">
-          <strong>${escapeHtml(jogador.overall || "-")}</strong>
-          <span>${escapeHtml(jogador.posicaoPrincipal || "-")}</span>
+      <article class="player-bagre-card" aria-label="Carta BagreScore de ${escapeHtml(playerDisplayName(jogador))}">
+        <div class="player-bagre-card-top">
+          <span class="player-bagre-rating">
+            <strong>${escapeHtml(jogador.overall || "-")}</strong>
+            <small>OVR</small>
+          </span>
+          <span class="player-bagre-position">${escapeHtml(jogador.posicaoPrincipal || "-")}</span>
         </div>
-        ${renderPlayerAvatar(jogador, "player-avatar player-fut-card-avatar")}
-        <div class="player-fut-card-name">
+        <div class="player-bagre-portrait">
+          ${renderPlayerAvatar(jogador, "player-avatar player-bagre-card-avatar")}
+        </div>
+        <div class="player-bagre-card-name">
           <strong>${escapeHtml(playerDisplayName(jogador))}</strong>
           <small>${escapeHtml(jogador.tipoJogador || "Linha")}</small>
         </div>
-        <div class="player-fut-card-attrs">
+        <div class="player-bagre-card-attrs">
           ${activeDefinitions
             .map((attribute) => {
               const value = normalizeAttributeValue(jogador.attributes?.[attribute.key]);
@@ -9176,6 +9200,7 @@
             })
             .join("")}
         </div>
+        <span class="player-bagre-brand">BagreScore</span>
       </article>
     `;
   }

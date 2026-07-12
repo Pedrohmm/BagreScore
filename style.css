@@ -12555,3 +12555,613 @@ body[data-section="peladas"] .peladas-new-floating {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* BagreScore player collectible interface v0.16.0 */
+body.stats-profile-mode .workspace-panel {
+  background:
+    radial-gradient(circle at 50% 4%, rgba(255, 90, 0, 0.12), transparent 22rem),
+    linear-gradient(180deg, #080808 0%, #030303 54%, #000 100%);
+}
+
+body.stats-profile-mode .player-profile-premium {
+  width: min(100%, 980px);
+  margin-inline: auto;
+  gap: 16px;
+}
+
+body.stats-profile-mode .player-profile-topline {
+  display: grid;
+  grid-template-columns: minmax(88px, 1fr) auto minmax(88px, 1fr);
+  align-items: center;
+  min-height: 48px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 2px 4px 10px;
+}
+
+body.stats-profile-mode .player-profile-topline > span {
+  color: #a4a4a4;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+body.stats-profile-mode .player-profile-topline button {
+  display: inline-flex;
+  width: max-content;
+  min-height: 38px;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 7px 10px 7px 7px;
+  color: #d8d8d8;
+  background: rgba(255, 255, 255, 0.035);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+body.stats-profile-mode .player-profile-topline button svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+body.stats-profile-mode .profile-status-dot {
+  justify-self: end;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #23c967;
+  box-shadow: 0 0 0 5px rgba(35, 201, 103, 0.09), 0 0 16px rgba(35, 201, 103, 0.4);
+}
+
+body.stats-profile-mode .profile-status-dot.status-inativo {
+  background: #717171;
+  box-shadow: 0 0 0 5px rgba(113, 113, 113, 0.1);
+}
+
+body.stats-profile-mode .player-profile-stage {
+  display: grid;
+  grid-template-columns: minmax(300px, 390px) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 16px;
+}
+
+body.stats-profile-mode .player-bagre-card {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-rows: auto auto auto 1fr auto;
+  justify-items: center;
+  gap: 12px;
+  overflow: hidden;
+  min-height: 540px;
+  border: 1px solid transparent;
+  border-radius: 30px 30px 42px 42px;
+  padding: 22px 20px 24px;
+  color: #fff;
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.08), transparent 24%, transparent 74%, rgba(255, 90, 0, 0.06)) padding-box,
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 7px) padding-box,
+    linear-gradient(145deg, rgba(255, 90, 0, 0.9), rgba(255, 255, 255, 0.18) 30%, rgba(255, 255, 255, 0.08) 70%, rgba(255, 90, 0, 0.78)) border-box,
+    #0a0a0a;
+  box-shadow:
+    0 28px 60px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 5px rgba(0, 0, 0, 0.55),
+    inset 0 0 40px rgba(255, 90, 0, 0.035);
+}
+
+body.stats-profile-mode .player-bagre-card::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 23px 23px 35px 35px;
+  clip-path: polygon(0 0, 86% 0, 100% 11%, 100% 100%, 50% 100%, 0 100%);
+}
+
+body.stats-profile-mode .player-bagre-card::after {
+  content: "";
+  position: absolute;
+  z-index: -2;
+  top: 4%;
+  left: 50%;
+  width: 78%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 90, 0, 0.19), rgba(255, 90, 0, 0.035) 43%, transparent 72%);
+  filter: blur(5px);
+  transform: translateX(-50%);
+}
+
+body.stats-profile-mode .player-bagre-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+body.stats-profile-mode .player-bagre-card-top {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+body.stats-profile-mode .player-bagre-rating {
+  display: grid;
+  justify-items: center;
+  line-height: 0.9;
+}
+
+body.stats-profile-mode .player-bagre-rating strong {
+  color: #fff;
+  font-size: clamp(2.8rem, 8vw, 4rem);
+  font-weight: 950;
+  letter-spacing: -0.07em;
+  text-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
+}
+
+body.stats-profile-mode .player-bagre-rating small {
+  margin-top: 8px;
+  color: var(--orange);
+  font-size: 0.76rem;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+}
+
+body.stats-profile-mode .player-bagre-position {
+  display: inline-flex;
+  min-width: 58px;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 90, 0, 0.64);
+  border-radius: 16px;
+  color: #ff7a2c;
+  background: rgba(255, 90, 0, 0.07);
+  box-shadow: inset 0 0 18px rgba(255, 90, 0, 0.04);
+  font-size: 1.15rem;
+  font-weight: 950;
+}
+
+body.stats-profile-mode .player-bagre-portrait {
+  display: grid;
+  width: 164px;
+  height: 164px;
+  place-items: center;
+  border: 1px solid rgba(255, 90, 0, 0.9);
+  border-radius: 50%;
+  padding: 8px;
+  background:
+    radial-gradient(circle at 50% 72%, rgba(255, 90, 0, 0.3), transparent 58%),
+    rgba(0, 0, 0, 0.55);
+  box-shadow:
+    0 0 0 5px rgba(255, 90, 0, 0.08),
+    0 0 40px rgba(255, 90, 0, 0.24),
+    inset 0 0 24px rgba(255, 90, 0, 0.1);
+}
+
+body.stats-profile-mode .player-avatar.player-bagre-card-avatar {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  background:
+    radial-gradient(circle at 50% 28%, #393939, #111 58%, #050505);
+  font-size: 2.2rem;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+body.stats-profile-mode .player-bagre-card-name {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+body.stats-profile-mode .player-bagre-card-name strong {
+  max-width: 290px;
+  overflow: hidden;
+  color: #fff;
+  font-size: clamp(1.65rem, 6vw, 2.25rem);
+  font-weight: 950;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.stats-profile-mode .player-bagre-card-name small {
+  color: #ff7a2c;
+  font-size: 0.78rem;
+  font-weight: 950;
+  letter-spacing: 0.15em;
+}
+
+body.stats-profile-mode .player-bagre-card-attrs {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-self: end;
+  gap: 7px;
+}
+
+body.stats-profile-mode .player-bagre-card-attrs span {
+  display: flex;
+  min-height: 50px;
+  align-items: baseline;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 13px;
+  padding: 10px 6px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.045), rgba(0, 0, 0, 0.22));
+  box-shadow: inset 0 0 16px rgba(255, 90, 0, 0.02);
+}
+
+body.stats-profile-mode .player-bagre-card-attrs strong {
+  color: #fff;
+  font-size: 1.22rem;
+  line-height: 1;
+}
+
+body.stats-profile-mode .player-bagre-card-attrs small {
+  color: var(--orange);
+  font-size: 0.76rem;
+  font-weight: 950;
+}
+
+body.stats-profile-mode .player-bagre-brand {
+  color: #707070;
+  font-size: 0.63rem;
+  font-weight: 950;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+}
+
+body.stats-profile-mode .player-profile-overview {
+  display: grid;
+  align-content: center;
+  gap: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 26px;
+  padding: clamp(18px, 4vw, 30px);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.14), transparent 18rem),
+    linear-gradient(145deg, rgba(18, 18, 18, 0.98), rgba(6, 6, 6, 0.98));
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.36);
+}
+
+body.stats-profile-mode .profile-identity-copy {
+  display: grid;
+  gap: 7px;
+}
+
+body.stats-profile-mode .profile-identity-copy h2 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(2.2rem, 7vw, 4.5rem);
+  letter-spacing: -0.055em;
+  line-height: 0.92;
+}
+
+body.stats-profile-mode .profile-identity-copy p {
+  margin: 0;
+  color: #8d8d8d;
+}
+
+body.stats-profile-mode .profile-performance-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+body.stats-profile-mode .profile-performance-strip span {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 15px 8px;
+  text-align: center;
+}
+
+body.stats-profile-mode .profile-performance-strip span + span {
+  border-left: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+body.stats-profile-mode .profile-performance-strip small {
+  color: #8d8d8d;
+  font-size: 0.64rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+body.stats-profile-mode .profile-performance-strip strong {
+  color: var(--orange);
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+body.stats-profile-mode .profile-season-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 14px;
+  color: #747474;
+  font-size: 0.76rem;
+}
+
+body.stats-profile-mode .profile-season-note strong {
+  color: #d8d8d8;
+}
+
+body.stats-profile-mode .player-profile-tabs {
+  border-color: rgba(255, 255, 255, 0.09);
+  background: rgba(8, 8, 8, 0.92);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.3);
+}
+
+body.stats-profile-mode .player-profile-tabs button.active {
+  border-color: rgba(255, 90, 0, 0.62);
+  background: rgba(255, 90, 0, 0.13);
+  box-shadow: inset 0 -2px 0 var(--orange), 0 8px 18px rgba(255, 90, 0, 0.08);
+}
+
+body.stats-profile-mode .profile-panel-card,
+body.stats-profile-mode .evolution-card {
+  border-color: rgba(255, 255, 255, 0.1);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.07), transparent 16rem),
+    linear-gradient(145deg, rgba(16, 16, 16, 0.98), rgba(5, 5, 5, 0.98));
+}
+
+/* Compact roster cards use the same collectible language. */
+body[data-section="jogadores"] .player-card {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 0.11);
+  border-radius: 20px;
+  padding: 12px;
+  background:
+    linear-gradient(110deg, rgba(255, 90, 0, 0.08), transparent 34%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 8px),
+    #0b0b0b;
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.3);
+}
+
+body[data-section="jogadores"] .player-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, transparent, var(--orange), transparent);
+}
+
+body[data-section="jogadores"] .player-card-main {
+  grid-template-columns: 72px minmax(0, 1fr) 54px;
+  gap: 12px;
+}
+
+body[data-section="jogadores"] .player-card .player-avatar {
+  width: 68px;
+  height: 68px;
+  border: 1px solid rgba(255, 90, 0, 0.76);
+  box-shadow: 0 0 0 4px rgba(255, 90, 0, 0.06), 0 0 24px rgba(255, 90, 0, 0.1);
+}
+
+body[data-section="jogadores"] .player-card-info {
+  gap: 5px;
+}
+
+body[data-section="jogadores"] .player-card-info > strong {
+  color: #fff;
+  font-size: 1.08rem;
+}
+
+body[data-section="jogadores"] .player-card-info > span:not(.player-card-mini-attrs):not(.player-status) {
+  color: #8f8f8f;
+  font-size: 0.72rem;
+}
+
+body[data-section="jogadores"] .player-card-mini-attrs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+body[data-section="jogadores"] .player-card-mini-attrs small {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 7px;
+  padding: 4px 6px;
+  color: var(--orange);
+  background: rgba(255, 255, 255, 0.025);
+  font-size: 0.63rem;
+  font-weight: 850;
+}
+
+body[data-section="jogadores"] .player-card-mini-attrs b {
+  color: #fff;
+}
+
+body[data-section="jogadores"] .player-card .player-status {
+  display: inline-flex;
+  width: max-content;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font-size: 0.62rem;
+}
+
+body[data-section="jogadores"] .player-card .player-status i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #25c96a;
+}
+
+body[data-section="jogadores"] .player-card .player-status.status-inativo i {
+  background: #777;
+}
+
+body[data-section="jogadores"] .player-card-overall {
+  display: grid;
+  justify-items: center;
+  align-self: start;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  padding-left: 10px;
+}
+
+body[data-section="jogadores"] .player-card-overall strong {
+  color: #fff;
+  font-size: 1.65rem;
+  letter-spacing: -0.06em;
+  line-height: 1;
+}
+
+body[data-section="jogadores"] .player-card-overall small {
+  margin-top: 4px;
+  color: var(--orange);
+  font-size: 0.58rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+}
+
+body[data-section="jogadores"] .player-card-actions {
+  grid-template-columns: repeat(3, auto);
+  justify-content: end;
+  margin-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding-top: 8px;
+}
+
+body[data-section="jogadores"] .player-card-actions .compact-button {
+  min-height: 30px;
+  border-radius: 9px;
+  padding: 5px 9px;
+  font-size: 0.67rem;
+  opacity: 0.72;
+}
+
+@media (max-width: 920px) {
+  body.stats-profile-mode .player-profile-stage {
+    grid-template-columns: 1fr;
+  }
+
+  body.stats-profile-mode .player-bagre-card {
+    width: min(100%, 390px);
+    justify-self: center;
+  }
+}
+
+@media (max-width: 620px) {
+  body.stats-profile-mode .player-profile-premium {
+    gap: 12px;
+  }
+
+  body.stats-profile-mode .player-profile-topline {
+    grid-template-columns: 76px minmax(0, 1fr) 30px;
+  }
+
+  body.stats-profile-mode .player-profile-topline button span {
+    display: none;
+  }
+
+  body.stats-profile-mode .player-profile-topline button {
+    width: 38px;
+    justify-content: center;
+    padding: 7px;
+  }
+
+  body.stats-profile-mode .player-bagre-card {
+    min-height: 500px;
+    border-radius: 25px 25px 36px 36px;
+    padding: 18px 14px 21px;
+  }
+
+  body.stats-profile-mode .player-bagre-portrait {
+    width: 142px;
+    height: 142px;
+  }
+
+  body.stats-profile-mode .player-profile-overview {
+    gap: 15px;
+    border-radius: 20px;
+    padding: 17px 14px;
+  }
+
+  body.stats-profile-mode .profile-performance-strip span {
+    padding: 13px 4px;
+  }
+
+  body.stats-profile-mode .profile-performance-strip strong {
+    font-size: 1.35rem;
+  }
+
+  body.stats-profile-mode .profile-performance-strip small {
+    font-size: 0.55rem;
+  }
+
+  body.stats-profile-mode .profile-season-note {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  body[data-section="jogadores"] .player-card-main {
+    grid-template-columns: 64px minmax(0, 1fr) 48px;
+  }
+
+  body[data-section="jogadores"] .player-card .player-avatar {
+    width: 60px;
+    height: 60px;
+  }
+
+  body[data-section="jogadores"] .player-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 350px) {
+  body.stats-profile-mode .profile-performance-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body.stats-profile-mode .profile-performance-strip span:nth-child(3) {
+    border-left: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
+  }
+
+  body.stats-profile-mode .profile-performance-strip span:nth-child(4) {
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
+  }
+
+  body[data-section="jogadores"] .player-card-main {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  body[data-section="jogadores"] .player-card-overall {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    grid-template-columns: auto auto;
+    justify-content: start;
+    gap: 5px;
+    border-left: 0;
+    padding: 0;
+  }
+}
