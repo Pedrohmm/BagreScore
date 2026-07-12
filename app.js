@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.18.7";
+  const APP_VERSION = "0.18.8";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -493,6 +493,7 @@
   const openingPeladaFinishIds = new Set();
   const finalizingPeladaIds = new Set();
   let sectionSwitchInProgress = false;
+  let rankingViewTransitionInProgress = false;
   const GOAL_TYPES = [
     { value: "normal", label: "Normal" },
     { value: "penalti", label: "Pênalti" },
@@ -8167,6 +8168,27 @@
   }
 
   function renderRankingPremiumOverview(statsResult) {
+    const viewModel = getRankingViewModel(statsResult);
+    const { activeMode } = viewModel;
+
+    return `
+      <div class="ranking-premium-page ranking-leaderboard-page">
+        <section class="ranking-leaderboard-screen">
+          <div class="ranking-leaderboard-top">
+            <div>
+              <span class="panel-kicker">Leaderboard</span>
+              <h2>Ranking</h2>
+              <p data-ranking-mode-description>${escapeHtml(getRankingModeDescription(activeMode))}</p>
+            </div>
+          </div>
+          ${renderRankingModeTabs(activeMode)}
+          ${renderRankingViewContent(viewModel)}
+        </section>
+      </div>
+    `;
+  }
+
+  function getRankingViewModel(statsResult) {
     const groups = buildRankingCategoryGroups(statsResult);
     const activeMode = groups[state.rankingMode] ? state.rankingMode : "geral";
     const categories = groups[activeMode] || [];
@@ -8178,20 +8200,19 @@
     state.rankingMode = activeMode;
     state.rankingCategory = activeCategoryId;
 
+    return { activeMode, categories, activeCategoryId, activeCategory };
+  }
+
+  function renderRankingViewContent(viewModel) {
+    return `<div class="ranking-view-content" data-ranking-view>${renderRankingViewInner(viewModel)}</div>`;
+  }
+
+  function renderRankingViewInner(viewModel) {
+    const { categories, activeCategoryId, activeCategory } = viewModel;
     return `
-      <div class="ranking-premium-page ranking-leaderboard-page">
-        <section class="ranking-leaderboard-screen">
-          <div class="ranking-leaderboard-top">
-            <div>
-              <span class="panel-kicker">Leaderboard</span>
-              <h2>Ranking</h2>
-              <p>${escapeHtml(getRankingModeDescription(activeMode))}</p>
-            </div>
-          </div>
-          ${renderRankingModeTabs(activeMode)}
-          ${renderRankingCategoryPicker(categories, activeCategoryId)}
-          ${activeCategory ? renderRankingCategoryPodium(activeCategory) : renderEmptyRankingPodium()}
-        </section>
+      ${renderRankingCategoryPicker(categories, activeCategoryId)}
+      <div class="ranking-board-slot" data-ranking-board>
+        ${activeCategory ? renderRankingCategoryPodium(activeCategory) : renderEmptyRankingPodium()}
       </div>
     `;
   }
@@ -8346,7 +8367,7 @@
         ${modes
           .map(
             ([mode, label]) => `
-              <button class="${mode === activeMode ? "active" : ""}" type="button" data-ranking-mode="${escapeHtml(mode)}">
+              <button class="${mode === activeMode ? "active" : ""}" type="button" role="tab" aria-selected="${mode === activeMode ? "true" : "false"}" data-ranking-mode="${escapeHtml(mode)}">
                 ${escapeHtml(label)}
               </button>
             `
@@ -8476,6 +8497,74 @@
     `;
   }
 
+  function waitForRankingFrame() {
+    return new Promise((resolve) => window.requestAnimationFrame(resolve));
+  }
+
+  async function transitionRankingView(scope = "category") {
+    if (rankingViewTransitionInProgress) return;
+
+    const root = $("#section-content");
+    const view = root?.querySelector("[data-ranking-view]");
+
+    if (!root || !view) {
+      await renderRankingSection();
+      return;
+    }
+
+    rankingViewTransitionInProgress = true;
+
+    try {
+      const statsResult = await calcularEstatisticasJogadores({
+        periodo: "all",
+        peladaId: "",
+        month: "",
+        temporadaId: "",
+        jogadorId: "",
+        posicao: "",
+        sortBy: "gols",
+      });
+      const viewModel = getRankingViewModel(statsResult);
+      const target = scope === "mode" ? view : view.querySelector("[data-ranking-board]");
+
+      if (!target) {
+        await renderRankingSection();
+        return;
+      }
+
+      root.querySelector("[data-ranking-mode-description]")?.replaceChildren(document.createTextNode(getRankingModeDescription(viewModel.activeMode)));
+      root.querySelectorAll("[data-ranking-mode]").forEach((button) => {
+        const isActive = button.dataset.rankingMode === viewModel.activeMode;
+        button.classList.toggle("active", isActive);
+        button.setAttribute("aria-selected", String(isActive));
+      });
+
+      const stableHeight = target.offsetHeight;
+      if (stableHeight) target.style.minHeight = `${stableHeight}px`;
+      target.classList.add("is-ranking-leaving");
+      await waitForRankingFrame();
+
+      if (scope === "mode") {
+        target.innerHTML = renderRankingViewInner(viewModel);
+      } else {
+        target.innerHTML = viewModel.activeCategory
+          ? renderRankingCategoryPodium(viewModel.activeCategory)
+          : renderEmptyRankingPodium();
+        view.querySelectorAll("[data-ranking-category]").forEach((button) => {
+          button.classList.toggle("active", button.dataset.rankingCategory === viewModel.activeCategoryId);
+        });
+      }
+
+      target.classList.remove("is-ranking-leaving");
+      target.classList.add("is-ranking-entering");
+      await waitForRankingFrame();
+      target.classList.remove("is-ranking-entering");
+      target.style.minHeight = "";
+    } finally {
+      rankingViewTransitionInProgress = false;
+    }
+  }
+
   function getOverallRankingEntries(statsResult, limit = 3) {
     return statsResult.playersStats
       .filter((stats) => stats.jogador)
@@ -8541,15 +8630,19 @@
       const actionButton = event.target.closest("[data-ranking-action]");
 
       if (modeButton) {
-        state.rankingMode = modeButton.dataset.rankingMode || "geral";
+        const nextMode = modeButton.dataset.rankingMode || "geral";
+        if (nextMode === state.rankingMode) return;
+        state.rankingMode = nextMode;
         state.rankingCategory = "";
-        await renderRankingSection();
+        await transitionRankingView("mode");
         return;
       }
 
       if (categoryButton) {
-        state.rankingCategory = categoryButton.dataset.rankingCategory || "";
-        await renderRankingSection();
+        const nextCategory = categoryButton.dataset.rankingCategory || "";
+        if (nextCategory === state.rankingCategory) return;
+        state.rankingCategory = nextCategory;
+        await transitionRankingView("category");
         return;
       }
 
