@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.16.7";
+  const APP_VERSION = "0.16.8";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -490,6 +490,7 @@
   const finalizingGameIds = new Set();
   const openingPeladaFinishIds = new Set();
   const finalizingPeladaIds = new Set();
+  let sectionSwitchInProgress = false;
   const GOAL_TYPES = [
     { value: "normal", label: "Normal" },
     { value: "penalti", label: "Pênalti" },
@@ -956,6 +957,10 @@
   }
 
   async function switchSection(sectionName, options = {}) {
+    if (sectionSwitchInProgress) {
+      return;
+    }
+
     const targetSection = normalizeSectionName(sectionName);
     const previousSection = state.currentSection;
     const historyMode = options.historyMode || "push";
@@ -963,53 +968,72 @@
     const gameId = targetSection === "peladas" ? options.gameId || "" : "";
     const peladasView = targetSection === "peladas" ? options.peladasView || "gerenciar" : "";
     const targetHash = buildSectionHash(targetSection, { peladaId, gameId, peladasView });
+    const shouldAnimate = targetSection !== previousSection && options.animate !== false;
+    const sectionContent = $("#section-content");
 
-    state.currentSection = targetSection;
+    sectionSwitchInProgress = true;
 
-    if (targetSection === "configuracoes" && previousSection !== "configuracoes") {
-      showSectionLoadingState(targetSection, "Abrindo suas configurações...");
-    }
-
-    if (targetSection === "jogadores" && previousSection !== "jogadores" && !options.preservePlayerState) {
-      state.playerFormOpen = false;
-      state.playerFormStep = "basicos";
-      state.playersListOpen = false;
-      state.selectedPlayerId = null;
-      state.editingPlayerId = null;
-    }
-
-    if (targetSection === "peladas") {
-      const nextPeladaId = peladaId || null;
-      const previousPeladaId = state.selectedPeladaId || null;
-
-      if (previousPeladaId !== nextPeladaId) {
-        state.gameDraft = createEmptyGameDraft();
-        state.selectedGameSummaryId = null;
+    try {
+      if (shouldAnimate) {
+        document.body.classList.add("is-section-switching");
+        sectionContent?.setAttribute("aria-busy", "true");
+        await new Promise((resolve) => window.setTimeout(resolve, 55));
       }
 
-      state.selectedPeladaId = nextPeladaId;
-      state.peladasView = nextPeladaId ? "detalhe" : peladasView;
+      state.currentSection = targetSection;
 
-      state.selectedGameSummaryId = gameId || null;
-
-      if (!nextPeladaId) {
-        state.selectedGameSummaryId = null;
+      if (targetSection === "configuracoes" && previousSection !== "configuracoes") {
+        showSectionLoadingState(targetSection, "Abrindo suas configurações...");
       }
-    }
 
-    if (window.location.hash !== targetHash) {
-      if (historyMode === "replace") {
-        window.history.replaceState(null, "", targetHash);
-      } else if (historyMode === "push") {
-        window.history.pushState(null, "", targetHash);
+      if (targetSection === "jogadores" && previousSection !== "jogadores" && !options.preservePlayerState) {
+        state.playerFormOpen = false;
+        state.playerFormStep = "basicos";
+        state.playersListOpen = false;
+        state.selectedPlayerId = null;
+        state.editingPlayerId = null;
       }
-    }
 
-    setActiveSection(targetSection);
-    await renderCurrentSection();
+      if (targetSection === "peladas") {
+        const nextPeladaId = peladaId || null;
+        const previousPeladaId = state.selectedPeladaId || null;
 
-    if (targetSection !== previousSection) {
-      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+        if (previousPeladaId !== nextPeladaId) {
+          state.gameDraft = createEmptyGameDraft();
+          state.selectedGameSummaryId = null;
+        }
+
+        state.selectedPeladaId = nextPeladaId;
+        state.peladasView = nextPeladaId ? "detalhe" : peladasView;
+
+        state.selectedGameSummaryId = gameId || null;
+
+        if (!nextPeladaId) {
+          state.selectedGameSummaryId = null;
+        }
+      }
+
+      if (window.location.hash !== targetHash) {
+        if (historyMode === "replace") {
+          window.history.replaceState(null, "", targetHash);
+        } else if (historyMode === "push") {
+          window.history.pushState(null, "", targetHash);
+        }
+      }
+
+      setActiveSection(targetSection);
+      await renderCurrentSection();
+
+      if (targetSection !== previousSection) {
+        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      }
+    } finally {
+      if (shouldAnimate) {
+        await new Promise((resolve) => window.requestAnimationFrame(resolve));
+        document.body.classList.remove("is-section-switching");
+        sectionContent?.removeAttribute("aria-busy");
+      }
+      sectionSwitchInProgress = false;
     }
   }
 
