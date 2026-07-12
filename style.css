@@ -15417,3 +15417,123 @@ body[data-section="ao-vivo"] .live-score-center .timer {
     gap: 6px;
   }
 }
+
+/* Stronger match identity and centered live badge v0.18.4 */
+body[data-section="ao-vivo"] .live-score-content {
+  gap: 2px;
+  padding-top: 16px;
+}
+
+body[data-section="ao-vivo"] .live-score-meta {
+  min-height: 34px;
+  padding-inline: 20px;
+}
+
+body[data-section="ao-vivo"] .live-score-meta .live-match-eyebrow b {
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  color: #ff8a47;
+  background: transparent;
+  box-shadow: none;
+  font-size: clamp(0.86rem, 4vw, 1.05rem);
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 0 18px rgba(255, 90, 0, 0.18);
+}
+
+body[data-section="ao-vivo"] .live-score-board {
+  min-height: 174px;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 1.22fr) minmax(0, 1fr);
+}
+
+body[data-section="ao-vivo"] .live-score-center {
+  gap: 8px;
+}
+
+body[data-section="ao-vivo"] .live-score-center .live-score-status {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: -2px;
+}
+
+body[data-section="ao-vivo"] .live-score-center .live-status-dot {
+  min-height: 23px;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 0.54rem;
+  line-height: 1;
+}
+
+body[data-section="ao-vivo"] .live-score-center .live-status-dot::before {
+  width: 6px;
+  height: 6px;
+}
+
+body[data-section="ao-vivo"] .live-team-badge {
+  gap: 10px;
+}
+
+body[data-section="ao-vivo"] .live-team-badge > span {
+  width: 76px;
+  height: 76px;
+  font-size: 1.22rem;
+}
+
+body[data-section="ao-vivo"] .live-team-badge strong {
+  max-width: 120px;
+  font-size: 0.84rem;
+  line-height: 1.15;
+}
+
+@media (max-width: 420px) {
+  body[data-section="ao-vivo"] .live-score-content {
+    padding-top: 13px;
+  }
+
+  body[data-section="ao-vivo"] .live-score-meta {
+    min-height: 30px;
+  }
+
+  body[data-section="ao-vivo"] .live-score-meta .live-match-eyebrow b {
+    font-size: 0.78rem;
+    letter-spacing: 0.11em;
+  }
+
+  body[data-section="ao-vivo"] .live-score-board {
+    min-height: 155px;
+    grid-template-columns: minmax(0, 1fr) minmax(122px, 1.18fr) minmax(0, 1fr);
+  }
+
+  body[data-section="ao-vivo"] .live-team-badge > span {
+    width: 66px;
+    height: 66px;
+    font-size: 1.08rem;
+  }
+
+  body[data-section="ao-vivo"] .live-team-badge strong {
+    max-width: 98px;
+    font-size: 0.76rem;
+  }
+}
+
+@media (max-width: 350px) {
+  body[data-section="ao-vivo"] .live-score-board {
+    grid-template-columns: minmax(0, 1fr) 112px minmax(0, 1fr);
+  }
+
+  body[data-section="ao-vivo"] .live-team-badge > span {
+    width: 59px;
+    height: 59px;
+  }
+
+  body[data-section="ao-vivo"] .live-team-badge strong {
+    max-width: 82px;
+    font-size: 0.68rem;
+  }
+}
