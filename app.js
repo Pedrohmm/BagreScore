@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.19.1";
+  const APP_VERSION = "0.20.0";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -5163,14 +5163,18 @@
     }
 
     return `
-      <div class="pelada-detail-flow">
-        <section class="data-card game-summary-nav">
-          <div>
-            <span class="panel-kicker">${escapeHtml(formatDateLabel(pelada.data))}</span>
-            <h3>Resumo do Jogo ${escapeHtml(gameNumber)}</h3>
+      <div class="game-summary-screen">
+        <header class="game-summary-header">
+          <button class="game-summary-back" type="button" data-pelada-action="close-summary" aria-label="Voltar para a pelada">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+            <span>Pelada</span>
+          </button>
+          <div class="game-summary-heading">
+            <span>${escapeHtml(formatDateLabel(pelada.data))}</span>
+            <h2>Resumo do Jogo ${escapeHtml(gameNumber)}</h2>
+            <p>Placar, escalações e eventos da partida.</p>
           </div>
-          <button class="ghost-button compact-button" type="button" data-pelada-action="close-summary">Voltar para a pelada</button>
-        </section>
+        </header>
         ${renderGameSummary(bundle, pelada, gameNumber)}
       </div>
     `;
@@ -5366,35 +5370,56 @@
 
   function renderGameSummary(bundle, pelada, gameNumber = "") {
     const { jogo, playersA, playersB } = bundle;
+    const winner = getGameWinner(jogo);
+    const ending = jogo.formaEncerramento ? `Encerrado por ${jogo.formaEncerramento}` : getGameStatusLabel(jogo);
 
     return `
-      <aside class="game-summary">
-        <div class="players-toolbar">
-          <div>
-            <span class="panel-kicker">${escapeHtml(formatDateLabel(pelada.data))}</span>
-            <h3>${gameNumber ? `Resumo do Jogo ${escapeHtml(gameNumber)}` : "Resumo do jogo"}</h3>
-          </div>
+      <main class="game-summary game-summary-modern">
+        <section class="game-summary-scoreboard">
+          <div class="game-summary-status-line">
+            <span class="game-summary-status ${jogo.status === "Finalizado" ? "is-finished" : "is-live"}">${escapeHtml(getGameStatusLabel(jogo))}</span>
+            <small>${escapeHtml(ending)}</small>
           ${
             jogo.status === "Em andamento"
               ? `<button class="primary-button compact-button" type="button" data-pelada-action="open-live" data-game-id="${escapeHtml(jogo.id)}">Abrir ao vivo</button>`
               : ""
           }
-        </div>
-        <div class="summary-score">
-          <span>${escapeHtml(teamNameFromGame(jogo, "A"))}</span>
-          <strong>${escapeHtml(jogo.placarA ?? 0)} x ${escapeHtml(jogo.placarB ?? 0)}</strong>
-          <span>${escapeHtml(teamNameFromGame(jogo, "B"))}</span>
-        </div>
-        <div class="summary-columns">
-          ${renderSummaryTeam(teamNameFromGame(jogo, "A"), playersA)}
-          ${renderSummaryTeam(teamNameFromGame(jogo, "B"), playersB)}
-        </div>
-        ${renderEventSummaryStats(bundle)}
-        <div class="future-stats">
-          <h3>Eventos registrados</h3>
+          </div>
+          <div class="summary-score">
+            <div class="summary-score-team is-a">
+              <span>TA</span>
+              <strong>${escapeHtml(teamNameFromGame(jogo, "A"))}</strong>
+            </div>
+            <div class="summary-score-result">
+              <small>Placar final</small>
+              <strong><b>${escapeHtml(jogo.placarA ?? 0)}</b><i>–</i><b>${escapeHtml(jogo.placarB ?? 0)}</b></strong>
+              <span>${escapeHtml(winner === "Empate" ? "Partida empatada" : `Vencedor: ${winner}`)}</span>
+            </div>
+            <div class="summary-score-team is-b">
+              <span>TB</span>
+              <strong>${escapeHtml(teamNameFromGame(jogo, "B"))}</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="game-summary-section game-summary-lineups">
+          <header><span>Escalações</span><h3>Times da partida</h3></header>
+          <div class="summary-columns">
+            ${renderSummaryTeam(teamNameFromGame(jogo, "A"), playersA, "A")}
+            ${renderSummaryTeam(teamNameFromGame(jogo, "B"), playersB, "B")}
+          </div>
+        </section>
+
+        <section class="game-summary-section game-summary-numbers">
+          <header><span>Desempenho</span><h3>Números da partida</h3></header>
+          ${renderEventSummaryStats(bundle)}
+        </section>
+
+        <section class="game-summary-section future-stats">
+          <header><span>Linha do tempo</span><h3>Eventos registrados</h3></header>
           ${renderEventTimeline(bundle)}
-        </div>
-      </aside>
+        </section>
+      </main>
     `;
   }
 
@@ -5426,16 +5451,21 @@
     `;
   }
 
-  function renderSummaryTeam(title, players) {
+  function renderSummaryTeam(title, players, teamKey = "A") {
     return `
-      <div class="summary-team">
-        <h3>${escapeHtml(title)}</h3>
+      <article class="summary-team is-team-${teamKey.toLowerCase()}">
+        <header><span>Time ${escapeHtml(teamKey)}</span><h3>${escapeHtml(title)}</h3></header>
         ${
           players.length
-            ? `<ul>${players.map((player) => `<li>${escapeHtml(playerDisplayName(player))}</li>`).join("")}</ul>`
+            ? `<ul>${players.map((player) => `
+                <li>
+                  ${renderPlayerAvatar(player, "player-avatar summary-player-avatar")}
+                  <span><strong>${escapeHtml(playerDisplayName(player))}</strong><small>${escapeHtml(player.posicaoPrincipal || player.tipoJogador || "Jogador")}</small></span>
+                </li>
+              `).join("")}</ul>`
             : `<p>Sem jogadores.</p>`
         }
-      </div>
+      </article>
     `;
   }
 
@@ -8601,19 +8631,25 @@
           .map(
             (history) => `
               <article class="player-history-row">
-                <span>
-                  <strong>${escapeHtml(formatDateLabel(history.data))}</strong>
-                  <small>${escapeHtml(history.local || "Pelada")}</small>
-                </span>
-                <span>${escapeHtml(history.timeNome || `Time ${history.time}`)}</span>
-                <span>${escapeHtml(history.placar)}</span>
-                <span class="result-badge result-${escapeHtml(history.resultado)}">${escapeHtml(resultLabel(history.resultado))}</span>
-                <span>${escapeHtml(history.gols)} G</span>
-                <span>${escapeHtml(history.assistencias)} A</span>
-                <span>${escapeHtml(history.faltasCometidas)} FC</span>
-                <span>${escapeHtml(history.faltasSofridas)} FS</span>
-                <span>${escapeHtml(history.acoesDefensivas)} AD</span>
-                <span>${escapeHtml(history.defesasDificeis)} DD</span>
+                <header class="player-history-head">
+                  <span class="player-history-date">
+                    <strong>${escapeHtml(formatDateLabel(history.data))}</strong>
+                    <small>${escapeHtml(history.local || "Pelada")}</small>
+                  </span>
+                  <span class="result-badge result-${escapeHtml(history.resultado)}">${escapeHtml(resultLabel(history.resultado))}</span>
+                </header>
+                <div class="player-history-scoreline">
+                  <span><small>Jogou pelo</small><strong>${escapeHtml(history.timeNome || `Time ${history.time}`)}</strong></span>
+                  <strong>${escapeHtml(history.placar)}</strong>
+                </div>
+                <div class="player-history-metrics" aria-label="Estatísticas desta partida">
+                  <span><strong>${escapeHtml(history.gols)}</strong><small>Gols</small></span>
+                  <span><strong>${escapeHtml(history.assistencias)}</strong><small>Assist.</small></span>
+                  <span><strong>${escapeHtml(history.faltasCometidas)}</strong><small>Faltas C.</small></span>
+                  <span><strong>${escapeHtml(history.faltasSofridas)}</strong><small>Faltas S.</small></span>
+                  <span><strong>${escapeHtml(history.acoesDefensivas)}</strong><small>Ações def.</small></span>
+                  <span><strong>${escapeHtml(history.defesasDificeis)}</strong><small>Defesas</small></span>
+                </div>
               </article>
             `
           )
