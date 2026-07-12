@@ -13166,7 +13166,7 @@ body[data-section="jogadores"] .player-card-actions .compact-button {
   }
 }
 
-/* Functional vector player card v0.16.2 */
+/* Functional vector player card v0.16.3 */
 body.stats-profile-mode .player-profile-premium {
   width: min(100%, 760px);
   gap: 14px;
@@ -13595,5 +13595,69 @@ body.stats-profile-mode .player-card-context .profile-tags span {
 
   body.stats-profile-mode .player-card-more-action {
     grid-column: 1 / -1;
+  }
+}
+
+/* Player card readability refinements v0.16.3 */
+body.stats-profile-mode .player-bagre-card-top {
+  justify-content: flex-start;
+}
+
+body.stats-profile-mode .player-bagre-rating small {
+  min-width: 48px;
+  margin-top: 9px;
+  color: var(--orange);
+  font-size: 1rem;
+  letter-spacing: 0.09em;
+  text-align: center;
+}
+
+body.stats-profile-mode .player-bagre-card-attrs span {
+  min-height: 62px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 11px 8px;
+  text-align: center;
+}
+
+body.stats-profile-mode .player-bagre-card-attrs strong {
+  min-width: 2ch;
+  font-size: 1.62rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: right;
+}
+
+body.stats-profile-mode .player-bagre-card-attrs small {
+  min-width: 2.5ch;
+  font-size: 0.94rem;
+  line-height: 1;
+  text-align: left;
+}
+
+body.stats-profile-mode .player-bagre-brand {
+  align-self: end;
+  border-radius: 999px;
+  padding: 5px 14px 5px 17px;
+  color: #8a8a8a;
+  background: #0a0a0a;
+  box-shadow: 0 0 0 5px #0a0a0a, 0 0 18px 9px #0a0a0a;
+  line-height: 1;
+  transform: translateY(-5px);
+}
+
+@media (max-width: 390px) {
+  body.stats-profile-mode .player-bagre-card-attrs span {
+    min-height: 56px;
+    gap: 7px;
+  }
+
+  body.stats-profile-mode .player-bagre-card-attrs strong {
+    font-size: 1.48rem;
+  }
+
+  body.stats-profile-mode .player-bagre-card-attrs small {
+    font-size: 0.86rem;
   }
 }

@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.16.2";
+  const APP_VERSION = "0.16.3";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -9209,16 +9209,15 @@
           <path class="frame-accent frame-accent-left" d="M22 56V205L34 221V446L48 468"/>
           <path class="frame-accent frame-accent-right" d="M338 54V197L326 213V445L312 468"/>
           <path class="frame-shoulder" d="M18 33L54 14H273L316 36"/>
-          <path class="frame-footer" d="M51 499L180 541L309 499"/>
+          <path class="frame-footer" d="M51 499L132 525M228 525L309 499"/>
           <path class="frame-tech-left" d="M31 230H47V405H31M38 246H47"/>
           <path class="frame-tech-right" d="M329 224H313V401H329M322 240H313"/>
         </svg>
         <div class="player-bagre-card-top">
           <span class="player-bagre-rating">
             <strong>${escapeHtml(jogador.overall || "-")}</strong>
-            <small>OVR</small>
+            <small>${escapeHtml(jogador.posicaoPrincipal || "-")}</small>
           </span>
-          <span class="player-bagre-position">${escapeHtml(jogador.posicaoPrincipal || "-")}</span>
         </div>
         <div class="player-bagre-portrait">
           ${renderPlayerAvatar(jogador, "player-avatar player-bagre-card-avatar")}
