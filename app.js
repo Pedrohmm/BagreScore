@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.16.5";
+  const APP_VERSION = "0.16.6";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -11058,6 +11058,12 @@
     $("#settings-drawer-close")?.addEventListener("click", closeSettingsDrawer);
     $("#settings-drawer-backdrop")?.addEventListener("click", closeSettingsDrawer);
     $("#drawer-sync-option")?.addEventListener("click", syncNow);
+    $("#drawer-statistics-option")?.addEventListener("click", async () => {
+      state.selectedStatsPlayerId = null;
+      state.selectedProfileTab = "resumo";
+      await switchSection("estatisticas");
+      closeSettingsDrawer();
+    });
     $("#auth-login-form")?.addEventListener("submit", handleAuthLoginSubmit);
     $("#auth-change-server")?.addEventListener("click", handleAuthChangeServer);
     $("#logout-button")?.addEventListener("click", handleLogout);
