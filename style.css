@@ -15198,3 +15198,116 @@ body[data-section="ao-vivo"] .live-screen:has(.live-control-bar) {
     font-size: 0.55rem;
   }
 }
+
+/* Centered live scoreboard header v0.18.2 */
+body[data-section="ao-vivo"] .live-score-content {
+  gap: 4px;
+  padding-top: 15px;
+}
+
+body[data-section="ao-vivo"] .live-score-meta {
+  display: grid;
+  min-height: 30px;
+  place-items: center;
+  padding-inline: 72px;
+}
+
+body[data-section="ao-vivo"] .live-score-meta .live-match-eyebrow {
+  display: flex;
+  justify-content: center;
+}
+
+body[data-section="ao-vivo"] .live-score-meta .live-match-eyebrow b {
+  min-width: 74px;
+  border-color: rgba(255, 90, 0, 0.48);
+  border-radius: 999px;
+  padding: 6px 11px;
+  color: #ff9b62;
+  background: rgba(255, 90, 0, 0.075);
+  text-align: center;
+}
+
+body[data-section="ao-vivo"] .live-score-board {
+  min-height: 168px;
+  grid-template-columns: minmax(0, 1fr) minmax(126px, 1.18fr) minmax(0, 1fr);
+  padding-top: 0;
+}
+
+body[data-section="ao-vivo"] .live-score-center {
+  gap: 6px;
+}
+
+body[data-section="ao-vivo"] .live-game-state {
+  display: flex;
+  min-height: 27px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+body[data-section="ao-vivo"] .live-game-state .live-status-dot {
+  min-height: 25px;
+  border-radius: 999px;
+  padding: 5px 8px;
+  font-size: 0.56rem;
+  line-height: 1;
+}
+
+body[data-section="ao-vivo"] .live-game-state .live-status-dot::before {
+  width: 6px;
+  height: 6px;
+}
+
+body[data-section="ao-vivo"] .live-game-state .live-period {
+  min-width: 0;
+  color: #aeb2b0;
+  font-size: 0.58rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 420px) {
+  body[data-section="ao-vivo"] .live-score-content {
+    padding-top: 12px;
+  }
+
+  body[data-section="ao-vivo"] .live-score-meta {
+    min-height: 27px;
+    padding-inline: 58px;
+  }
+
+  body[data-section="ao-vivo"] .live-score-meta .live-match-eyebrow b {
+    min-width: 68px;
+    padding: 5px 9px;
+    font-size: 0.58rem;
+  }
+
+  body[data-section="ao-vivo"] .live-score-board {
+    min-height: 150px;
+    grid-template-columns: minmax(0, 1fr) minmax(112px, 1.14fr) minmax(0, 1fr);
+  }
+
+  body[data-section="ao-vivo"] .live-game-state {
+    gap: 5px;
+  }
+
+  body[data-section="ao-vivo"] .live-game-state .live-status-dot {
+    min-height: 23px;
+    padding: 4px 7px;
+    font-size: 0.52rem;
+  }
+
+  body[data-section="ao-vivo"] .live-game-state .live-period {
+    font-size: 0.53rem;
+  }
+}
+
+@media (max-width: 350px) {
+  body[data-section="ao-vivo"] .live-score-board {
+    grid-template-columns: minmax(0, 1fr) 104px minmax(0, 1fr);
+  }
+
+  body[data-section="ao-vivo"] .live-game-state {
+    flex-direction: column;
+    gap: 3px;
+  }
+}

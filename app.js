@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.18.1";
+  const APP_VERSION = "0.18.2";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -6115,8 +6115,6 @@
     const { jogo } = bundle;
     const liveStatus = jogo.status === "Finalizado" ? "ENCERRADO" : jogo.pausadoEm ? "PAUSADO" : "AO VIVO";
     const statusClass = jogo.status === "Finalizado" ? "is-ended" : jogo.pausadoEm ? "is-paused" : "is-live";
-    const pelada = bundle.pelada;
-    const dateLabel = formatDateLabel(pelada?.data || jogo.inicio?.slice(0, 10) || jogo.createdAt?.slice(0, 10) || "");
 
     return `
       <section class="live-score-card">
@@ -6127,24 +6125,19 @@
         </svg>
         <div class="live-score-content">
           <div class="live-score-meta">
-            <span class="live-match-title">
-              <span class="live-match-eyebrow">
-                <b>Jogo ${escapeHtml(gameNumber)}</b>
-              </span>
-              <span class="live-venue-line">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s6-5.3 6-11a6 6 0 1 0-12 0c0 5.7 6 11 6 11Z"/><circle cx="12" cy="10" r="2"/></svg>
-                <strong>${escapeHtml(pelada?.local || "BagreScore")}</strong>
-              </span>
-              ${dateLabel ? `<em><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v3m10-3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z"/></svg>${escapeHtml(dateLabel)}</em>` : ""}
+            <span class="live-match-eyebrow">
+              <b>Jogo ${escapeHtml(gameNumber)}</b>
             </span>
-            <span class="live-status-dot ${statusClass}">${escapeHtml(liveStatus)}</span>
           </div>
           <div class="live-score-board">
             ${renderLiveTeamBadge(bundle, "A")}
             <div class="live-score-center">
               <strong><span id="live-score-a">${escapeHtml(jogo.placarA ?? 0)}</span> : <span id="live-score-b">${escapeHtml(jogo.placarB ?? 0)}</span></strong>
               <span class="timer" id="live-timer">${escapeHtml(formatClock(remaining))}</span>
-              <small class="live-period"><i></i><span id="live-status">${escapeHtml(getGameStatusLabel(jogo))}</span></small>
+              <span class="live-game-state">
+                <span class="live-status-dot ${statusClass}">${escapeHtml(liveStatus)}</span>
+                <small class="live-period"><span id="live-status">${escapeHtml(getGameStatusLabel(jogo))}</span></small>
+              </span>
             </div>
             ${renderLiveTeamBadge(bundle, "B")}
           </div>
