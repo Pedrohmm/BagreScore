@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.16.8";
+  const APP_VERSION = "0.16.9";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -3292,9 +3292,10 @@
     }
 
     const isHome = state.currentSection === "inicio";
+    const isStatsProfile = state.currentSection === "estatisticas" && Boolean(state.selectedStatsPlayerId);
     document.body.dataset.section = state.currentSection;
     document.body.classList.toggle("is-internal", !isHome);
-    document.body.classList.remove("stats-profile-mode");
+    document.body.classList.toggle("stats-profile-mode", isStatsProfile);
     $(".workspace-panel")?.classList.toggle("is-home", isHome);
     const backHome = $("#back-home");
     if (backHome) {

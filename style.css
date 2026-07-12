@@ -13935,6 +13935,15 @@ body.is-section-switching #section-content {
   transition-duration: 55ms;
 }
 
+.workspace-panel > .section-heading {
+  transition: opacity 70ms ease-out;
+}
+
+body.is-section-switching .workspace-panel > .section-heading {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .bottom-nav .bottom-nav-item,
 .bottom-nav .nav-glyph {
   transition:
