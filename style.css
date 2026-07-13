@@ -16357,14 +16357,17 @@ body[data-section="ranking"] .ranking-podium-heading {
 body[data-section="ranking"] .ranking-leaderboard-board .ranking-podium-heading {
   display: grid;
   width: 100%;
+  grid-template-columns: minmax(0, 0.84fr) minmax(0, 1.1fr) minmax(0, 0.84fr);
   align-items: center;
-  justify-items: center;
   text-align: center;
 }
 
 body[data-section="ranking"] .ranking-podium-heading > div {
   display: grid;
-  width: 100%;
+  grid-column: 2;
+  width: max-content;
+  max-width: calc(100vw - 44px);
+  justify-self: center;
   justify-items: center;
   gap: 3px;
 }
@@ -16391,12 +16394,14 @@ body[data-section="ranking"] .ranking-podium-heading .panel-kicker::after {
 }
 
 body[data-section="ranking"] .ranking-podium-heading h3 {
-  width: 100%;
+  width: max-content;
+  max-width: 100%;
   margin: 0;
   color: #fff;
   font-size: clamp(1.05rem, 4.8vw, 1.35rem);
   line-height: 1.1;
   text-align: center;
+  white-space: nowrap;
 }
 
 body[data-section="ranking"] .ranking-podium-heading p {
