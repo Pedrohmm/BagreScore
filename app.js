@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.21.0";
+  const APP_VERSION = "0.21.1";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -7955,7 +7955,7 @@
           </div>
         </div>
         <div class="ranking-podium-places">
-          ${podium.map((item) => renderRankingPodiumPlace(item.entry, item.place, item.className, category)).join("")}
+          ${podium.map((item) => renderRankingPodiumPlace(item.entry, item.className, category)).join("")}
         </div>
         ${renderRankingRemainingList(category, category.entries)}
       </section>
@@ -7989,12 +7989,11 @@
     `;
   }
 
-  function renderRankingPodiumPlace(entry, place, className, category) {
+  function renderRankingPodiumPlace(entry, className, category) {
     if (!entry) {
       return `
         <article class="ranking-podium-place ${escapeHtml(className)} is-empty">
           ${renderRankingMiniCardFrame()}
-          <span class="ranking-medal">${place}º</span>
           <span class="ranking-empty-avatar">–</span>
           <strong>Aguardando</strong>
           <small>Sem jogador</small>
@@ -8009,12 +8008,10 @@
     return `
       <button class="ranking-podium-place ${escapeHtml(className)}" type="button" data-ranking-action="profile" data-player-id="${escapeHtml(stats.jogadorId)}">
         ${renderRankingMiniCardFrame()}
-        <span class="ranking-medal">${place}º</span>
         ${renderPlayerAvatar(jogador, "player-avatar ranking-podium-avatar")}
         <span class="ranking-podium-name">${escapeHtml(playerDisplayName(jogador))}</span>
         <span class="ranking-podium-position">${escapeHtml(position)}</span>
         <span class="ranking-podium-value"><strong>${escapeHtml(value)}</strong><small>${escapeHtml(category?.title || "Categoria")}</small></span>
-        ${category?.id === "overall" ? "" : `<span class="ranking-podium-meta">${escapeHtml(jogador.overall || "-")} OVR</span>`}
       </button>
     `;
   }
@@ -8050,7 +8047,6 @@
           <strong>${escapeHtml(playerDisplayName(jogador))}</strong>
           <small>${escapeHtml(jogador.posicaoPrincipal || "-")}</small>
         </span>
-        <span class="ranking-rest-overall"><strong>${escapeHtml(jogador.overall || "-")}</strong><small>OVR</small></span>
         <span class="ranking-rest-metric"><small>${escapeHtml(category?.title || "Categoria")}</small><em>${escapeHtml(value)}</em></span>
       </button>
     `;

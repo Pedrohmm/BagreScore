@@ -16354,8 +16354,17 @@ body[data-section="ranking"] .ranking-podium-heading {
   text-align: center;
 }
 
+body[data-section="ranking"] .ranking-leaderboard-board .ranking-podium-heading {
+  display: grid;
+  width: 100%;
+  align-items: center;
+  justify-items: center;
+  text-align: center;
+}
+
 body[data-section="ranking"] .ranking-podium-heading > div {
   display: grid;
+  width: 100%;
   justify-items: center;
   gap: 3px;
 }
@@ -16382,10 +16391,12 @@ body[data-section="ranking"] .ranking-podium-heading .panel-kicker::after {
 }
 
 body[data-section="ranking"] .ranking-podium-heading h3 {
+  width: 100%;
   margin: 0;
   color: #fff;
   font-size: clamp(1.05rem, 4.8vw, 1.35rem);
   line-height: 1.1;
+  text-align: center;
 }
 
 body[data-section="ranking"] .ranking-podium-heading p {
@@ -16757,7 +16768,7 @@ body[data-section="ranking"] .ranking-rest-list {
 
 body[data-section="ranking"] .ranking-rest-row {
   display: grid;
-  grid-template-columns: 34px 36px minmax(0, 1fr) 42px minmax(72px, auto);
+  grid-template-columns: 34px 36px minmax(0, 1fr) minmax(72px, auto);
   align-items: center;
   gap: 7px;
   min-height: 58px;
@@ -16917,7 +16928,7 @@ body[data-section="ranking"] .ranking-rest-metric em {
   }
 
   body[data-section="ranking"] .ranking-rest-row {
-    grid-template-columns: 31px 34px minmax(0, 1fr) 38px minmax(62px, auto);
+    grid-template-columns: 31px 34px minmax(0, 1fr) minmax(62px, auto);
     gap: 6px;
     min-height: 56px;
     padding: 6px;
@@ -16944,7 +16955,7 @@ body[data-section="ranking"] .ranking-rest-metric em {
   }
 
   body[data-section="ranking"] .ranking-rest-row {
-    grid-template-columns: 29px 32px minmax(0, 1fr) 36px 58px;
+    grid-template-columns: 29px 32px minmax(0, 1fr) 58px;
     gap: 5px;
   }
 
