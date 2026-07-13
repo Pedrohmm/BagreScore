@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.21.2";
+  const APP_VERSION = "0.21.3";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -7767,6 +7767,18 @@
           entries: getOverallRankingEntries(statsResult, fullLimit),
         },
         {
+          id: "mvp",
+          title: "MVP",
+          description: "Mais vezes escolhido MVP.",
+          entries: getCompactAwardRankingEntries(statsResult.playersStats, "mvpsPelada", "MVP", fullLimit),
+        },
+        {
+          id: "bagre",
+          title: "Bagre",
+          description: "Mais marcações de Bagre.",
+          entries: getCompactAwardRankingEntries(statsResult.playersStats, "bagresPelada", "Bagre", fullLimit),
+        },
+        {
           id: "artilharia",
           title: "Artilharia",
           description: "Quem mais marcou gols.",
@@ -7819,18 +7831,6 @@
           title: "Mais faltas sofridas",
           description: "Quem mais sofreu faltas.",
           entries: getMetricRankingEntries(statsResult.playersStats, "faltasSofridas", { limit: fullLimit }),
-        },
-        {
-          id: "mvp",
-          title: "MVPs da Pelada",
-          description: "Mais vezes escolhido MVP.",
-          entries: getMetricRankingEntries(statsResult.playersStats, "mvpsPelada", { limit: fullLimit }),
-        },
-        {
-          id: "bagre",
-          title: "Bagres da Pelada",
-          description: "Mais marcações de Bagre.",
-          entries: getMetricRankingEntries(statsResult.playersStats, "bagresPelada", { limit: fullLimit }),
         },
       ],
       atributos: LINE_ATTRIBUTES.map((attribute) => ({
@@ -8151,6 +8151,13 @@
         stats,
         value: statDisplayValue(stats, metric),
       }));
+  }
+
+  function getCompactAwardRankingEntries(playersStats, metric, label, limit) {
+    return getMetricRankingEntries(playersStats, metric, { limit }).map((entry) => ({
+      ...entry,
+      value: `${Number(entry.stats[metric] || 0)} ${label}`,
+    }));
   }
 
   function getAttributeRankingEntries(statsResult, attributeKey, limit = 3) {
