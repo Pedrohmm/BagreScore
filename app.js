@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.22.0";
+  const APP_VERSION = "0.22.1";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -3213,11 +3213,10 @@
     if (!entry?.stats?.jogador) {
       return `
         <span class="home-ranking-place ${escapeHtml(className)} is-empty">
-          <i>${place}º</i>
+          ${renderRankingMiniCardFrame()}
           <span class="home-ranking-empty-avatar" aria-hidden="true">—</span>
           <b>Aguardando</b>
           <small>Sem jogador</small>
-          <span class="home-ranking-plinth" aria-hidden="true">${place}</span>
         </span>
       `;
     }
@@ -3226,12 +3225,12 @@
 
     return `
       <button class="home-ranking-place ${escapeHtml(className)}" type="button" data-home-action="player-profile" data-player-id="${escapeHtml(entry.stats.jogadorId)}" aria-label="${escapeHtml(`${place}º lugar, ${playerDisplayName(jogador)}, ${entry.value}`)}">
-        <i>${place}º</i>
+        ${renderRankingMiniCardFrame()}
         ${renderPlayerAvatar(jogador, "player-avatar home-ranking-avatar")}
         <b>${escapeHtml(playerDisplayName(jogador))}</b>
-        <strong>${escapeHtml(entry.value)}</strong>
         <small>${escapeHtml(jogador.posicaoPrincipal || "Sem posição")}</small>
-        <span class="home-ranking-plinth" aria-hidden="true">${place}</span>
+        <strong>${escapeHtml(entry.value)}</strong>
+        <span class="home-ranking-card-label">Maior Overall</span>
       </button>
     `;
   }
