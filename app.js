@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.22.1";
+  const APP_VERSION = "1.0.0";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -5498,11 +5498,6 @@
 
       const action = actionButton.dataset.peladaAction;
 
-      if (action === "open-settings") {
-        openSettingsDrawer();
-        return;
-      }
-
       if (action === "show-create") {
         state.selectedPeladaId = null;
         state.selectedGameSummaryId = null;
@@ -5519,19 +5514,11 @@
         return;
       }
 
-      if (action === "open-pelada" || action === "select") {
+      if (action === "open-pelada") {
         const peladaId = actionButton.dataset.peladaId || "";
         state.selectedGameSummaryId = null;
         state.gameDraft = createEmptyGameDraft();
         await switchSection("peladas", { peladaId });
-        return;
-      }
-
-      if (action === "back-list") {
-        state.selectedPeladaId = null;
-        state.selectedGameSummaryId = null;
-        state.gameDraft = createEmptyGameDraft();
-        await switchSection("peladas", { historyMode: "replace", peladasView: "gerenciar" });
         return;
       }
 

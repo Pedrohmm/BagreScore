@@ -6644,24 +6644,6 @@ body[data-section="ranking"] .ranking-podium-place.is-empty {
   opacity: 0.68;
 }
 
-body[data-section="ranking"] .ranking-medal {
-  display: inline-grid;
-  place-items: center;
-  min-width: 42px;
-  min-height: 42px;
-  border: 1px solid rgba(255, 90, 0, 0.55);
-  border-radius: 999px;
-  color: #fff;
-  background: linear-gradient(135deg, #ff7a1c, #ff4d00);
-  box-shadow: 0 12px 26px rgba(255, 90, 0, 0.24);
-  font-weight: 950;
-}
-
-body[data-section="ranking"] .ranking-leaderboard-board .ranking-podium-place .ranking-medal {
-  min-width: 0;
-  min-height: 0;
-}
-
 body[data-section="ranking"] .ranking-podium-avatar {
   width: 72px;
   height: 72px;
@@ -6687,11 +6669,6 @@ body[data-section="ranking"] .ranking-podium-name {
   font-weight: 950;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-body[data-section="ranking"] .ranking-podium-meta {
-  color: #aeb0b3;
-  font-size: 0.86rem;
 }
 
 body[data-section="ranking"] .ranking-podium-place strong {
@@ -6902,12 +6879,6 @@ body[data-section="ranking"] .ranking-leaderboard-board .ranking-podium-place.is
   transform: translateY(-12px);
 }
 
-body[data-section="ranking"] .ranking-leaderboard-board .ranking-medal {
-  min-width: 44px;
-  min-height: 44px;
-  font-size: 0.95rem;
-}
-
 body[data-section="ranking"] .ranking-rest-board {
   display: grid;
   gap: 10px;
@@ -7055,12 +7026,6 @@ body[data-section="ranking"] .ranking-rest-empty {
     transform: translateY(-6px);
   }
 
-  body[data-section="ranking"] .ranking-leaderboard-board .ranking-medal {
-    min-width: 34px;
-    min-height: 34px;
-    font-size: 0.8rem;
-  }
-
   body[data-section="ranking"] .ranking-leaderboard-board .ranking-podium-avatar {
     width: 48px;
     height: 48px;
@@ -7074,10 +7039,6 @@ body[data-section="ranking"] .ranking-rest-empty {
 
   body[data-section="ranking"] .ranking-leaderboard-board .ranking-podium-name {
     font-size: 0.78rem;
-  }
-
-  body[data-section="ranking"] .ranking-leaderboard-board .ranking-podium-meta {
-    font-size: 0.65rem;
   }
 
   body[data-section="ranking"] .ranking-leaderboard-board .ranking-podium-place strong {
@@ -9759,26 +9720,6 @@ body[data-section="inicio"] .home-ranking-place small {
   font-weight: 750;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-body[data-section="inicio"] .home-ranking-plinth {
-  display: grid;
-  place-items: center;
-  width: calc(100% + 12px);
-  height: 34px;
-  margin-top: 5px;
-  border-top: 2px solid rgba(255, 90, 0, 0.55);
-  color: rgba(255, 255, 255, 0.16);
-  background: linear-gradient(180deg, rgba(255, 90, 0, 0.12), rgba(255, 90, 0, 0.025));
-  font-size: 1rem;
-  font-weight: 950;
-}
-
-body[data-section="inicio"] .is-first .home-ranking-plinth {
-  height: 42px;
-  border-top-color: var(--orange);
-  color: rgba(255, 255, 255, 0.28);
-  background: linear-gradient(180deg, rgba(255, 90, 0, 0.23), rgba(255, 90, 0, 0.04));
 }
 
 @media (min-width: 640px) {
@@ -16542,39 +16483,6 @@ body[data-section="ranking"] .ranking-podium-place.is-first .ranking-frame-outer
   stroke-width: 2.8;
 }
 
-body[data-section="ranking"] .ranking-medal {
-  position: absolute;
-  top: 25px;
-  left: 14px;
-  z-index: 3;
-  display: grid;
-  width: 27px;
-  height: 27px;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 50%;
-  color: #fff;
-  background: linear-gradient(145deg, #7f8588, #3a3d3f);
-  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.4);
-  font-size: 0.65rem;
-  font-weight: 950;
-}
-
-body[data-section="ranking"] .is-first .ranking-medal {
-  top: 24px;
-  left: 17px;
-  width: 31px;
-  height: 31px;
-  border-color: rgba(255, 210, 150, 0.62);
-  background: linear-gradient(145deg, #ff8b38, #e84600);
-  box-shadow: 0 0 18px rgba(255, 90, 0, 0.45);
-  font-size: 0.72rem;
-}
-
-body[data-section="ranking"] .is-third .ranking-medal {
-  background: linear-gradient(145deg, #bb6d45, #6f321d);
-}
-
 body[data-section="ranking"] .ranking-podium-avatar,
 body[data-section="ranking"] .ranking-empty-avatar {
   position: relative;
@@ -16685,15 +16593,6 @@ body[data-section="ranking"] .ranking-podium-value small {
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
-}
-
-body[data-section="ranking"] .ranking-podium-meta {
-  position: relative;
-  z-index: 2;
-  margin-top: 2px;
-  color: #ff6b18;
-  font-size: 0.58rem;
-  font-weight: 900;
 }
 
 body[data-section="ranking"] .ranking-podium-place.is-empty {
@@ -16838,19 +16737,12 @@ body[data-section="ranking"] .ranking-rest-player small {
   font-weight: 850;
 }
 
-body[data-section="ranking"] .ranking-rest-overall,
 body[data-section="ranking"] .ranking-rest-metric {
   display: grid;
   justify-items: center;
   gap: 1px;
 }
 
-body[data-section="ranking"] .ranking-rest-overall strong {
-  color: #e9e9e9;
-  font-size: 0.78rem;
-}
-
-body[data-section="ranking"] .ranking-rest-overall small,
 body[data-section="ranking"] .ranking-rest-metric small {
   color: #6f7270;
   font-size: 0.46rem;
