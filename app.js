@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "0.20.0";
+  const APP_VERSION = "0.21.0";
   const MIN_SYNC_API_VERSION = "1.4.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -7949,13 +7949,13 @@
       <section class="ranking-podium-stage ranking-leaderboard-board">
         <div class="ranking-podium-heading">
           <div>
-            <span class="panel-kicker">Top 3</span>
+            <span class="panel-kicker">Top 3 · ${escapeHtml(category.title)}</span>
             <h3>${escapeHtml(category.title)}</h3>
             <p>${escapeHtml(category.description || "Top 3 da categoria.")}</p>
           </div>
         </div>
         <div class="ranking-podium-places">
-          ${podium.map((item) => renderRankingPodiumPlace(item.entry, item.place, item.className)).join("")}
+          ${podium.map((item) => renderRankingPodiumPlace(item.entry, item.place, item.className, category)).join("")}
         </div>
         ${renderRankingRemainingList(category, category.entries)}
       </section>
@@ -7973,64 +7973,85 @@
     `;
   }
 
-  function renderRankingPodiumPlace(entry, place, className) {
+  function renderRankingMiniCardFrame() {
+    return `
+      <svg class="ranking-mini-card-frame" viewBox="0 0 180 250" preserveAspectRatio="none" aria-hidden="true">
+        <path class="ranking-frame-shadow" d="M22 4H137L176 31V205L149 235L90 249L31 235L4 205V31Z"/>
+        <path class="ranking-frame-outer" d="M23 7H135L172 34V202L146 230L90 244L34 230L8 202V34Z"/>
+        <path class="ranking-frame-inner" d="M27 14H132L164 38V198L141 224L90 237L39 224L16 198V39Z"/>
+        <path class="ranking-frame-top" d="M28 18H130L155 36M25 25H126"/>
+        <path class="ranking-frame-side is-left" d="M18 46V108L25 118V195L38 214"/>
+        <path class="ranking-frame-side is-right" d="M162 46V108L155 118V195L142 214"/>
+        <path class="ranking-frame-footer" d="M41 224L90 238L139 224"/>
+        <circle class="ranking-frame-node" cx="90" cy="91" r="42"/>
+        <path class="ranking-frame-cross" d="M42 91H52M128 91H138M90 43V51M90 131V139"/>
+      </svg>
+    `;
+  }
+
+  function renderRankingPodiumPlace(entry, place, className, category) {
     if (!entry) {
       return `
         <article class="ranking-podium-place ${escapeHtml(className)} is-empty">
+          ${renderRankingMiniCardFrame()}
           <span class="ranking-medal">${place}º</span>
-          <strong>Sem jogador</strong>
+          <span class="ranking-empty-avatar">–</span>
+          <strong>Aguardando</strong>
+          <small>Sem jogador</small>
         </article>
       `;
     }
 
     const { stats, value } = entry;
     const jogador = stats.jogador;
+    const position = jogador.posicaoPrincipal || "-";
 
     return `
       <button class="ranking-podium-place ${escapeHtml(className)}" type="button" data-ranking-action="profile" data-player-id="${escapeHtml(stats.jogadorId)}">
+        ${renderRankingMiniCardFrame()}
         <span class="ranking-medal">${place}º</span>
         ${renderPlayerAvatar(jogador, "player-avatar ranking-podium-avatar")}
         <span class="ranking-podium-name">${escapeHtml(playerDisplayName(jogador))}</span>
-        <span class="ranking-podium-meta">${escapeHtml(jogador.posicaoPrincipal || "-")} · ${escapeHtml(jogador.overall || "-")} OVR</span>
-        <strong>${escapeHtml(value)}</strong>
+        <span class="ranking-podium-position">${escapeHtml(position)}</span>
+        <span class="ranking-podium-value"><strong>${escapeHtml(value)}</strong><small>${escapeHtml(category?.title || "Categoria")}</small></span>
+        ${category?.id === "overall" ? "" : `<span class="ranking-podium-meta">${escapeHtml(jogador.overall || "-")} OVR</span>`}
       </button>
     `;
   }
 
   function renderRankingRemainingList(category, entries) {
-    const rest = entries.slice(3);
-
     return `
       <div class="ranking-rest-board">
         <div class="ranking-rest-heading">
           <div>
-            <span>Classificação</span>
+            <span>Classificação completa</span>
             <strong>${escapeHtml(category.title)}</strong>
           </div>
           <small>${escapeHtml(entries.length)} jogador${entries.length === 1 ? "" : "es"}</small>
         </div>
         ${
-          rest.length
-            ? `<div class="ranking-rest-list">${rest.map((entry, index) => renderRankingRestRow(entry, index + 4)).join("")}</div>`
-            : `<div class="ranking-rest-empty">Sem outros jogadores nesta categoria.</div>`
+          entries.length
+            ? `<div class="ranking-rest-list">${entries.map((entry, index) => renderRankingRestRow(entry, index + 1, category)).join("")}</div>`
+            : `<div class="ranking-rest-empty">Nenhum jogador nesta categoria.</div>`
         }
       </div>
     `;
   }
 
-  function renderRankingRestRow(entry, position) {
+  function renderRankingRestRow(entry, position, category) {
     const { stats, value } = entry;
     const jogador = stats.jogador;
 
     return `
-      <button class="ranking-rest-row" type="button" data-ranking-action="profile" data-player-id="${escapeHtml(stats.jogadorId)}">
+      <button class="ranking-rest-row ${position <= 3 ? `is-top-${position}` : ""}" type="button" data-ranking-action="profile" data-player-id="${escapeHtml(stats.jogadorId)}">
         <span class="ranking-rest-position">${position}º</span>
         ${renderPlayerAvatar(jogador, "player-avatar small")}
         <span class="ranking-rest-player">
           <strong>${escapeHtml(playerDisplayName(jogador))}</strong>
-          <small>${escapeHtml(jogador.posicaoPrincipal || "-")} · ${escapeHtml(jogador.overall || "-")} OVR</small>
+          <small>${escapeHtml(jogador.posicaoPrincipal || "-")}</small>
         </span>
-        <em>${escapeHtml(value)}</em>
+        <span class="ranking-rest-overall"><strong>${escapeHtml(jogador.overall || "-")}</strong><small>OVR</small></span>
+        <span class="ranking-rest-metric"><small>${escapeHtml(category?.title || "Categoria")}</small><em>${escapeHtml(value)}</em></span>
       </button>
     `;
   }
