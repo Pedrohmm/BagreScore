@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.1.4";
+  const APP_VERSION = "1.1.5";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -5155,7 +5155,7 @@
             <span class="panel-kicker">Preparação</span>
             <h3>Times da pelada</h3>
           </div>
-          ${canManage ? `
+          ${canManage && presets.length ? `
             <button class="primary-button compact-button" type="button" data-pelada-action="add-team-preset">
               <span aria-hidden="true">+</span> Criar time
             </button>
