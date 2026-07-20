@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.1.0";
+  const APP_VERSION = "1.1.1";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -657,6 +657,7 @@
     selectedPeladaId: null,
     selectedGameSummaryId: null,
     peladasView: "gerenciar",
+    peladaDetailView: "confrontos",
     selectedStatsPlayerId: null,
     selectedProfileTab: "resumo",
     rankingMode: "geral",
@@ -3315,7 +3316,6 @@
         <div class="home-section-heading">
           <div>
             <h3>Destaques da semana</h3>
-            <p>Quem fez a diferença nas últimas rodadas.</p>
           </div>
         </div>
         <div class="home-highlight-grid">
@@ -3392,7 +3392,6 @@
         <div class="home-section-heading">
           <div>
             <h3>Ranking geral</h3>
-            <p>Os maiores overalls da pelada.</p>
           </div>
           <button type="button" data-home-section="ranking">Ver ranking completo</button>
         </div>
@@ -3771,7 +3770,6 @@
         <div class="players-hero-copy">
           <span>Elenco BagreScore</span>
           <h2>Jogadores</h2>
-          <p>Cadastre atletas, fotos, atributos e cartas para usar em peladas, rankings, estatísticas e partida ao vivo.</p>
         </div>
       </section>
     `;
@@ -3785,12 +3783,11 @@
         ${hasPermission("jogadores:criar") ? `<button class="players-action-card is-primary" type="button" data-player-action="start-create">
           <span>+</span>
           <strong>Cadastrar jogador</strong>
-          <small>Abra o cadastro guiado em etapas para criar uma nova carta.</small>
         </button>` : ""}
         <button class="players-action-card" type="button" data-player-action="toggle-roster">
           <span>${escapeHtml(jogadores.length)}</span>
           <strong>Elenco cadastrado</strong>
-          <small>${escapeHtml(openLabel)} com todos os jogadores salvos neste aparelho.</small>
+          <small>${escapeHtml(openLabel)}</small>
         </button>
       </div>
     `;
@@ -3807,7 +3804,6 @@
           <div>
             <span class="panel-kicker">Elenco local</span>
             <h3>Jogadores cadastrados</h3>
-            <p>${jogadores.length} jogador${jogadores.length === 1 ? "" : "es"} salvo${jogadores.length === 1 ? "" : "s"} neste aparelho.</p>
           </div>
           <button class="ghost-button compact-button" type="button" data-player-action="toggle-roster">Fechar elenco</button>
         </div>
@@ -3854,7 +3850,6 @@
                   <div>
                     <span class="panel-kicker">${editingPlayer ? "Edição da carta" : "Nova carta"}</span>
                     <h3>${editingPlayer ? "Editar jogador" : "Cadastrar jogador"}</h3>
-                    <p>Cadastro guiado em etapas para deixar a carta completa sem poluir a tela.</p>
                   </div>
                 </div>
                 ${renderPlayerForm(editingPlayer)}
@@ -4690,13 +4685,20 @@
 
     setSectionTitle("Pelada", selectedPelada.local || "Detalhes da pelada");
     state.selectedGameSummaryId = null;
+    const detailView = state.peladaDetailView === "times" ? "times" : "confrontos";
 
     $("#section-content").innerHTML = `
       <div class="pelada-detail-flow">
         ${renderPeladaOpenToolbar(selectedPelada, peladaSummary)}
-        ${renderTeamPresetsPanel(selectedPelada, teamPresets, jogadores)}
-        ${renderGameSetup(selectedPelada, jogadores, teamPresets)}
-        ${renderGameHistory(selectedPelada, jogos, eventsByGameId, playerById, peladaSummary)}
+        ${renderPeladaDetailNav(detailView, teamPresets)}
+        <div class="pelada-detail-view" data-pelada-detail-view="${escapeHtml(detailView)}">
+          ${detailView === "times"
+            ? renderTeamPresetsPanel(selectedPelada, teamPresets, jogadores)
+            : `
+                ${renderGameSetup(selectedPelada, jogadores, teamPresets)}
+                ${renderGameHistory(selectedPelada, jogos, eventsByGameId, playerById, peladaSummary)}
+              `}
+        </div>
       </div>
     `;
 
@@ -4730,13 +4732,38 @@
     `;
   }
 
+  function renderPeladaDetailNav(activeView, presets = []) {
+    const incomplete = presets.filter((preset) => !getPresetCompleteness(preset).complete).length;
+
+    return `
+      <nav class="pelada-detail-tabs" aria-label="Área da pelada">
+        <button
+          class="${activeView === "confrontos" ? "active" : ""}"
+          type="button"
+          data-pelada-action="show-detail-confrontos"
+          aria-current="${activeView === "confrontos" ? "page" : "false"}"
+        >
+          <span>Confrontos</span>
+        </button>
+        <button
+          class="${activeView === "times" ? "active" : ""}"
+          type="button"
+          data-pelada-action="show-detail-times"
+          aria-current="${activeView === "times" ? "page" : "false"}"
+        >
+          <span>Times</span>
+          <small class="${incomplete ? "has-warning" : ""}">${escapeHtml(presets.length)}</small>
+        </button>
+      </nav>
+    `;
+  }
+
   function renderCreatePeladaPanel() {
     return `
       <section class="data-card pelada-form-card">
         <div class="players-toolbar">
           <div>
             <h3>Marcar pelada</h3>
-            <p>Defina data, local e horário da próxima rodada.</p>
           </div>
         </div>
         ${renderPeladaForm()}
@@ -4825,7 +4852,6 @@
               <div>
                 <span>Ambiente seguro</span>
                 <h3>Peladas de teste</h3>
-                <p>Não alteram rankings nem a evolução das cartas.</p>
               </div>
               ${hasPermission("eventos:excluir") ? `
                 <button type="button" data-pelada-action="delete-all-tests">Apagar testes</button>
@@ -5012,17 +5038,19 @@
     const status = getPeladaStatusLabel(pelada, peladaSummary?.jogos || []);
     const canFinalize = Boolean(peladaSummary?.canFinalize);
     const finishTitle = peladaSummary?.finishDisabledReason || "Encerrar a pelada e escolher MVP/Bagre.";
+    const statusClass = normalizeToken(status);
 
     return `
       <section class="pelada-open-toolbar pelada-open-hero">
+        <div class="pelada-open-badges">
+          <span class="pelada-open-status status-${escapeHtml(statusClass)}"><i></i>${escapeHtml(status)}</span>
+          ${renderPeladaTypeBadge(pelada)}
+        </div>
         <div class="pelada-open-title">
-          <span>${isTestPelada(pelada) ? "Ambiente de teste" : "Pelada oficial"}</span>
           <h3>${escapeHtml(pelada.local || "Pelada")}</h3>
           <p>${escapeHtml(formatDateLabel(pelada.data))} • ${escapeHtml(horario)} • ${escapeHtml(formatCurrency(pelada.valor))}</p>
         </div>
         <div class="pelada-open-actions">
-          <span class="pelada-open-status">${escapeHtml(status)}</span>
-          ${renderPeladaTypeBadge(pelada)}
           ${hasPermission("jogos:finalizar") ? `<button
             class="primary-button compact-button"
             type="button"
@@ -5057,7 +5085,6 @@
           <div>
             <span class="panel-kicker">Preparação</span>
             <h3>Times da pelada</h3>
-            <p>Monte uma vez e use as escalações durante toda a rodada.</p>
           </div>
           ${canManage ? `
             <button class="primary-button compact-button" type="button" data-pelada-action="add-team-preset">
@@ -5153,6 +5180,7 @@
             <span class="panel-kicker">Próximo jogo</span>
             <h3>Faltam times para começar</h3>
             <p>Crie pelo menos dois times da pelada. O confronto será carregado automaticamente.</p>
+            ${hasPermission("times:montar") ? `<button class="primary-button compact-button" type="button" data-pelada-action="show-detail-times">Abrir times</button>` : ""}
           </div>
         </section>
       `;
@@ -5170,7 +5198,6 @@
           <div>
             <span class="panel-kicker">Próximo confronto</span>
             <h3>${escapeHtml(draft.A.nome)} <i>×</i> ${escapeHtml(draft.B.nome)}</h3>
-            <p>Escalações carregadas. Revise apenas se alguém precisar entrar ou sair.</p>
           </div>
           <span class="next-match-ready"><i></i>Pronto</span>
         </div>
@@ -5194,7 +5221,7 @@
               <span>Na espera</span>
               ${queueIds.map((id, index) => `<strong><i>${index + 1}</i>${escapeHtml(presetById.get(id)?.nome || "Time")}</strong>`).join("")}
             </div>
-          ` : `<div class="waiting-queue is-empty"><span>Sem time na espera</span><small>O confronto será repetido entre os dois times.</small></div>`}
+          ` : `<div class="waiting-queue is-empty"><span>Sem time na espera</span></div>`}
           <div class="form-actions">
             <button class="primary-button big-touch start-next-game-button" type="submit">
               <span>Iniciar próximo jogo</span><small>${escapeHtml(draft.A.nome)} × ${escapeHtml(draft.B.nome)}</small>
@@ -5237,7 +5264,7 @@
         </div>
         <label class="persist-lineup-toggle">
           <input type="checkbox" name="persist${teamKey}" value="1" data-persist-team="${teamKey}" ${persistChanges ? "checked" : ""} />
-          <span><strong>Manter nos próximos jogos</strong><small>Desmarcado: vale somente para esta partida.</small></span>
+          <span><strong>Manter nos próximos jogos</strong></span>
         </label>
       </article>
     `;
@@ -5778,7 +5805,6 @@
           <div class="game-summary-heading">
             <span>${escapeHtml(formatDateLabel(pelada.data))}</span>
             <h2>Resumo do Jogo ${escapeHtml(gameNumber)}</h2>
-            <p>Placar, escalações e eventos da partida.</p>
           </div>
           ${hasPermission("eventos:excluir") && bundle.jogo.status !== "Em andamento" ? `
             <button
@@ -5870,13 +5896,13 @@
         <section class="finish-pelada-hero">
           <span class="finish-pelada-kicker">Encerramento da rodada</span>
           <h3>${escapeHtml(summary.pelada.local || "Pelada")}</h3>
-          <p>${escapeHtml(formatDateLabel(summary.pelada.data))} · Revise os destaques e confirme as escolhas finais.</p>
+          <time>${escapeHtml(formatDateLabel(summary.pelada.data))}</time>
         </section>
 
         <section class="pelada-finish-block finish-summary-block">
           <header class="finish-block-heading">
             <span>01</span>
-            <div><h3>Resumo da pelada</h3><p>Os principais números da rodada.</p></div>
+            <div><h3>Resumo da pelada</h3></div>
           </header>
           <div class="finish-metrics-grid">
             <span><small>Jogos</small><strong>${escapeHtml(summary.totals.jogosRealizados)}</strong></span>
@@ -5898,7 +5924,7 @@
         <section class="pelada-finish-block finish-suggestions-block">
           <header class="finish-block-heading">
             <span>02</span>
-            <div><h3>Sugestões do BagreScore</h3><p>Use como referência. A decisão final continua sendo sua.</p></div>
+            <div><h3>Sugestões do BagreScore</h3></div>
           </header>
           <div class="pelada-suggestion-grid">
             ${renderPeladaSuggestionCard("MVP recomendado", summary.suggestions.mvp, "pontuacao", "Pontuação")}
@@ -5945,7 +5971,6 @@
         <div class="players-toolbar">
           <div>
             <h3>Histórico de Jogos</h3>
-            <p>${jogos.length} jogo${jogos.length === 1 ? "" : "s"} criado${jogos.length === 1 ? "" : "s"} nesta pelada.</p>
           </div>
         </div>
         ${
@@ -6144,6 +6169,7 @@
       const action = actionButton.dataset.peladaAction;
 
       if (action === "add-team-preset") {
+        state.peladaDetailView = "times";
         await openTeamPresetEditor();
         return;
       }
@@ -6192,9 +6218,16 @@
         return;
       }
 
+      if (action === "show-detail-confrontos" || action === "show-detail-times") {
+        state.peladaDetailView = action === "show-detail-times" ? "times" : "confrontos";
+        await renderCurrentSection();
+        return;
+      }
+
       if (action === "open-pelada") {
         const peladaId = actionButton.dataset.peladaId || "";
         state.selectedGameSummaryId = null;
+        state.peladaDetailView = "confrontos";
         state.gameDraft = createEmptyGameDraft();
         state.matchPresetIds = { A: "", B: "" };
         state.matchPersist = { A: false, B: false };
@@ -7341,6 +7374,29 @@
     return (bundle?.eventos || []).filter((evento) => normalizeToken(evento.tipo) === "penalti_desempate");
   }
 
+  function getPenaltyKickerEligibility(bundle, teamKey, events = getPenaltyEvents(bundle)) {
+    const players = getLineupPlayers(bundle, teamKey)
+      .filter((player, index, items) =>
+        player?.id && items.findIndex((item) => item.id === player.id) === index
+      );
+    const attempts = events.filter((evento) => evento.time === teamKey && evento.jogadorId);
+    const attemptCountByPlayer = attempts.reduce((counts, evento) => {
+      counts.set(evento.jogadorId, (counts.get(evento.jogadorId) || 0) + 1);
+      return counts;
+    }, new Map());
+    const completedCycles = players.length
+      ? Math.min(...players.map((player) => attemptCountByPlayer.get(player.id) || 0))
+      : 0;
+
+    return {
+      players,
+      available: players.filter(
+        (player) => (attemptCountByPlayer.get(player.id) || 0) === completedCycles
+      ),
+      cycle: completedCycles + 1,
+    };
+  }
+
   function renderPenaltyShootoutScreen(bundle, gameNumber) {
     const { jogo } = bundle;
     const penaltyEvents = getPenaltyEvents(bundle);
@@ -7351,8 +7407,7 @@
       <section class="penalty-shootout-shell">
         <header class="penalty-shootout-heading">
           <span>Jogo ${escapeHtml(gameNumber)}</span>
-          <strong>Desempate por pênaltis</strong>
-          <p>O placar do tempo normal permanece separado da disputa.</p>
+          <strong>Disputa de pênaltis</strong>
         </header>
         <div class="penalty-regular-score">
           ${renderPenaltyTeamSummary(bundle, "A")}
@@ -7372,21 +7427,21 @@
             <section class="penalty-next-kick" style="--team-color:${escapeHtml(teamColorFromGame(jogo, nextTeam))}">
               <span>Próxima cobrança</span>
               <strong>${escapeHtml(teamNameFromGame(jogo, nextTeam))}</strong>
-              <small>Escolha o cobrador e registre o resultado.</small>
               <button class="primary-button big-touch" type="button" data-live-action="penalty-attempt" data-team="${escapeHtml(nextTeam)}">Registrar cobrança</button>
             </section>
           `
           : `
             <section class="penalty-starter-picker">
-              <span class="panel-kicker">Primeira cobrança</span>
-              <h3>Quem começa?</h3>
-              <p>Escolha o time que fará a primeira cobrança. Depois o aplicativo alterna automaticamente.</p>
-              <div>
+              <header>
+                <span class="panel-kicker">Primeira cobrança</span>
+                <h3>Quem começa?</h3>
+              </header>
+              <div class="penalty-starter-options">
                 <button type="button" data-live-action="select-penalty-starter" data-team="A" style="--team-color:${escapeHtml(teamColorFromGame(jogo, "A"))}">
-                  <i>${escapeHtml(getLiveTeamInitials(teamNameFromGame(jogo, "A"), "A"))}</i><strong>${escapeHtml(teamNameFromGame(jogo, "A"))}</strong><small>Começa cobrando</small>
+                  <i>${escapeHtml(getLiveTeamInitials(teamNameFromGame(jogo, "A"), "A"))}</i><strong>${escapeHtml(teamNameFromGame(jogo, "A"))}</strong><b>Começar</b>
                 </button>
                 <button type="button" data-live-action="select-penalty-starter" data-team="B" style="--team-color:${escapeHtml(teamColorFromGame(jogo, "B"))}">
-                  <i>${escapeHtml(getLiveTeamInitials(teamNameFromGame(jogo, "B"), "B"))}</i><strong>${escapeHtml(teamNameFromGame(jogo, "B"))}</strong><small>Começa cobrando</small>
+                  <i>${escapeHtml(getLiveTeamInitials(teamNameFromGame(jogo, "B"), "B"))}</i><strong>${escapeHtml(teamNameFromGame(jogo, "B"))}</strong><b>Começar</b>
                 </button>
               </div>
             </section>
@@ -7802,7 +7857,6 @@
             <div>
               <small>${escapeHtml(teamNameFromGame(bundle.jogo, teamKey))}</small>
               <strong>Quem entra no lugar de ${escapeHtml(playerDisplayName(outgoingPlayer))}?</strong>
-              <p>O campo e o histórico são atualizados imediatamente.</p>
             </div>
           </section>
           <div class="substitution-player-list">
@@ -8039,7 +8093,6 @@
     return `
       <fieldset class="event-fieldset goal-method-fieldset">
         <legend>Como foi o gol?</legend>
-        <p class="goal-method-hint">Escolha somente um método.</p>
         <div class="goal-method-options">
           ${QUICK_GOAL_TYPES.map((item) => `
             <label>
@@ -8047,7 +8100,6 @@
               <span class="goal-method-icon" aria-hidden="true">${escapeHtml(item.icon)}</span>
               <span class="goal-method-copy">
                 <strong>${escapeHtml(item.label)}</strong>
-                <small>${escapeHtml(item.detail)}</small>
               </span>
               <i class="goal-method-check" aria-hidden="true"></i>
             </label>
@@ -8306,6 +8358,7 @@
       if (action === "new-game") {
         const peladaId = actionButton.dataset.peladaId || "";
         state.selectedGameSummaryId = null;
+        state.peladaDetailView = "confrontos";
         state.gameDraft = createEmptyGameDraft();
 
         if (peladaId) {
@@ -8398,7 +8451,8 @@
   async function openPenaltyAttemptModal(jogoId, teamKey) {
     const bundle = await readGameBundle(jogoId);
     if (!bundle || normalizeToken(bundle.jogo.fase) !== "penaltis" || bundle.jogo.penaltiProximoTime !== teamKey) return;
-    const players = getLineupPlayers(bundle, teamKey);
+    const eligibility = getPenaltyKickerEligibility(bundle, teamKey);
+    const players = eligibility.available;
     const goalkeeper = getLiveTeamLayoutPlayers(getLineupPlayers(bundle, oppositeTeam(teamKey))).goalkeeper;
     const modal = openLiveModal(
       `Pênalti - ${teamNameFromGame(bundle.jogo, teamKey)}`,
@@ -8411,9 +8465,9 @@
           <label class="field-label"><span>Cobrador</span><select name="jogadorId" required>${renderPlayerOptions(players, "", "Escolha o cobrador")}</select></label>
           <fieldset class="penalty-result-picker">
             <legend>Resultado da cobrança</legend>
-            <label class="is-goal"><input type="radio" name="resultado" value="gol" checked /><span><i>✓</i><strong>Gol</strong><small>Converteu</small></span></label>
-            <label class="is-miss"><input type="radio" name="resultado" value="fora" /><span><i>×</i><strong>Para fora</strong><small>Não acertou o gol</small></span></label>
-            <label class="is-save"><input type="radio" name="resultado" value="defendido" /><span><i>◆</i><strong>Defendido</strong><small>Defesa do goleiro</small></span></label>
+            <label class="is-goal"><input type="radio" name="resultado" value="gol" checked /><span><i>✓</i><strong>Gol</strong></span></label>
+            <label class="is-miss"><input type="radio" name="resultado" value="fora" /><span><i>×</i><strong>Para fora</strong></span></label>
+            <label class="is-save"><input type="radio" name="resultado" value="defendido" /><span><i>◆</i><strong>Defendido</strong></span></label>
           </fieldset>
           <div class="form-errors" id="penalty-attempt-errors" hidden></div>
           <div class="form-actions">
@@ -8444,6 +8498,14 @@
     if (!latestGame || latestGame.status === "Finalizado" || latestGame.penaltiProximoTime !== teamKey) return;
     const existingEvents = (await getAllRecords("eventos"))
       .filter((evento) => evento.jogoId === latestGame.id && !evento.cancelado && normalizeToken(evento.tipo) === "penalti_desempate");
+    const latestBundle = await readGameBundle(latestGame.id);
+    const eligibility = getPenaltyKickerEligibility(latestBundle, teamKey, existingEvents);
+    if (!eligibility.available.some((player) => player.id === jogadorId)) {
+      closeLiveModal();
+      state.liveMessage = "Este jogador já cobrou nesta sequência. Escolha outro atleta.";
+      await renderCurrentSection();
+      return;
+    }
     const savedAt = nowIso();
     const teamAttempts = existingEvents.filter((evento) => evento.time === teamKey).length;
     const evento = {
@@ -9294,7 +9356,6 @@
           <div>
             <span class="panel-kicker">Cartinhas</span>
             <h3>Evolução manual</h3>
-            <p>Ajuste atributos quando uma avaliação da rodada precisar corrigir a carta.</p>
           </div>
         </div>
         <form class="evolution-form" id="manual-evolution-form" novalidate>
@@ -9551,7 +9612,6 @@
             <div>
               <span class="panel-kicker">Leaderboard</span>
               <h2>Ranking</h2>
-              <p data-ranking-mode-description>${escapeHtml(getRankingModeDescription(activeMode))}</p>
             </div>
           </div>
           ${renderRankingModeTabs(activeMode)}
@@ -9786,7 +9846,6 @@
           <div>
             <span class="panel-kicker">Top 3 · ${escapeHtml(category.title)}</span>
             <h3>${escapeHtml(category.title)}</h3>
-            <p>${escapeHtml(category.description || "Top 3 da categoria.")}</p>
           </div>
         </div>
         <div class="ranking-podium-places">
@@ -10776,7 +10835,6 @@
           <div>
             <span class="panel-kicker">Meu jogador</span>
             <h3>Editar meu perfil</h3>
-            <p>Você pode alterar sua foto, apelido e posição. Atributos, overall e estatísticas são protegidos.</p>
           </div>
           <span class="status-pill">${escapeHtml(player.overall ?? "-")} OVR</span>
         </div>
@@ -10984,7 +11042,6 @@
           <div>
             <span class="panel-kicker">Modo Desenvolvedor</span>
             <h3>Diagnóstico do App</h3>
-            <p>Informações técnicas da PWA, banco local, fila de sincronização e auditoria.</p>
           </div>
         </div>
 
@@ -12125,6 +12182,7 @@
         const peladaId = actionButton.dataset.peladaId || "";
         state.selectedGameSummaryId = null;
         state.gameDraft = createEmptyGameDraft();
+        state.peladaDetailView = "confrontos";
         await switchSection("peladas", { peladaId });
         return;
       }

@@ -72,7 +72,7 @@ Para criar uma conta Jogador, primeiro cadastre o atleta e depois selecione-o no
 9. Exclua o jogo ou a pelada de teste e confirme que os registros oficiais permaneceram intactos.
 10. Abra o aplicativo no PC e confirme que o histórico foi sincronizado.
 
-## Atualização 1.1.0 — fluxo rápido de pelada
+## Atualização 1.1.1 — fluxo rápido de pelada
 
 Esta atualização foi feita de forma aditiva: os jogadores, peladas, jogos e estatísticas que já existiam continuam sendo considerados registros oficiais. Não é necessário zerar a base.
 
@@ -85,6 +85,9 @@ Principais mudanças:
 - substituição somente no jogo atual ou mantida nos próximos jogos;
 - aviso quando um jogador retirado de outro time deixa o preset incompleto;
 - desempate por pênaltis alternados, com escolha prévia de quem começa;
+- cada jogador cobra uma vez antes de o time reiniciar a ordem de cobradores;
+- áreas de confrontos e times separadas dentro da mesma pelada;
+- interface mais limpa, com explicações redundantes removidas;
 - placar do tempo normal separado do resultado dos pênaltis;
 - peladas oficiais e peladas de teste;
 - exclusão confirmada de jogos, peladas ou todos os registros de teste;
