@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.1.1";
+  const APP_VERSION = "1.1.3";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -4854,7 +4854,10 @@
                 <h3>Peladas de teste</h3>
               </div>
               ${hasPermission("eventos:excluir") ? `
-                <button type="button" data-pelada-action="delete-all-tests">Apagar testes</button>
+                <button class="test-records-clear" type="button" data-pelada-action="delete-all-tests" aria-label="Apagar todas as peladas de teste">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 10v7M14 10v7"/></svg>
+                  <span>Limpar testes</span>
+                </button>
               ` : ""}
             </header>
             <div class="pelada-card-grid">
@@ -5016,18 +5019,27 @@
   function renderPeladaCard(pelada, gameCount = 0, jogos = []) {
     const status = getPeladaStatusLabel(pelada, jogos);
     const statusClass = normalizeToken(status);
+    const recordType = getPeladaRecordType(pelada);
 
     return `
-      <article class="pelada-card ${statusClass === "finalizada" ? "is-finalized" : ""}">
+      <article class="pelada-card ${statusClass === "finalizada" ? "is-finalized" : ""} is-record-${escapeHtml(recordType)}">
         <button class="pelada-card-main" type="button" data-pelada-action="open-pelada" data-pelada-id="${escapeHtml(pelada.id)}">
-          ${renderPeladaDateTile(pelada)}
-          <span class="pelada-card-info">
-            <strong>${escapeHtml(pelada.local || "Pelada")}</strong>
-            ${pelada.endereco ? `<small>${escapeHtml(pelada.endereco)}</small>` : `<small>Local não informado</small>`}
+          <span class="pelada-card-accent" aria-hidden="true"></span>
+          <span class="pelada-card-topline">
+            ${renderPeladaTypeBadge(pelada)}
+            ${renderPeladaStatusBadge(status)}
           </span>
-          ${renderPeladaMetaRow(pelada, gameCount, false)}
-          <span class="pelada-badge-stack">${renderPeladaTypeBadge(pelada)}${renderPeladaStatusBadge(status)}</span>
-          <span class="pelada-open-cta">Ver detalhes <b aria-hidden="true">&rsaquo;</b></span>
+          <span class="pelada-card-body">
+            ${renderPeladaDateTile(pelada)}
+            <span class="pelada-card-info">
+              <strong>${escapeHtml(pelada.local || "Pelada")}</strong>
+              ${pelada.endereco ? `<small>${escapeHtml(pelada.endereco)}</small>` : `<small>Local não informado</small>`}
+              ${renderPeladaMetaRow(pelada, gameCount, false)}
+            </span>
+          </span>
+          <span class="pelada-open-cta" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
+          </span>
         </button>
       </article>
     `;
@@ -5039,16 +5051,33 @@
     const canFinalize = Boolean(peladaSummary?.canFinalize);
     const finishTitle = peladaSummary?.finishDisabledReason || "Encerrar a pelada e escolher MVP/Bagre.";
     const statusClass = normalizeToken(status);
+    const recordType = getPeladaRecordType(pelada);
 
     return `
-      <section class="pelada-open-toolbar pelada-open-hero">
-        <div class="pelada-open-badges">
-          <span class="pelada-open-status status-${escapeHtml(statusClass)}"><i></i>${escapeHtml(status)}</span>
-          ${renderPeladaTypeBadge(pelada)}
-        </div>
-        <div class="pelada-open-title">
-          <h3>${escapeHtml(pelada.local || "Pelada")}</h3>
-          <p>${escapeHtml(formatDateLabel(pelada.data))} • ${escapeHtml(horario)} • ${escapeHtml(formatCurrency(pelada.valor))}</p>
+      <section class="pelada-open-toolbar pelada-open-hero is-record-${escapeHtml(recordType)}">
+        <span class="pelada-open-accent" aria-hidden="true"></span>
+        <header class="pelada-open-header">
+          <div class="pelada-open-title">
+            <h3>${escapeHtml(pelada.local || "Pelada")}</h3>
+          </div>
+          <div class="pelada-open-badges">
+            <span class="pelada-open-status status-${escapeHtml(statusClass)}"><i></i>${escapeHtml(status)}</span>
+            ${renderPeladaTypeBadge(pelada)}
+          </div>
+        </header>
+        <div class="pelada-open-meta">
+          <span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"/><path d="M8 3v5M16 3v5M4 10h16"/></svg>
+            <strong>${escapeHtml(formatDateLabel(pelada.data))}</strong>
+          </span>
+          <span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+            <strong>${escapeHtml(horario)}</strong>
+          </span>
+          <span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5h16v10H4zM7 12h.01M17 12h.01M12 9.5c1.4 0 2.5 1.1 2.5 2.5s-1.1 2.5-2.5 2.5-2.5-1.1-2.5-2.5 1.1-2.5 2.5-2.5Z"/></svg>
+            <strong>${escapeHtml(formatCurrency(pelada.valor))}</strong>
+          </span>
         </div>
         <div class="pelada-open-actions">
           ${hasPermission("jogos:finalizar") ? `<button
@@ -5058,7 +5087,8 @@
             ${canFinalize ? "" : "disabled"}
             title="${escapeHtml(finishTitle)}"
           >
-            Finalizar Pelada
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4v16M7 5h10l-2 3 2 3H7"/></svg>
+            <span>Finalizar Pelada</span>
           </button>` : ""}
           ${hasPermission("eventos:excluir") ? `
             <button
@@ -5067,7 +5097,8 @@
               data-pelada-action="delete-pelada"
               data-pelada-id="${escapeHtml(pelada.id)}"
             >
-              Excluir registro
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 10v7M14 10v7"/></svg>
+              <span>Excluir registro</span>
             </button>
           ` : ""}
         </div>
