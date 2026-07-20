@@ -72,7 +72,7 @@ Para criar uma conta Jogador, primeiro cadastre o atleta e depois selecione-o no
 9. Exclua o jogo ou a pelada de teste e confirme que os registros oficiais permaneceram intactos.
 10. Abra o aplicativo no PC e confirme que o histórico foi sincronizado.
 
-## Atualização 1.1.5 — fluxo rápido de pelada
+## Atualização 1.1.6 — fluxo rápido de pelada
 
 Esta atualização foi feita de forma aditiva: os jogadores, peladas, jogos e estatísticas que já existiam continuam sendo considerados registros oficiais. Não é necessário zerar a base.
 

@@ -1,12 +1,13 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.1.5";
+  const APP_VERSION = "1.1.6";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 5000;
   const SYNC_BATCH_SIZE = 100;
+  const BAGRE_MIN_PARTICIPATION_RATE = 0.3;
   const AUTH_TOKEN_STORAGE_KEY = "bagrescore:auth-token";
   const AUTH_USER_STORAGE_KEY = "bagrescore:auth-user";
   const REMOTE_SYNC_STORES = new Set([
@@ -2326,7 +2327,7 @@
       disputasPenaltis: 0,
       eventos: 0,
       pontuacao: 0,
-      bagreScore: 0,
+      mediaDesempenho: 0,
     };
   }
 
@@ -2364,6 +2365,39 @@
     return entries[0] || null;
   }
 
+  function comparePeladaBagreCandidates(a, b) {
+    return (
+      Number(a.mediaDesempenho || 0) - Number(b.mediaDesempenho || 0) ||
+      Number(b.golsContra || 0) - Number(a.golsContra || 0) ||
+      Number(b.cartoesVermelhos || 0) - Number(a.cartoesVermelhos || 0) ||
+      Number(b.cartoesAmarelos || 0) - Number(a.cartoesAmarelos || 0) ||
+      Number(b.faltasCometidas || 0) - Number(a.faltasCometidas || 0) ||
+      Number(b.derrotas || 0) - Number(a.derrotas || 0) ||
+      playerDisplayName(a.jogador).localeCompare(playerDisplayName(b.jogador), "pt-BR")
+    );
+  }
+
+  function selectPeladaBagreSuggestion(playerScores, suggestedMvp = null) {
+    const maximumGamesPlayed = Math.max(0, ...playerScores.map((stats) => Number(stats.jogos || 0)));
+    const minimumGames = maximumGamesPlayed > 0
+      ? Math.max(1, Math.ceil(maximumGamesPlayed * BAGRE_MIN_PARTICIPATION_RATE))
+      : 0;
+    const isNotSuggestedMvp = (stats) => stats.jogadorId !== suggestedMvp?.jogadorId;
+    const eligibleCandidates = playerScores.filter(
+      (stats) => stats.jogador && stats.jogos >= minimumGames && isNotSuggestedMvp(stats)
+    );
+    const fallbackCandidates = playerScores.filter(
+      (stats) => stats.jogador && stats.jogos > 0 && isNotSuggestedMvp(stats)
+    );
+    const candidates = eligibleCandidates.length ? eligibleCandidates : fallbackCandidates;
+
+    return {
+      suggestion: [...candidates].sort(comparePeladaBagreCandidates)[0] || null,
+      maximumGamesPlayed,
+      minimumGames,
+    };
+  }
+
   function buildPeladaClosureSummary(pelada, jogos = [], eventos = [], escalacoes = [], jogadores = []) {
     const playerById = new Map(jogadores.map((jogador) => [jogador.id, jogador]));
     const finalizedGames = jogos.filter((jogo) => jogo.status === "Finalizado");
@@ -2399,7 +2433,6 @@
             stats.pontuacao += 1;
           } else if (result === "derrota") {
             stats.derrotas += 1;
-            stats.bagreScore += 1;
           }
         });
     });
@@ -2419,7 +2452,6 @@
           if (isOwnGoal) {
             stats.golsContra += 1;
             stats.pontuacao -= 3;
-            stats.bagreScore += 4;
           } else {
             stats.gols += 1;
             stats.pontuacao += 3;
@@ -2446,18 +2478,15 @@
           stats.faltasCometidas += 1;
           stats.eventos += 1;
           stats.pontuacao -= 0.5;
-          stats.bagreScore += 0.5;
 
           if (cartao === "amarelo") {
             stats.cartoesAmarelos += 1;
             stats.pontuacao -= 1;
-            stats.bagreScore += 1;
           }
 
           if (cartao === "vermelho") {
             stats.cartoesVermelhos += 1;
             stats.pontuacao -= 2;
-            stats.bagreScore += 3;
           }
         }
       }
@@ -2468,13 +2497,11 @@
           if (cartao === "amarelo") {
             stats.cartoesAmarelos += 1;
             stats.pontuacao -= 1;
-            stats.bagreScore += 1;
           }
 
           if (cartao === "vermelho") {
             stats.cartoesVermelhos += 1;
             stats.pontuacao -= 2;
-            stats.bagreScore += 3;
           }
         }
       }
@@ -2508,16 +2535,10 @@
     });
 
     const playerScores = [...scoreByPlayerId.values()].map((stats) => {
-      const positiveActions = stats.gols + stats.assistencias + stats.acoesDefensivas + stats.defesasDificeis;
       stats.participacoesGol = stats.gols + stats.assistencias;
-
-      if (stats.jogos > 0 && positiveActions === 0) {
-        stats.bagreScore += 1;
-      }
-
-      if (stats.pontuacao < 0) {
-        stats.bagreScore += Math.abs(stats.pontuacao);
-      }
+      stats.mediaDesempenho = stats.jogos > 0
+        ? Number((stats.pontuacao / stats.jogos).toFixed(2))
+        : 0;
 
       return stats;
     });
@@ -2538,16 +2559,8 @@
         Number(b.vitorias || 0) - Number(a.vitorias || 0) ||
         playerDisplayName(a.jogador).localeCompare(playerDisplayName(b.jogador), "pt-BR")
       )[0] || null;
-    const suggestedBagre = playerScores
-      .filter((stats) => stats.jogos > 0 || stats.eventos > 0)
-      .sort((a, b) =>
-        Number(b.bagreScore || 0) - Number(a.bagreScore || 0) ||
-        Number(a.pontuacao || 0) - Number(b.pontuacao || 0) ||
-        Number(b.golsContra || 0) - Number(a.golsContra || 0) ||
-        Number(b.cartoesVermelhos || 0) - Number(a.cartoesVermelhos || 0) ||
-        Number(b.faltasCometidas || 0) - Number(a.faltasCometidas || 0) ||
-        playerDisplayName(a.jogador).localeCompare(playerDisplayName(b.jogador), "pt-BR")
-      )[0] || null;
+    const bagreSelection = selectPeladaBagreSuggestion(playerScores, suggestedMvp);
+    const suggestedBagre = bagreSelection.suggestion;
 
     const summary = {
       pelada,
@@ -2573,6 +2586,10 @@
       suggestions: {
         mvp: suggestedMvp,
         bagre: suggestedBagre,
+      },
+      bagreCriteria: {
+        maximumGamesPlayed: bagreSelection.maximumGamesPlayed,
+        minimumGames: bagreSelection.minimumGames,
       },
       totals: {
         jogosRealizados: finalizedGames.length,
@@ -5901,7 +5918,7 @@
   }
 
   function renderPeladaSuggestionCard(title, stats, scoreKey, scoreLabel) {
-    const suggestionType = scoreKey === "bagreScore" ? "bagre" : "mvp";
+    const suggestionType = scoreKey === "mediaDesempenho" ? "bagre" : "mvp";
 
     if (!stats) {
       return `
@@ -5997,7 +6014,7 @@
           </header>
           <div class="pelada-suggestion-grid">
             ${renderPeladaSuggestionCard("MVP recomendado", summary.suggestions.mvp, "pontuacao", "Pontuação")}
-            ${renderPeladaSuggestionCard("Bagre recomendado", summary.suggestions.bagre, "bagreScore", "Índice negativo")}
+            ${renderPeladaSuggestionCard("Bagre recomendado", summary.suggestions.bagre, "mediaDesempenho", "Média por jogo")}
           </div>
         </section>
 
@@ -6016,7 +6033,7 @@
             <label class="field-label">
               <span>Bagre da Pelada *</span>
               <select name="bagreJogadorId" ${canChoose ? "" : "disabled"}>
-                ${renderAwardPlayerOptions(summary, summary.suggestions.bagre?.jogadorId || "", "bagreScore")}
+                ${renderAwardPlayerOptions(summary, summary.suggestions.bagre?.jogadorId || "", "mediaDesempenho")}
               </select>
             </label>
             <label class="field-label wide-field">
@@ -6832,7 +6849,7 @@
 
       const savedAt = nowIso();
       const mvpScore = summary.scoreByPlayerId.get(mvpJogadorId)?.pontuacao || 0;
-      const bagreScore = summary.scoreByPlayerId.get(bagreJogadorId)?.bagreScore || 0;
+      const bagrePerformanceAverage = summary.scoreByPlayerId.get(bagreJogadorId)?.mediaDesempenho || 0;
       const baseEvent = {
         jogoId: "",
         peladaId,
@@ -6868,7 +6885,7 @@
         tipo: "BAGRE_PELADA",
         jogadorId: bagreJogadorId,
         detalhe: `Bagre da Pelada - ${pelada.local || "Pelada"}`,
-        pontuacaoCalculada: Number(bagreScore.toFixed(1)),
+        pontuacaoCalculada: Number(bagrePerformanceAverage.toFixed(2)),
       };
       const updatedPelada = {
         ...pelada,
