@@ -1,8 +1,8 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.0.0";
-  const MIN_SYNC_API_VERSION = "1.4.0";
+  const APP_VERSION = "1.1.0";
+  const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 5000;
@@ -233,6 +233,8 @@
       "horarioFim",
       "valor",
       "observacoes",
+      "tipoRegistro",
+      "proximoConfronto",
       "status",
       "finalizadaEm",
       "mvpJogadorId",
@@ -254,12 +256,21 @@
       "fim",
       "status",
       "formaEncerramento",
+      "presetAId",
+      "presetBId",
+      "filaTimes",
+      "fase",
+      "decididoNosPenaltis",
+      "penaltisA",
+      "penaltisB",
+      "penaltiIniciaPor",
+      "penaltiProximoTime",
       "createdAt",
       "updatedAt",
       "revision",
     ],
-    times: ["id", "jogoId", "nome", "cor", "jogadores", "linha", "goleiroId"],
-    escalacoes: ["id", "jogoId", "jogadorId", "time", "timeId", "createdAt", "updatedAt"],
+    times: ["id", "tipo", "peladaId", "jogoId", "presetId", "ordem", "nome", "cor", "jogadores", "linha", "goleiroId"],
+    escalacoes: ["id", "jogoId", "jogadorId", "time", "timeId", "ativo", "entrouEm", "saiuEm", "createdAt", "updatedAt"],
     eventos: [
       "id",
       "jogoId",
@@ -274,6 +285,15 @@
       "cartao",
       "tipoAcaoDefensiva",
       "tipoDefesaGoleiro",
+      "jogadorSaiuId",
+      "jogadorEntrouId",
+      "escopoSubstituicao",
+      "presetDestinoId",
+      "presetOrigemId",
+      "presetOrigemPapel",
+      "resultadoPenalti",
+      "goleiroId",
+      "rodadaPenalti",
       "golContra",
       "observacoes",
       "detalhe",
@@ -646,6 +666,8 @@
       A: { nome: "Time A", cor: "#ff5a00", linha: [], goleiro: "" },
       B: { nome: "Time B", cor: "#4aa3df", linha: [], goleiro: "" },
     },
+    matchPresetIds: { A: "", B: "" },
+    matchPersist: { A: false, B: false },
     statsFilters: {
       periodo: "all",
       peladaId: "",
@@ -1057,21 +1079,32 @@
   }
 
   function getGameWinner(jogo) {
-    const placarA = Number(jogo.placarA || 0);
-    const placarB = Number(jogo.placarB || 0);
-
-    if (placarA > placarB) return teamNameFromGame(jogo, "A");
-    if (placarB > placarA) return teamNameFromGame(jogo, "B");
+    const winningTeamKey = getWinningTeamKey(jogo);
+    if (winningTeamKey) return teamNameFromGame(jogo, winningTeamKey);
     return "Empate";
   }
 
-  function getGameResultForTeam(jogo, teamKey) {
+  function getWinningTeamKey(jogo) {
     const placarA = Number(jogo.placarA || 0);
     const placarB = Number(jogo.placarB || 0);
 
-    if (placarA === placarB) return "empate";
-    if (teamKey === "A") return placarA > placarB ? "vitoria" : "derrota";
-    return placarB > placarA ? "vitoria" : "derrota";
+    if (placarA > placarB) return "A";
+    if (placarB > placarA) return "B";
+
+    if (jogo?.decididoNosPenaltis) {
+      const penaltisA = Number(jogo.penaltisA || 0);
+      const penaltisB = Number(jogo.penaltisB || 0);
+      if (penaltisA > penaltisB) return "A";
+      if (penaltisB > penaltisA) return "B";
+    }
+
+    return "";
+  }
+
+  function getGameResultForTeam(jogo, teamKey) {
+    const winningTeamKey = getWinningTeamKey(jogo);
+    if (!winningTeamKey) return "empate";
+    return winningTeamKey === teamKey ? "vitoria" : "derrota";
   }
 
   function getElapsedGameSeconds(jogo) {
@@ -1093,6 +1126,7 @@
   function getGameStatusLabel(jogo) {
     if (!jogo) return "Sem jogo";
     if (jogo.status === "Finalizado") return "Finalizado";
+    if (normalizeToken(jogo.fase) === "penaltis") return "Pênaltis";
     if (jogo.pausadoEm) return "Pausado";
     if (jogo.status === "Em andamento") return "Em andamento";
     return jogo.status || "Rascunho";
@@ -1545,7 +1579,8 @@
   }
 
   function getLineupTeamForPlayer(bundle, playerId) {
-    const lineup = bundle?.escalacoes?.find((item) => item.jogadorId === playerId);
+    const lineup = bundle?.escalacoes?.find((item) => item.jogadorId === playerId && item.ativo !== false) ||
+      bundle?.escalacoes?.find((item) => item.jogadorId === playerId);
     return lineup?.time || "";
   }
 
@@ -1601,6 +1636,79 @@
 
   function uniqueIds(ids) {
     return [...new Set((ids || []).filter(Boolean))];
+  }
+
+  function getPeladaRecordType(pelada) {
+    return normalizeToken(pelada?.tipoRegistro) === "teste" ? "teste" : "oficial";
+  }
+
+  function isTestPelada(pelada) {
+    return getPeladaRecordType(pelada) === "teste";
+  }
+
+  function isTeamPreset(time) {
+    return normalizeToken(time?.tipo) === "preset" && Boolean(time?.peladaId);
+  }
+
+  async function readTeamPresets(peladaId) {
+    const times = await getAllRecords("times");
+    return times
+      .filter((time) => isTeamPreset(time) && time.peladaId === peladaId)
+      .sort((a, b) =>
+        Number(a.ordem || 0) - Number(b.ordem || 0) ||
+        String(a.createdAt || "").localeCompare(String(b.createdAt || ""))
+      );
+  }
+
+  function teamPresetToDraft(preset, fallbackKey) {
+    return {
+      nome: preset?.nome || `Time ${fallbackKey}`,
+      cor: preset?.cor || (fallbackKey === "A" ? "#ff5a00" : "#4aa3df"),
+      linha: uniqueIds(preset?.linha || []).slice(0, 5),
+      goleiro: preset?.goleiroId || "",
+    };
+  }
+
+  function hydrateMatchDraft(presetA, presetB) {
+    state.matchPresetIds = {
+      A: presetA?.id || "",
+      B: presetB?.id || "",
+    };
+    state.matchPersist = { A: false, B: false };
+    state.gameDraft = {
+      A: teamPresetToDraft(presetA, "A"),
+      B: teamPresetToDraft(presetB, "B"),
+    };
+  }
+
+  function getSuggestedMatchup(pelada, presets = []) {
+    const presetById = new Map(presets.map((preset) => [preset.id, preset]));
+    const saved = pelada?.proximoConfronto || {};
+    const presetA = presetById.get(saved.timeAId) || presets[0] || null;
+    const presetB = presetById.get(saved.timeBId) || presets.find((preset) => preset.id !== presetA?.id) || null;
+    const savedQueue = uniqueIds(saved.fila || []).filter(
+      (id) => presetById.has(id) && id !== presetA?.id && id !== presetB?.id
+    );
+    const remaining = presets
+      .map((preset) => preset.id)
+      .filter((id) => id !== presetA?.id && id !== presetB?.id && !savedQueue.includes(id));
+
+    return {
+      presetA,
+      presetB,
+      fila: [...savedQueue, ...remaining],
+    };
+  }
+
+  function getPresetCompleteness(preset) {
+    const lineCount = uniqueIds(preset?.linha || []).length;
+    const hasGoalkeeper = Boolean(preset?.goleiroId);
+    return {
+      lineCount,
+      hasGoalkeeper,
+      total: lineCount + (hasGoalkeeper ? 1 : 0),
+      complete: lineCount === 5 && hasGoalkeeper,
+    };
   }
 
   function normalizeGameDraft(players = []) {
@@ -1679,6 +1787,20 @@
     if (eventType === "cartao") {
       const player = playerNameFromMap(playerById, evento.jogadorId);
       return `<li><strong>${minute}</strong><span>Cartão ${escapeHtml(getCardLabel(evento.cartao))} para ${escapeHtml(player)}</span></li>`;
+    }
+
+    if (eventType === "substituicao") {
+      const outgoing = playerNameFromMap(playerById, evento.jogadorSaiuId);
+      const incoming = playerNameFromMap(playerById, evento.jogadorEntrouId);
+      const scopeLabel = evento.escopoSubstituicao === "proximos" ? " · mantida nos próximos jogos" : "";
+      return `<li class="event-substitution"><strong>${minute}</strong><span><b>↔ ${escapeHtml(incoming)}</b> entrou no lugar de ${escapeHtml(outgoing)}${escapeHtml(scopeLabel)}</span></li>`;
+    }
+
+    if (eventType === "penalti_desempate") {
+      const kicker = playerNameFromMap(playerById, evento.jogadorId);
+      const result = normalizeToken(evento.resultadoPenalti);
+      const resultLabel = result === "gol" ? "converteu" : result === "defendido" ? "teve a cobrança defendida" : "mandou para fora";
+      return `<li class="event-penalty"><strong>P${escapeHtml(evento.rodadaPenalti || "")}</strong><span>${escapeHtml(kicker)} ${escapeHtml(resultLabel)}</span></li>`;
     }
 
     if (eventType === "acao_defensiva") {
@@ -1846,6 +1968,25 @@
     storeNames.forEach((storeName) => {
       const store = transaction.objectStore(storeName);
       keysByStore[storeName].forEach((key) => store.delete(key));
+    });
+
+    await transactionDone(transaction);
+    invalidateStatsCache(storeNames);
+  }
+
+  async function mutateRecords({ deletes = {}, puts = {} } = {}) {
+    const storeNames = [...new Set([
+      ...Object.keys(deletes).filter((storeName) => deletes[storeName]?.length),
+      ...Object.keys(puts).filter((storeName) => puts[storeName]?.length),
+    ])];
+
+    if (!storeNames.length) return;
+    const transaction = state.db.transaction(storeNames, "readwrite");
+
+    storeNames.forEach((storeName) => {
+      const store = transaction.objectStore(storeName);
+      (deletes[storeName] || []).forEach((key) => store.delete(key));
+      (puts[storeName] || []).forEach((record) => store.put(record));
     });
 
     await transactionDone(transaction);
@@ -2023,10 +2164,11 @@
   }
 
   async function aplicarEvolucaoPorEventos(jogadorId) {
-    const [jogador, attributesRecord, eventos] = await Promise.all([
+    const [jogador, attributesRecord, eventos, peladas] = await Promise.all([
       getRecord("jogadores", jogadorId),
       getRecord("atributos", jogadorId),
       getAllRecords("eventos"),
+      getAllRecords("peladas"),
     ]);
 
     if (!jogador) {
@@ -2040,7 +2182,9 @@
         ...(attributesRecord || {}),
       },
     });
-    const changes = buildEventEvolutionChanges(jogadorId, jogador, card.attributes, eventos);
+    const peladaById = new Map(peladas.map((pelada) => [pelada.id, pelada]));
+    const officialEvents = eventos.filter((evento) => !isTestPelada(peladaById.get(evento.peladaId)));
+    const changes = buildEventEvolutionChanges(jogadorId, jogador, card.attributes, officialEvents);
 
     return aplicarAlteracoesAtributos(jogadorId, changes);
   }
@@ -2115,14 +2259,18 @@
     const playerById = new Map(jogadores.map((jogador) => [jogador.id, jogador]));
     const gameTeams = times.filter((time) => time.jogoId === jogoId);
     const gameLineups = escalacoes.filter((escalacao) => escalacao.jogoId === jogoId);
-    const playersA = gameLineups
+    const participantsA = gameLineups
       .filter((escalacao) => escalacao.time === "A" || escalacao.timeId === jogo.timeA?.id)
       .map((escalacao) => playerById.get(escalacao.jogadorId))
       .filter(Boolean);
-    const playersB = gameLineups
+    const participantsB = gameLineups
       .filter((escalacao) => escalacao.time === "B" || escalacao.timeId === jogo.timeB?.id)
       .map((escalacao) => playerById.get(escalacao.jogadorId))
       .filter(Boolean);
+    const activeLineups = gameLineups.filter((escalacao) => escalacao.ativo !== false);
+    const activeIds = new Set(activeLineups.map((escalacao) => escalacao.jogadorId));
+    const playersA = participantsA.filter((player) => activeIds.has(player.id));
+    const playersB = participantsB.filter((player) => activeIds.has(player.id));
 
     return {
       jogo,
@@ -2135,6 +2283,8 @@
         .sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || ""))),
       playersA,
       playersB,
+      participantsA,
+      participantsB,
     };
   }
 
@@ -2163,6 +2313,10 @@
       acoesDefensivas: 0,
       defesasDificeis: 0,
       defesasPenalti: 0,
+      penaltisConvertidos: 0,
+      penaltisPerdidos: 0,
+      penaltisDefendidos: 0,
+      disputasPenaltis: 0,
       eventos: 0,
       pontuacao: 0,
       bagreScore: 0,
@@ -2485,6 +2639,10 @@
       acoesDefensivas: 0,
       defesasDificeis: 0,
       defesasPenalti: 0,
+      penaltisConvertidos: 0,
+      penaltisPerdidos: 0,
+      penaltisDefendidos: 0,
+      disputasPenaltis: 0,
       cartoesAmarelos: 0,
       cartoesVermelhos: 0,
       cartoesTotal: 0,
@@ -2505,6 +2663,7 @@
       temporadaId: filters.temporadaId || "",
       jogadorId: filters.jogadorId || "",
       posicao: filters.posicao || "",
+      includeTests: Boolean(filters.includeTests),
     });
   }
 
@@ -2571,6 +2730,9 @@
             faltasSofridas: 0,
             acoesDefensivas: 0,
             defesasDificeis: 0,
+            penaltisConvertidos: 0,
+            penaltisPerdidos: 0,
+            penaltisDefendidos: 0,
           };
 
           stats.jogos += 1;
@@ -2678,6 +2840,27 @@
         }
       }
 
+      if (eventType === "penalti_desempate") {
+        const resultado = normalizeToken(evento.resultadoPenalti);
+        if (evento.jogadorId && statsByPlayerId.has(evento.jogadorId)) {
+          const stats = statsByPlayerId.get(evento.jogadorId);
+          const history = historyByPlayerGame.get(`${evento.jogadorId}:${evento.jogoId}`);
+          if (resultado === "gol") {
+            stats.penaltisConvertidos += 1;
+            if (history) history.penaltisConvertidos += 1;
+          } else {
+            stats.penaltisPerdidos += 1;
+            if (history) history.penaltisPerdidos += 1;
+          }
+        }
+        if (resultado === "defendido" && evento.goleiroId && statsByPlayerId.has(evento.goleiroId)) {
+          const stats = statsByPlayerId.get(evento.goleiroId);
+          const history = historyByPlayerGame.get(`${evento.goleiroId}:${evento.jogoId}`);
+          stats.penaltisDefendidos += 1;
+          if (history) history.penaltisDefendidos += 1;
+        }
+      }
+
       if ((eventType === "mvp" || eventType === "mvp_pelada") && evento.jogadorId && statsByPlayerId.has(evento.jogadorId)) {
         const stats = statsByPlayerId.get(evento.jogadorId);
         const pelada = peladaById.get(evento.peladaId);
@@ -2726,6 +2909,7 @@
       stats.golsPorJogo = safeDivide(stats.gols, stats.jogos);
       stats.assistenciasPorJogo = safeDivide(stats.assistencias, stats.jogos);
       stats.gaPorJogo = safeDivide(stats.participacoesGol, stats.jogos);
+      stats.disputasPenaltis = stats.penaltisConvertidos + stats.penaltisPerdidos;
       stats.historico.sort((a, b) => String(b.data || "").localeCompare(String(a.data || "")));
       stats.premiosPelada.sort((a, b) => String(b.data || "").localeCompare(String(a.data || "")));
       return stats;
@@ -2743,11 +2927,14 @@
       const tipoDefesa = normalizeToken(evento.tipoDefesaGoleiro);
       return eventType === "defesa_goleiro" && ["dificil", "penalti", "cara_a_cara", "reflexo"].includes(tipoDefesa);
     }).length;
+    const eligiblePeladas = filters.includeTests
+      ? peladas
+      : peladas.filter((pelada) => !isTestPelada(pelada));
 
     const result = {
       filters,
       jogadores,
-      peladas,
+      peladas: eligiblePeladas,
       jogos: selectedGames,
       jogosFinalizados: finalizedGames,
       escalacoes,
@@ -2758,7 +2945,9 @@
       playersStats,
       summary: {
         totalJogadores: filteredPlayers.length,
-        totalPeladas: filters.peladaId ? (peladaById.has(filters.peladaId) ? 1 : 0) : peladas.length,
+        totalPeladas: filters.peladaId
+          ? (eligiblePeladas.some((pelada) => pelada.id === filters.peladaId) ? 1 : 0)
+          : eligiblePeladas.length,
         totalJogosFinalizados: finalizedGames.length,
         totalGols: golsRegistrados,
         totalAssistencias: assistencias,
@@ -2776,6 +2965,10 @@
     const pelada = peladaById.get(jogo.peladaId);
     const referenceDate = pelada?.data || jogo.inicio?.slice(0, 10) || "";
 
+    if (!filters.includeTests && isTestPelada(pelada)) {
+      return false;
+    }
+
     if (filters.peladaId && jogo.peladaId !== filters.peladaId) {
       return false;
     }
@@ -2788,6 +2981,9 @@
   }
 
   function peladaMatchesStatsFilters(pelada, filters) {
+    if (!filters.includeTests && isTestPelada(pelada)) {
+      return false;
+    }
     if (filters.peladaId && pelada.id !== filters.peladaId) {
       return false;
     }
@@ -4404,10 +4600,11 @@
   }
 
   async function renderPeladasSection() {
-    const [peladas, jogadores, allGames] = await Promise.all([
+    const [peladas, jogadores, allGames, allTimes] = await Promise.all([
       readPeladasSorted(),
       readActivePlayers(),
       getAllRecords("jogos"),
+      getAllRecords("times"),
     ]);
     let selectedPelada = state.selectedPeladaId
       ? peladas.find((pelada) => pelada.id === state.selectedPeladaId) || null
@@ -4451,6 +4648,9 @@
     }
 
     const jogos = await readGamesForPelada(selectedPelada.id);
+    const teamPresets = allTimes
+      .filter((time) => isTeamPreset(time) && time.peladaId === selectedPelada.id)
+      .sort((a, b) => Number(a.ordem || 0) - Number(b.ordem || 0));
     const selectedGame = state.selectedGameSummaryId
       ? jogos.find((jogo) => jogo.id === state.selectedGameSummaryId) || null
       : null;
@@ -4494,7 +4694,8 @@
     $("#section-content").innerHTML = `
       <div class="pelada-detail-flow">
         ${renderPeladaOpenToolbar(selectedPelada, peladaSummary)}
-        ${renderGameSetup(selectedPelada, jogadores)}
+        ${renderTeamPresetsPanel(selectedPelada, teamPresets, jogadores)}
+        ${renderGameSetup(selectedPelada, jogadores, teamPresets)}
         ${renderGameHistory(selectedPelada, jogos, eventsByGameId, playerById, peladaSummary)}
       </div>
     `;
@@ -4548,7 +4749,9 @@
   }
 
   function selectNextOpenPelada(peladas = []) {
-    const openPeladas = peladas.filter((pelada) => !isFinalizedPelada(pelada));
+    const openPeladas = peladas.filter(
+      (pelada) => !isFinalizedPelada(pelada) && !isTestPelada(pelada)
+    );
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
     const dateValue = (pelada) => {
@@ -4585,8 +4788,10 @@
   }
 
   function renderManagePeladasPanel(peladas, gameCountByPeladaId, gamesByPeladaId) {
-    const featuredPelada = selectNextOpenPelada(peladas);
-    const finalizedPeladas = peladas.filter(isFinalizedPelada);
+    const officialPeladas = peladas.filter((pelada) => !isTestPelada(pelada));
+    const testPeladas = peladas.filter(isTestPelada);
+    const featuredPelada = selectNextOpenPelada(officialPeladas);
+    const finalizedPeladas = officialPeladas.filter(isFinalizedPelada);
 
     return `
       <section class="pelada-workspace peladas-manage-shell">
@@ -4613,6 +4818,30 @@
               )
               .join("")}</div>`
           : `<div class="peladas-finished-empty"><span aria-hidden="true">✓</span><p>Nenhuma pelada finalizada ainda.</p></div>`}
+
+        ${testPeladas.length ? `
+          <section class="test-records-panel">
+            <header>
+              <div>
+                <span>Ambiente seguro</span>
+                <h3>Peladas de teste</h3>
+                <p>Não alteram rankings nem a evolução das cartas.</p>
+              </div>
+              ${hasPermission("eventos:excluir") ? `
+                <button type="button" data-pelada-action="delete-all-tests">Apagar testes</button>
+              ` : ""}
+            </header>
+            <div class="pelada-card-grid">
+              ${testPeladas.map((pelada) =>
+                renderPeladaCard(
+                  pelada,
+                  gameCountByPeladaId.get(pelada.id) || 0,
+                  gamesByPeladaId.get(pelada.id) || []
+                )
+              ).join("")}
+            </div>
+          </section>
+        ` : ""}
       </section>
     `;
   }
@@ -4650,6 +4879,17 @@
             <span>Observações</span>
             <textarea name="observacoes" rows="3"></textarea>
           </label>
+          <fieldset class="pelada-record-type wide-field">
+            <legend>Tipo de registro</legend>
+            <label>
+              <input type="radio" name="tipoRegistro" value="oficial" checked />
+              <span><strong>Oficial</strong><small>Conta nos rankings e na evolução das cartas.</small></span>
+            </label>
+            <label>
+              <input type="radio" name="tipoRegistro" value="teste" />
+              <span><strong>Teste</strong><small>Permite simular tudo sem alterar os dados oficiais.</small></span>
+            </label>
+          </fieldset>
         </div>
         <div class="form-actions">
           <button class="primary-button" type="submit">Marcar pelada</button>
@@ -4710,6 +4950,11 @@
     return `<span class="pelada-status-badge status-${escapeHtml(statusClass)}"><i></i>${escapeHtml(status)}</span>`;
   }
 
+  function renderPeladaTypeBadge(pelada) {
+    const type = getPeladaRecordType(pelada);
+    return `<span class="pelada-type-badge is-${type}">${type === "teste" ? "Modo teste" : "Oficial"}</span>`;
+  }
+
   function renderPeladaMetaRow(pelada, gameCount, includeGames = true) {
     return `
       <span class="pelada-meta-row">
@@ -4727,7 +4972,7 @@
       <button class="peladas-featured-card" type="button" data-pelada-action="open-pelada" data-pelada-id="${escapeHtml(pelada.id)}">
         <span class="peladas-featured-top">
           <span class="peladas-featured-kicker">Próxima pelada</span>
-          ${renderPeladaStatusBadge(status)}
+          <span class="pelada-badge-stack">${renderPeladaTypeBadge(pelada)}${renderPeladaStatusBadge(status)}</span>
         </span>
         <span class="peladas-featured-main">
           ${renderPeladaDateTile(pelada, "is-featured")}
@@ -4755,7 +5000,7 @@
             ${pelada.endereco ? `<small>${escapeHtml(pelada.endereco)}</small>` : `<small>Local não informado</small>`}
           </span>
           ${renderPeladaMetaRow(pelada, gameCount, false)}
-          ${renderPeladaStatusBadge(status)}
+          <span class="pelada-badge-stack">${renderPeladaTypeBadge(pelada)}${renderPeladaStatusBadge(status)}</span>
           <span class="pelada-open-cta">Ver detalhes <b aria-hidden="true">&rsaquo;</b></span>
         </button>
       </article>
@@ -4771,12 +5016,13 @@
     return `
       <section class="pelada-open-toolbar pelada-open-hero">
         <div class="pelada-open-title">
-          <span>Pelada aberta</span>
+          <span>${isTestPelada(pelada) ? "Ambiente de teste" : "Pelada oficial"}</span>
           <h3>${escapeHtml(pelada.local || "Pelada")}</h3>
           <p>${escapeHtml(formatDateLabel(pelada.data))} • ${escapeHtml(horario)} • ${escapeHtml(formatCurrency(pelada.valor))}</p>
         </div>
         <div class="pelada-open-actions">
           <span class="pelada-open-status">${escapeHtml(status)}</span>
+          ${renderPeladaTypeBadge(pelada)}
           ${hasPermission("jogos:finalizar") ? `<button
             class="primary-button compact-button"
             type="button"
@@ -4786,12 +5032,218 @@
           >
             Finalizar Pelada
           </button>` : ""}
+          ${hasPermission("eventos:excluir") ? `
+            <button
+              class="pelada-delete-button"
+              type="button"
+              data-pelada-action="delete-pelada"
+              data-pelada-id="${escapeHtml(pelada.id)}"
+            >
+              Excluir registro
+            </button>
+          ` : ""}
         </div>
       </section>
     `;
   }
 
-  function renderGameSetup(pelada, jogadores) {
+  function renderTeamPresetsPanel(pelada, presets, jogadores) {
+    const canManage = hasPermission("times:montar") && !isFinalizedPelada(pelada);
+    const playerById = new Map(jogadores.map((player) => [player.id, player]));
+
+    return `
+      <section class="team-presets-section">
+        <header class="team-presets-heading">
+          <div>
+            <span class="panel-kicker">Preparação</span>
+            <h3>Times da pelada</h3>
+            <p>Monte uma vez e use as escalações durante toda a rodada.</p>
+          </div>
+          ${canManage ? `
+            <button class="primary-button compact-button" type="button" data-pelada-action="add-team-preset">
+              <span aria-hidden="true">+</span> Criar time
+            </button>
+          ` : ""}
+        </header>
+        ${presets.length
+          ? `<div class="team-presets-grid">
+              ${presets.map((preset, index) => renderTeamPresetCard(preset, index, playerById, canManage)).join("")}
+            </div>`
+          : `<div class="team-presets-empty">
+              <span aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM16 10a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM3 19c0-3 2.1-5 5-5s5 2 5 5M13 15c.8-.7 1.8-1 3-1 2.8 0 4.5 1.9 4.5 4.5"/></svg>
+              </span>
+              <div><h3>Crie os times antes de começar</h3><p>Adicione Time A, B e C com até 5 jogadores de linha e 1 goleiro.</p></div>
+              ${canManage ? `<button class="primary-button" type="button" data-pelada-action="add-team-preset">Criar primeiro time</button>` : ""}
+            </div>`}
+      </section>
+    `;
+  }
+
+  function renderTeamPresetCard(preset, index, playerById, canManage) {
+    const completeness = getPresetCompleteness(preset);
+    const goalkeeper = playerById.get(preset.goleiroId);
+    const linePlayers = uniqueIds(preset.linha || []).map((id) => playerById.get(id)).filter(Boolean);
+
+    return `
+      <article class="team-preset-card ${completeness.complete ? "is-complete" : "is-incomplete"}" style="--team-color:${escapeHtml(preset.cor || "#ff5a00")}">
+        <div class="team-preset-top">
+          <span class="team-preset-index">${String(index + 1).padStart(2, "0")}</span>
+          <span class="team-preset-status"><i></i>${completeness.complete ? "Completo" : `${completeness.total}/6`}</span>
+        </div>
+        <div class="team-preset-identity">
+          <span class="team-preset-monogram">${escapeHtml(getLiveTeamInitials(preset.nome, "T"))}</span>
+          <span><strong>${escapeHtml(preset.nome || "Time")}</strong><small>5 linha + 1 goleiro</small></span>
+        </div>
+        <div class="team-preset-roster">
+          <span class="team-preset-goalkeeper">
+            <small>Goleiro</small>
+            <strong>${goalkeeper ? escapeHtml(playerDisplayName(goalkeeper)) : "Não definido"}</strong>
+          </span>
+          <div class="team-preset-line">
+            ${linePlayers.length
+              ? linePlayers.map((player) => `<span>${renderPlayerAvatar(player, "player-avatar team-preset-avatar")}<small>${escapeHtml(shortPlayerName(player))}</small></span>`).join("")
+              : `<small class="team-preset-no-line">Nenhum jogador de linha</small>`}
+          </div>
+        </div>
+        ${canManage ? `
+          <div class="team-preset-actions">
+            <button type="button" data-pelada-action="edit-team-preset" data-preset-id="${escapeHtml(preset.id)}">Editar time</button>
+            <button class="is-danger" type="button" data-pelada-action="delete-team-preset" data-preset-id="${escapeHtml(preset.id)}">Excluir</button>
+          </div>
+        ` : ""}
+      </article>
+    `;
+  }
+
+  function ensureMatchDraftForPresets(pelada, presets) {
+    const presetById = new Map(presets.map((preset) => [preset.id, preset]));
+    const currentA = presetById.get(state.matchPresetIds.A);
+    const currentB = presetById.get(state.matchPresetIds.B);
+
+    if (!currentA || !currentB || currentA.id === currentB.id) {
+      const suggested = getSuggestedMatchup(pelada, presets);
+      hydrateMatchDraft(suggested.presetA, suggested.presetB);
+    }
+
+    return {
+      presetA: presetById.get(state.matchPresetIds.A) || null,
+      presetB: presetById.get(state.matchPresetIds.B) || null,
+    };
+  }
+
+  function renderGameSetup(pelada, jogadores, presets = []) {
+    if (!hasPermission("jogos:iniciar")) return "";
+
+    if (pelada.status === "Finalizada") {
+      return `
+        <section class="data-card game-setup-card">
+          <div class="empty-state compact-empty">
+            <h3>Pelada finalizada</h3>
+            <p>Esta pelada já foi encerrada. Os times e o histórico continuam disponíveis para consulta.</p>
+          </div>
+        </section>
+      `;
+    }
+
+    if (presets.length < 2) {
+      return `
+        <section class="data-card game-setup-card next-match-card is-locked">
+          <div class="empty-state compact-empty">
+            <span class="panel-kicker">Próximo jogo</span>
+            <h3>Faltam times para começar</h3>
+            <p>Crie pelo menos dois times da pelada. O confronto será carregado automaticamente.</p>
+          </div>
+        </section>
+      `;
+    }
+
+    const { presetA, presetB } = ensureMatchDraftForPresets(pelada, presets);
+    const draft = normalizeGameDraft(jogadores);
+    const suggested = getSuggestedMatchup(pelada, presets);
+    const queueIds = uniqueIds(suggested.fila).filter((id) => id !== presetA?.id && id !== presetB?.id);
+    const presetById = new Map(presets.map((preset) => [preset.id, preset]));
+
+    return `
+      <section class="data-card game-setup-card next-match-card">
+        <div class="next-match-heading">
+          <div>
+            <span class="panel-kicker">Próximo confronto</span>
+            <h3>${escapeHtml(draft.A.nome)} <i>×</i> ${escapeHtml(draft.B.nome)}</h3>
+            <p>Escalações carregadas. Revise apenas se alguém precisar entrar ou sair.</p>
+          </div>
+          <span class="next-match-ready"><i></i>Pronto</span>
+        </div>
+        <form class="game-form" id="game-form" novalidate>
+          <div class="form-errors" id="game-form-errors" hidden></div>
+          <input type="hidden" name="timeANome" value="${escapeHtml(draft.A.nome)}" />
+          <input type="hidden" name="timeACor" value="${escapeHtml(draft.A.cor)}" />
+          <input type="hidden" name="timeBNome" value="${escapeHtml(draft.B.nome)}" />
+          <input type="hidden" name="timeBCor" value="${escapeHtml(draft.B.cor)}" />
+          <div class="matchup-selectors">
+            <label><span>Lado A</span><select name="presetAId" data-match-preset="A">${renderPresetOptions(presets, presetA?.id, presetB?.id)}</select></label>
+            <span class="matchup-versus">VS</span>
+            <label><span>Lado B</span><select name="presetBId" data-match-preset="B">${renderPresetOptions(presets, presetB?.id, presetA?.id)}</select></label>
+          </div>
+          <div class="match-lineup-grid">
+            ${renderMatchLineupCard("A", draft.A, jogadores, state.matchPersist.A)}
+            ${renderMatchLineupCard("B", draft.B, jogadores, state.matchPersist.B)}
+          </div>
+          ${queueIds.length ? `
+            <div class="waiting-queue">
+              <span>Na espera</span>
+              ${queueIds.map((id, index) => `<strong><i>${index + 1}</i>${escapeHtml(presetById.get(id)?.nome || "Time")}</strong>`).join("")}
+            </div>
+          ` : `<div class="waiting-queue is-empty"><span>Sem time na espera</span><small>O confronto será repetido entre os dois times.</small></div>`}
+          <div class="form-actions">
+            <button class="primary-button big-touch start-next-game-button" type="submit">
+              <span>Iniciar próximo jogo</span><small>${escapeHtml(draft.A.nome)} × ${escapeHtml(draft.B.nome)}</small>
+            </button>
+          </div>
+        </form>
+      </section>
+    `;
+  }
+
+  function renderPresetOptions(presets, selectedId, blockedId) {
+    return presets.map((preset) => `
+      <option value="${escapeHtml(preset.id)}" ${preset.id === selectedId ? "selected" : ""} ${preset.id === blockedId ? "disabled" : ""}>
+        ${escapeHtml(preset.nome || "Time")}
+      </option>
+    `).join("");
+  }
+
+  function renderMatchLineupCard(teamKey, draft, jogadores, persistChanges) {
+    const playerById = new Map(jogadores.map((player) => [player.id, player]));
+    const goalkeeper = playerById.get(draft.goleiro);
+    const linePlayers = uniqueIds(draft.linha).map((id) => playerById.get(id)).filter(Boolean);
+    const complete = linePlayers.length === 5 && Boolean(goalkeeper);
+
+    return `
+      <article class="match-lineup-card is-${teamKey.toLowerCase()} ${complete ? "is-complete" : "is-incomplete"}" style="--team-color:${escapeHtml(draft.cor)}">
+        <header><span>Time ${teamKey}</span><strong>${escapeHtml(draft.nome)}</strong><small>${complete ? "6 jogadores" : `${linePlayers.length + (goalkeeper ? 1 : 0)}/6 · incompleto`}</small></header>
+        <div class="match-lineup-goalkeeper">
+          <small>GK</small>
+          ${goalkeeper ? renderPlayerAvatar(goalkeeper, "player-avatar match-lineup-avatar") : `<i>—</i>`}
+          <strong>${goalkeeper ? escapeHtml(shortPlayerName(goalkeeper)) : "Sem goleiro"}</strong>
+        </div>
+        <div class="match-lineup-players">
+          ${linePlayers.map((player) => `<span>${renderPlayerAvatar(player, "player-avatar match-lineup-avatar")}<small>${escapeHtml(shortPlayerName(player))}</small></span>`).join("")}
+          ${Array.from({ length: Math.max(0, 5 - linePlayers.length) }, () => `<span class="is-empty"><i>+</i><small>Vaga</small></span>`).join("")}
+        </div>
+        <div class="match-lineup-actions">
+          <button type="button" data-pelada-action="open-lineup" data-team="${teamKey}">Editar escalação</button>
+          <button type="button" data-pelada-action="open-goalkeeper" data-team="${teamKey}">Trocar goleiro</button>
+        </div>
+        <label class="persist-lineup-toggle">
+          <input type="checkbox" name="persist${teamKey}" value="1" data-persist-team="${teamKey}" ${persistChanges ? "checked" : ""} />
+          <span><strong>Manter nos próximos jogos</strong><small>Desmarcado: vale somente para esta partida.</small></span>
+        </label>
+      </article>
+    `;
+  }
+
+  function renderLegacyGameSetup(pelada, jogadores) {
     if (!hasPermission("jogos:iniciar")) return "";
 
     const draft = normalizeGameDraft(jogadores);
@@ -5055,6 +5507,158 @@
     });
   }
 
+  function renderTeamPresetEditor(preset, players, presets) {
+    const assignedElsewhere = new Map();
+    presets
+      .filter((item) => item.id !== preset?.id)
+      .forEach((item) => {
+        uniqueIds([item.goleiroId, ...(item.linha || [])]).forEach((playerId) => assignedElsewhere.set(playerId, item.nome || "Outro time"));
+      });
+    const selectedLine = new Set(preset?.linha || []);
+    const goalkeeperId = preset?.goleiroId || "";
+
+    return `
+      <form class="team-preset-form" id="team-preset-form" data-preset-id="${escapeHtml(preset?.id || "")}" novalidate>
+        <div class="form-errors" id="team-preset-errors" hidden></div>
+        <section class="team-preset-form-hero" style="--team-color:${escapeHtml(preset?.cor || "#ff5a00")}">
+          <span class="team-preset-form-icon">${escapeHtml(getLiveTeamInitials(preset?.nome, "T"))}</span>
+          <div><span>Time da pelada</span><h3>${escapeHtml(preset?.nome || "Novo time")}</h3><p>Até 5 jogadores de linha e 1 goleiro.</p></div>
+        </section>
+        <div class="team-preset-basics">
+          <label class="field-label"><span>Nome do time</span><input name="nome" value="${escapeHtml(preset?.nome || "")}" maxlength="28" placeholder="Ex.: Time A" required /></label>
+          <label class="field-label team-color-field"><span>Cor</span><input type="color" name="cor" value="${escapeHtml(preset?.cor || "#ff5a00")}" /></label>
+        </div>
+        <label class="field-label">
+          <span>Goleiro</span>
+          <select name="goleiroId">
+            <option value="">Escolher goleiro</option>
+            ${players.map((player) => {
+              const assignedTeam = assignedElsewhere.get(player.id);
+              return `<option value="${escapeHtml(player.id)}" ${player.id === goalkeeperId ? "selected" : ""} ${assignedTeam ? "disabled" : ""}>${escapeHtml(playerDisplayName(player))} · ${escapeHtml(player.posicaoPrincipal || "-")}${assignedTeam ? ` · ${escapeHtml(assignedTeam)}` : ""}</option>`;
+            }).join("")}
+          </select>
+        </label>
+        <div class="team-preset-player-heading"><span>Jogadores de linha</span><strong data-line-count>${selectedLine.size}/5</strong></div>
+        <div class="team-preset-player-list">
+          ${players.map((player) => {
+            const assignedTeam = assignedElsewhere.get(player.id);
+            const checked = selectedLine.has(player.id);
+            const blocked = Boolean(assignedTeam) || player.id === goalkeeperId;
+            return `
+              <label class="team-preset-player-option ${checked ? "is-selected" : ""} ${blocked ? "is-disabled" : ""}" data-player-option>
+                <input type="checkbox" name="linhaIds" value="${escapeHtml(player.id)}" ${checked ? "checked" : ""} ${blocked ? "disabled" : ""} />
+                ${renderPlayerAvatar(player, "player-avatar small")}
+                <span><strong>${escapeHtml(playerDisplayName(player))}</strong><small>${escapeHtml(player.posicaoPrincipal || "-")} · ${escapeHtml(player.overall || "-")} OVR${assignedTeam ? ` · ${escapeHtml(assignedTeam)}` : ""}</small></span>
+                <i aria-hidden="true">✓</i>
+              </label>
+            `;
+          }).join("")}
+        </div>
+        <div class="team-preset-form-note"><strong>Time incompleto?</strong><span>Você pode salvar agora e completar antes de iniciar a partida.</span></div>
+        <div class="form-actions">
+          <button class="primary-button big-touch" type="submit">Salvar time</button>
+          <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
+        </div>
+      </form>
+    `;
+  }
+
+  async function openTeamPresetEditor(presetId = "") {
+    if (!state.selectedPeladaId || !requirePermission("times:montar")) return;
+    const [players, presets] = await Promise.all([
+      readActivePlayers(),
+      readTeamPresets(state.selectedPeladaId),
+    ]);
+    const preset = presets.find((item) => item.id === presetId) || null;
+    const modal = openLiveModal(preset ? "Editar time" : "Criar time", renderTeamPresetEditor(preset, players, presets));
+    const form = modal.querySelector("#team-preset-form");
+    const lineInputs = [...form.querySelectorAll('input[name="linhaIds"]')];
+    const countLabel = form.querySelector("[data-line-count]");
+    const goalkeeperSelect = form.elements.goleiroId;
+
+    const refreshOptions = () => {
+      const goalkeeperId = goalkeeperSelect.value;
+      let checkedCount = lineInputs.filter((input) => input.checked).length;
+      lineInputs.forEach((input) => {
+        const option = input.closest("[data-player-option]");
+        const isGoalkeeper = input.value === goalkeeperId;
+        if (isGoalkeeper && input.checked) {
+          input.checked = false;
+          checkedCount -= 1;
+        }
+        input.disabled = input.dataset.assigned === "true" || isGoalkeeper || (!input.checked && checkedCount >= 5);
+        option?.classList.toggle("is-selected", input.checked);
+        option?.classList.toggle("is-disabled", input.disabled);
+      });
+      countLabel.textContent = `${checkedCount}/5`;
+    };
+
+    lineInputs.forEach((input) => {
+      if (input.disabled && input.value !== goalkeeperSelect.value) input.dataset.assigned = "true";
+      input.addEventListener("change", refreshOptions);
+    });
+    goalkeeperSelect.addEventListener("change", refreshOptions);
+    refreshOptions();
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const nome = String(form.elements.nome?.value || "").trim();
+      const linha = lineInputs.filter((input) => input.checked && !input.disabled).map((input) => input.value);
+      const goleiroId = form.elements.goleiroId?.value || "";
+      const errors = [];
+      if (!nome) errors.push("Informe o nome do time.");
+      if (linha.length > 5) errors.push("Escolha no máximo 5 jogadores de linha.");
+      if (goleiroId && linha.includes(goleiroId)) errors.push("O goleiro não pode estar também na linha.");
+      showFormErrors("team-preset-errors", errors);
+      if (errors.length) return;
+
+      const savedAt = nowIso();
+      const record = {
+        ...(preset || {}),
+        id: preset?.id || uid(),
+        tipo: "preset",
+        peladaId: state.selectedPeladaId,
+        jogoId: "",
+        ordem: preset?.ordem || presets.length + 1,
+        nome,
+        cor: form.elements.cor?.value || "#ff5a00",
+        linha: uniqueIds(linha),
+        goleiroId,
+        jogadores: uniqueIds([goleiroId, ...linha]),
+        status: "Ativo",
+        createdAt: preset?.createdAt || savedAt,
+        updatedAt: savedAt,
+        revision: (preset?.revision || 0) + 1,
+      };
+      await putRecords({
+        times: [record],
+        syncQueue: [createSyncQueueRecord("times", "upsert", record.id, record)],
+        auditLog: [createAuditRecord("times", record.id, preset ? "editar-preset" : "criar-preset", preset, record)],
+      });
+      closeLiveModal();
+      state.matchPresetIds = { A: "", B: "" };
+      await renderCurrentSection();
+      runBackgroundTask(syncNow, "Falha ao sincronizar time da pelada");
+    });
+  }
+
+  async function deleteTeamPreset(presetId) {
+    if (!state.selectedPeladaId || !requirePermission("times:montar")) return;
+    const preset = await getRecord("times", presetId);
+    if (!preset || !isTeamPreset(preset)) return;
+    if (!window.confirm(`Excluir ${preset.nome || "este time"}?\n\nOs jogos já finalizados continuarão preservados.`)) return;
+
+    const queueRecord = createSyncQueueRecord("times", "delete", preset.id, {});
+    await putRecords({
+      syncQueue: [queueRecord],
+      auditLog: [createAuditRecord("times", preset.id, "excluir-preset", preset, null)],
+    });
+    await deleteRecords({ times: [preset.id] });
+    state.matchPresetIds = { A: "", B: "" };
+    await renderCurrentSection();
+    runBackgroundTask(syncNow, "Falha ao sincronizar exclusão do time");
+  }
+
   function getGameNumber(jogos, jogoId) {
     const index = jogos.findIndex((jogo) => jogo.id === jogoId);
     const storedNumber = index >= 0 ? Number(jogos[index]?.numero || 0) : 0;
@@ -5099,7 +5703,10 @@
       return "";
     }
 
-    return ` - encerramento por ${jogo.formaEncerramento}`;
+    const penalties = jogo.decididoNosPenaltis
+      ? ` (${jogo.penaltisA || 0} x ${jogo.penaltisB || 0} nos pênaltis)`
+      : "";
+    return ` - encerramento por ${jogo.formaEncerramento}${penalties}`;
   }
 
   function formatGoalSummaryItem(evento, jogo, playerById) {
@@ -5173,6 +5780,17 @@
             <h2>Resumo do Jogo ${escapeHtml(gameNumber)}</h2>
             <p>Placar, escalações e eventos da partida.</p>
           </div>
+          ${hasPermission("eventos:excluir") && bundle.jogo.status !== "Em andamento" ? `
+            <button
+              class="game-summary-delete"
+              type="button"
+              data-pelada-action="delete-game"
+              data-game-id="${escapeHtml(bundle.jogo.id)}"
+              data-game-number="${escapeHtml(gameNumber)}"
+            >
+              Excluir jogo
+            </button>
+          ` : ""}
         </header>
         ${renderGameSummary(bundle, pelada, gameNumber)}
       </div>
@@ -5368,7 +5986,13 @@
   }
 
   function renderGameSummary(bundle, pelada, gameNumber = "") {
-    const { jogo, playersA, playersB } = bundle;
+    const {
+      jogo,
+      playersA,
+      playersB,
+      participantsA = playersA,
+      participantsB = playersB,
+    } = bundle;
     const winner = getGameWinner(jogo);
     const ending = jogo.formaEncerramento ? `Encerrado por ${jogo.formaEncerramento}` : getGameStatusLabel(jogo);
 
@@ -5392,6 +6016,7 @@
             <div class="summary-score-result">
               <small>Placar final</small>
               <strong><b>${escapeHtml(jogo.placarA ?? 0)}</b><i>–</i><b>${escapeHtml(jogo.placarB ?? 0)}</b></strong>
+              ${jogo.decididoNosPenaltis ? `<em>Pênaltis · ${escapeHtml(jogo.penaltisA || 0)} – ${escapeHtml(jogo.penaltisB || 0)}</em>` : ""}
               <span>${escapeHtml(winner === "Empate" ? "Partida empatada" : `Vencedor: ${winner}`)}</span>
             </div>
             <div class="summary-score-team is-b">
@@ -5404,8 +6029,8 @@
         <section class="game-summary-section game-summary-lineups">
           <header><span>Escalações</span><h3>Times da partida</h3></header>
           <div class="summary-columns">
-            ${renderSummaryTeam(teamNameFromGame(jogo, "A"), playersA, "A")}
-            ${renderSummaryTeam(teamNameFromGame(jogo, "B"), playersB, "B")}
+            ${renderSummaryTeam(teamNameFromGame(jogo, "A"), participantsA, "A")}
+            ${renderSummaryTeam(teamNameFromGame(jogo, "B"), participantsB, "B")}
           </div>
         </section>
 
@@ -5480,7 +6105,27 @@
     peladaForm?.addEventListener("submit", handlePeladaFormSubmit);
     gameForm?.addEventListener("submit", handleGameFormSubmit);
     gameForm?.addEventListener("input", () => syncGameDraftFromForm(gameForm));
-    gameForm?.addEventListener("change", () => syncGameDraftFromForm(gameForm));
+    gameForm?.addEventListener("change", async (event) => {
+      syncGameDraftFromForm(gameForm);
+      const presetSelect = event.target.closest("[data-match-preset]");
+      const persistToggle = event.target.closest("[data-persist-team]");
+
+      if (persistToggle) {
+        state.matchPersist[persistToggle.dataset.persistTeam] = persistToggle.checked;
+      }
+
+      if (presetSelect && state.selectedPeladaId) {
+        const teamKey = presetSelect.dataset.matchPreset;
+        const presets = await readTeamPresets(state.selectedPeladaId);
+        const preset = presets.find((item) => item.id === presetSelect.value);
+        if (preset) {
+          state.matchPresetIds[teamKey] = preset.id;
+          state.gameDraft[teamKey] = teamPresetToDraft(preset, teamKey);
+          state.matchPersist[teamKey] = false;
+          await renderCurrentSection();
+        }
+      }
+    });
 
     // O contêiner é reaproveitado entre renderizações. Vincular a delegação
     // mais de uma vez fazia um único toque disparar várias confirmações.
@@ -5497,6 +6142,39 @@
       }
 
       const action = actionButton.dataset.peladaAction;
+
+      if (action === "add-team-preset") {
+        await openTeamPresetEditor();
+        return;
+      }
+
+      if (action === "edit-team-preset") {
+        await openTeamPresetEditor(actionButton.dataset.presetId || "");
+        return;
+      }
+
+      if (action === "delete-team-preset") {
+        await deleteTeamPreset(actionButton.dataset.presetId || "");
+        return;
+      }
+
+      if (action === "delete-game") {
+        await confirmAndDeleteGame(
+          actionButton.dataset.gameId || "",
+          actionButton.dataset.gameNumber || ""
+        );
+        return;
+      }
+
+      if (action === "delete-pelada") {
+        await confirmAndDeletePelada(actionButton.dataset.peladaId || "");
+        return;
+      }
+
+      if (action === "delete-all-tests") {
+        await confirmAndDeleteAllTestPeladas();
+        return;
+      }
 
       if (action === "show-create") {
         state.selectedPeladaId = null;
@@ -5518,6 +6196,8 @@
         const peladaId = actionButton.dataset.peladaId || "";
         state.selectedGameSummaryId = null;
         state.gameDraft = createEmptyGameDraft();
+        state.matchPresetIds = { A: "", B: "" };
+        state.matchPersist = { A: false, B: false };
         await switchSection("peladas", { peladaId });
         return;
       }
@@ -5572,6 +6252,384 @@
         setActiveGameId(actionButton.dataset.gameId);
         await switchSection("ao-vivo");
       }
+    });
+  }
+
+  function buildEvolutionRollbackUpdates(evolutions, jogadores, atributos, savedAt) {
+    const playerById = new Map(jogadores.map((player) => [player.id, player]));
+    const attributesByPlayerId = new Map(
+      atributos.map((record) => [record.jogadorId, record])
+    );
+    const changesByPlayerId = new Map();
+
+    evolutions.forEach((evolution) => {
+      if (!evolution.jogadorId || !evolution.atributo) return;
+      const byAttribute = changesByPlayerId.get(evolution.jogadorId) || new Map();
+      byAttribute.set(
+        evolution.atributo,
+        (byAttribute.get(evolution.atributo) || 0) + Number(evolution.variacao || 0)
+      );
+      changesByPlayerId.set(evolution.jogadorId, byAttribute);
+    });
+
+    const playerUpdates = [];
+    const attributeUpdates = [];
+    changesByPlayerId.forEach((byAttribute, playerId) => {
+      const player = playerById.get(playerId);
+      if (!player) return;
+      const currentRecord = attributesByPlayerId.get(playerId) || {};
+      const currentCard = recalcularOverallJogador({
+        ...player,
+        attributes: {
+          ...defaultAttributes(player.tipoJogador, player.posicaoPrincipal),
+          ...currentRecord,
+        },
+      });
+      const nextAttributes = { ...currentCard.attributes };
+      byAttribute.forEach((variation, attribute) => {
+        if (attribute in nextAttributes) {
+          nextAttributes[attribute] = clamp(
+            normalizeAttributeValue(nextAttributes[attribute]) - Math.round(variation),
+            1,
+            99
+          );
+        }
+      });
+      const nextCard = recalcularOverallJogador({ ...player, attributes: nextAttributes });
+      playerUpdates.push({
+        ...player,
+        overall: nextCard.overall,
+        estrelas: nextCard.estrelas,
+        updatedAt: savedAt,
+        revision: (player.revision || 0) + 1,
+      });
+      attributeUpdates.push({
+        ...currentRecord,
+        jogadorId: playerId,
+        ...nextCard.attributes,
+        overall: nextCard.overall,
+        estrelas: nextCard.estrelas,
+        updatedAt: savedAt,
+        revision: (currentRecord.revision || 0) + 1,
+      });
+    });
+
+    return { playerUpdates, attributeUpdates };
+  }
+
+  function rebuildStatsCacheWithoutGames(cacheRecords, gameIds, savedAt) {
+    return cacheRecords
+      .filter((record) =>
+        Object.keys(record.metricas?.resultadosPorJogo || {}).some((gameId) => gameIds.has(gameId))
+      )
+      .map((record) => {
+        const resultadosPorJogo = { ...(record.metricas?.resultadosPorJogo || {}) };
+        gameIds.forEach((gameId) => delete resultadosPorJogo[gameId]);
+        const results = Object.values(resultadosPorJogo);
+        const vitorias = results.filter((result) => result === "vitoria").length;
+        const derrotas = results.filter((result) => result === "derrota").length;
+        const empates = results.filter((result) => result === "empate").length;
+        const jogos = results.length;
+        return {
+          ...record,
+          metricas: {
+            ...(record.metricas || {}),
+            jogos,
+            vitorias,
+            derrotas,
+            empates,
+            aproveitamento: jogos
+              ? Math.round(((vitorias * 3 + empates) / (jogos * 3)) * 100)
+              : 0,
+            resultadosPorJogo,
+          },
+          updatedAt: savedAt,
+          revision: (record.revision || 0) + 1,
+        };
+      });
+  }
+
+  async function deletePeladaScope({ peladaId, requestedGameIds = [], removePelada = false }) {
+    const [
+      peladas,
+      jogos,
+      times,
+      escalacoes,
+      eventos,
+      faltas,
+      evolucoes,
+      estatisticasCache,
+      jogadores,
+      atributos,
+    ] = await Promise.all([
+      getAllRecords("peladas"),
+      getAllRecords("jogos"),
+      getAllRecords("times"),
+      getAllRecords("escalacoes"),
+      getAllRecords("eventos"),
+      getAllRecords("faltas"),
+      getAllRecords("evolucoes"),
+      getAllRecords("estatisticasCache"),
+      getAllRecords("jogadores"),
+      getAllRecords("atributos"),
+    ]);
+    const gameIds = new Set(
+      removePelada
+        ? jogos.filter((game) => game.peladaId === peladaId).map((game) => game.id)
+        : requestedGameIds
+    );
+    const gamesToDelete = jogos.filter((game) => gameIds.has(game.id));
+
+    if (gamesToDelete.some((game) => game.status === "Em andamento")) {
+      throw new Error("Finalize o jogo ao vivo antes de excluir este registro.");
+    }
+
+    const eventsToDelete = eventos.filter((eventRecord) =>
+      gameIds.has(eventRecord.jogoId) ||
+      (removePelada && eventRecord.peladaId === peladaId)
+    );
+    const eventIds = new Set(eventsToDelete.map((eventRecord) => eventRecord.id));
+    const lineupsToDelete = escalacoes.filter((lineup) => gameIds.has(lineup.jogoId));
+    const teamsToDelete = times.filter((team) =>
+      gameIds.has(team.jogoId) ||
+      (removePelada && team.peladaId === peladaId)
+    );
+    const foulsToDelete = faltas.filter((foul) =>
+      gameIds.has(foul.jogoId) || eventIds.has(foul.id)
+    );
+    const evolutionsToDelete = evolucoes.filter((evolution) =>
+      gameIds.has(evolution.jogoId) || eventIds.has(evolution.eventoId)
+    );
+    const savedAt = nowIso();
+    const { playerUpdates, attributeUpdates } = buildEvolutionRollbackUpdates(
+      evolutionsToDelete,
+      jogadores,
+      atributos,
+      savedAt
+    );
+    const cacheUpdates = rebuildStatsCacheWithoutGames(estatisticasCache, gameIds, savedAt);
+    const currentPelada = peladas.find((pelada) => pelada.id === peladaId);
+    const peladaUpdate = !removePelada &&
+      currentPelada?.proximoConfronto?.jogoOrigemId &&
+      gameIds.has(currentPelada.proximoConfronto.jogoOrigemId)
+      ? {
+          ...currentPelada,
+          proximoConfronto: null,
+          updatedAt: savedAt,
+          revision: (currentPelada.revision || 0) + 1,
+        }
+      : null;
+    const deletionGroups = {
+      jogos: gamesToDelete,
+      times: teamsToDelete,
+      escalacoes: lineupsToDelete,
+      eventos: eventsToDelete,
+      faltas: foulsToDelete,
+      evolucoes: evolutionsToDelete,
+      ...(removePelada && currentPelada ? { peladas: [currentPelada] } : {}),
+    };
+    const syncRecords = [];
+
+    Object.entries(deletionGroups).forEach(([storeName, records]) => {
+      records.forEach((record) => {
+        const entityId = storeName === "atributos" ? record.jogadorId : record.id;
+        syncRecords.push(
+          createSyncQueueRecord(storeName, "delete", entityId, {
+            id: entityId,
+            jogadorId: record.jogadorId || "",
+          })
+        );
+      });
+    });
+    playerUpdates.forEach((player) =>
+      syncRecords.push(createSyncQueueRecord("jogadores", "upsert", player.id, player))
+    );
+    attributeUpdates.forEach((record) =>
+      syncRecords.push(
+        createSyncQueueRecord("atributos", "upsert", record.jogadorId, record)
+      )
+    );
+    cacheUpdates.forEach((record) =>
+      syncRecords.push(
+        createSyncQueueRecord("estatisticasCache", "upsert", record.id, record)
+      )
+    );
+    if (peladaUpdate) {
+      syncRecords.push(
+        createSyncQueueRecord("peladas", "upsert", peladaUpdate.id, peladaUpdate)
+      );
+    }
+
+    await mutateRecords({
+      deletes: Object.fromEntries(
+        Object.entries(deletionGroups).map(([storeName, records]) => [
+          storeName,
+          records.map((record) => storeName === "atributos" ? record.jogadorId : record.id),
+        ])
+      ),
+      puts: {
+        jogadores: playerUpdates,
+        atributos: attributeUpdates,
+        estatisticasCache: cacheUpdates,
+        ...(peladaUpdate ? { peladas: [peladaUpdate] } : {}),
+        syncQueue: syncRecords,
+        auditLog: [
+          createAuditRecord(
+            removePelada ? "peladas" : "jogos",
+            removePelada ? peladaId : [...gameIds][0] || peladaId,
+            removePelada ? "excluir-pelada-cascata" : "excluir-jogo-cascata",
+            {
+              peladaId,
+              jogos: gamesToDelete.map((game) => game.id),
+              eventos: eventsToDelete.map((eventRecord) => eventRecord.id),
+            },
+            null
+          ),
+        ],
+      },
+    });
+
+    return {
+      gamesDeleted: gamesToDelete.length,
+      eventsDeleted: eventsToDelete.length,
+      playersAdjusted: playerUpdates.length,
+    };
+  }
+
+  function openTypedDeleteModal({
+    title,
+    eyebrow,
+    description,
+    phrase,
+    confirmLabel,
+    onConfirm,
+  }) {
+    const modal = openLiveModal(
+      title,
+      `
+        <form class="typed-delete-form" id="typed-delete-form" novalidate>
+          <section class="typed-delete-warning">
+            <span aria-hidden="true">!</span>
+            <div>
+              <small>${escapeHtml(eyebrow)}</small>
+              <strong>Esta ação não pode ser desfeita</strong>
+              <p>${escapeHtml(description)}</p>
+            </div>
+          </section>
+          <label class="field-label">
+            <span>Digite <b>${escapeHtml(phrase)}</b> para confirmar</span>
+            <input name="confirmation" autocomplete="off" autocapitalize="characters" />
+          </label>
+          <div class="form-errors" id="typed-delete-errors" hidden></div>
+          <div class="form-actions">
+            <button class="danger-button big-touch" type="submit">${escapeHtml(confirmLabel)}</button>
+            <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
+          </div>
+        </form>
+      `
+    );
+    const form = modal.querySelector("#typed-delete-form");
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const typed = String(form.elements.confirmation?.value || "").trim();
+      if (normalizeToken(typed) !== normalizeToken(phrase)) {
+        showFormErrors("typed-delete-errors", [`Digite exatamente: ${phrase}`]);
+        return;
+      }
+      const submit = form.querySelector('button[type="submit"]');
+      submit.disabled = true;
+      submit.textContent = "Excluindo...";
+      try {
+        await onConfirm();
+        closeLiveModal();
+      } catch (error) {
+        console.error("Falha ao excluir registro", error);
+        showFormErrors("typed-delete-errors", [
+          error?.message || "Não foi possível excluir o registro.",
+        ]);
+        submit.disabled = false;
+        submit.textContent = confirmLabel;
+      }
+    });
+  }
+
+  async function confirmAndDeleteGame(gameId, gameNumber = "") {
+    if (!gameId || !requirePermission("eventos:excluir")) return;
+    const game = await getRecord("jogos", gameId);
+    if (!game) return;
+    const label = gameNumber || game.numero || "";
+    const phrase = `EXCLUIR JOGO ${label || "AGORA"}`;
+    openTypedDeleteModal({
+      title: `Excluir Jogo ${label}`,
+      eyebrow: "Limpeza de registro",
+      description: "O placar, as escalações e todos os eventos deste jogo serão removidos. Os jogadores e os outros jogos continuam intactos.",
+      phrase,
+      confirmLabel: "Excluir jogo",
+      onConfirm: async () => {
+        await deletePeladaScope({
+          peladaId: game.peladaId,
+          requestedGameIds: [game.id],
+          removePelada: false,
+        });
+        state.selectedGameSummaryId = null;
+        await switchSection("peladas", {
+          peladaId: game.peladaId,
+          historyMode: "replace",
+        });
+        runBackgroundTask(syncNow, "Falha ao sincronizar exclusão do jogo");
+      },
+    });
+  }
+
+  async function confirmAndDeletePelada(peladaId) {
+    if (!peladaId || !requirePermission("eventos:excluir")) return;
+    const pelada = await getRecord("peladas", peladaId);
+    if (!pelada) return;
+    const phrase = isTestPelada(pelada) ? "EXCLUIR TESTE" : "EXCLUIR PELADA";
+    openTypedDeleteModal({
+      title: isTestPelada(pelada) ? "Excluir pelada de teste" : "Excluir pelada",
+      eyebrow: isTestPelada(pelada) ? "Ambiente de teste" : "Registro oficial",
+      description: "A pelada e todos os jogos, times, escalações e eventos vinculados serão removidos. Os cadastros dos jogadores serão preservados.",
+      phrase,
+      confirmLabel: "Excluir pelada",
+      onConfirm: async () => {
+        await deletePeladaScope({ peladaId, removePelada: true });
+        state.selectedPeladaId = null;
+        state.selectedGameSummaryId = null;
+        state.peladasView = "gerenciar";
+        await switchSection("peladas", {
+          peladasView: "gerenciar",
+          historyMode: "replace",
+        });
+        runBackgroundTask(syncNow, "Falha ao sincronizar exclusão da pelada");
+      },
+    });
+  }
+
+  async function confirmAndDeleteAllTestPeladas() {
+    if (!requirePermission("eventos:excluir")) return;
+    const peladas = await getAllRecords("peladas");
+    const testPeladas = peladas.filter(isTestPelada);
+    if (!testPeladas.length) return;
+    openTypedDeleteModal({
+      title: "Apagar dados de teste",
+      eyebrow: `${testPeladas.length} pelada${testPeladas.length === 1 ? "" : "s"} de teste`,
+      description: "Somente registros marcados como teste serão apagados. Peladas oficiais, jogadores, rankings e cartas permanecem intactos.",
+      phrase: "APAGAR TESTES",
+      confirmLabel: "Apagar todos os testes",
+      onConfirm: async () => {
+        for (const pelada of testPeladas) {
+          await deletePeladaScope({ peladaId: pelada.id, removePelada: true });
+        }
+        state.selectedPeladaId = null;
+        state.selectedGameSummaryId = null;
+        state.peladasView = "gerenciar";
+        await switchSection("peladas", {
+          peladasView: "gerenciar",
+          historyMode: "replace",
+        });
+        runBackgroundTask(syncNow, "Falha ao sincronizar limpeza dos testes");
+      },
     });
   }
 
@@ -5768,6 +6826,7 @@
       horarioFim: form.elements.horarioFim?.value || "",
       valor: valorText ? Number(valorText) : "",
       observacoes: String(form.elements.observacoes?.value || "").trim(),
+      tipoRegistro: form.elements.tipoRegistro?.value === "teste" ? "teste" : "oficial",
     };
   }
 
@@ -5821,6 +6880,7 @@
       id: uid(),
       ...data,
       status: "Aberta",
+      proximoConfronto: null,
       createdAt: savedAt,
       updatedAt: savedAt,
       revision: 1,
@@ -5848,6 +6908,8 @@
     const teamBPlayers = uniqueIds([state.gameDraft.B.goleiro, ...state.gameDraft.B.linha]);
 
     return {
+      presetAId: form.elements.presetAId?.value || state.matchPresetIds.A || "",
+      presetBId: form.elements.presetBId?.value || state.matchPresetIds.B || "",
       timeA: {
         nome: state.gameDraft.A.nome,
         cor: state.gameDraft.A.cor,
@@ -5862,7 +6924,42 @@
         linha: [...state.gameDraft.B.linha],
         goleiroId: state.gameDraft.B.goleiro,
       },
+      persistA: Boolean(form.elements.persistA?.checked || state.matchPersist.A),
+      persistB: Boolean(form.elements.persistB?.checked || state.matchPersist.B),
     };
+  }
+
+  function resolveMatchQueue(pelada, presets, presetAId, presetBId) {
+    const saved = pelada?.proximoConfronto || {};
+    const savedPair = new Set([saved.timeAId, saved.timeBId].filter(Boolean));
+    const selectedPair = new Set([presetAId, presetBId].filter(Boolean));
+    const usesSuggestion = savedPair.size === 2 && selectedPair.size === 2 &&
+      [...savedPair].every((id) => selectedPair.has(id));
+    const preferred = usesSuggestion ? uniqueIds(saved.fila || []) : [];
+    const remaining = presets
+      .map((preset) => preset.id)
+      .filter((id) => id !== presetAId && id !== presetBId && !preferred.includes(id));
+    return [...preferred, ...remaining];
+  }
+
+  function buildPersistentPresetUpdates(presets, data, savedAt) {
+    return ["A", "B"].flatMap((teamKey) => {
+      if (!data[`persist${teamKey}`]) return [];
+      const presetId = data[`preset${teamKey}Id`];
+      const preset = presets.find((item) => item.id === presetId);
+      const team = data[`time${teamKey}`];
+      if (!preset || !team) return [];
+      return [{
+        ...preset,
+        nome: team.nome,
+        cor: team.cor,
+        jogadores: [...team.jogadores],
+        linha: [...team.linha],
+        goleiroId: team.goleiroId,
+        updatedAt: savedAt,
+        revision: (preset.revision || 0) + 1,
+      }];
+    });
   }
 
   function validateGameForm(data, selectedPelada, activeGame) {
@@ -5870,6 +6967,7 @@
 
     if (!selectedPelada) errors.push("Selecione ou crie uma pelada.");
     if (activeGame) errors.push("Finalize o jogo em andamento antes de iniciar outro.");
+    if (data.presetAId && data.presetAId === data.presetBId) errors.push("Escolha dois times diferentes.");
     if (!data.timeA.jogadores.length) errors.push("Escolha pelo menos um jogador para o Time A.");
     if (!data.timeB.jogadores.length) errors.push("Escolha pelo menos um jogador para o Time B.");
 
@@ -5900,11 +6998,12 @@
       submitButton.textContent = "Iniciando...";
     }
 
-    const [jogadores, pelada, activeGame, peladaGames] = await Promise.all([
+    const [jogadores, pelada, activeGame, peladaGames, presets] = await Promise.all([
       readActivePlayers(),
       state.selectedPeladaId ? getRecord("peladas", state.selectedPeladaId) : null,
       findActiveGame(),
       state.selectedPeladaId ? readGamesForPelada(state.selectedPeladaId) : Promise.resolve([]),
+      state.selectedPeladaId ? readTeamPresets(state.selectedPeladaId) : Promise.resolve([]),
     ]);
     const data = collectGameFormData(form, jogadores);
     const errors = validateGameForm(data, pelada, activeGame);
@@ -5927,6 +7026,9 @@
       id: timeAId,
       jogoId,
       time: "A",
+      tipo: "jogo",
+      peladaId: pelada.id,
+      presetId: data.presetAId,
       nome: data.timeA.nome,
       cor: data.timeA.cor,
       jogadores: data.timeA.jogadores,
@@ -5940,6 +7042,9 @@
       id: timeBId,
       jogoId,
       time: "B",
+      tipo: "jogo",
+      peladaId: pelada.id,
+      presetId: data.presetBId,
       nome: data.timeB.nome,
       cor: data.timeB.cor,
       jogadores: data.timeB.jogadores,
@@ -5953,6 +7058,10 @@
       id: jogoId,
       peladaId: pelada.id,
       numero: getNextGameNumber(peladaGames),
+      tipoRegistro: getPeladaRecordType(pelada),
+      presetAId: data.presetAId,
+      presetBId: data.presetBId,
+      filaTimes: resolveMatchQueue(pelada, presets, data.presetAId, data.presetBId),
       timeA: { id: timeAId, nome: timeA.nome, cor: timeA.cor },
       timeB: { id: timeBId, nome: timeB.nome, cor: timeB.cor },
       placarA: 0,
@@ -5962,6 +7071,12 @@
       inicio: savedAt,
       fim: "",
       formaEncerramento: "",
+      fase: "regular",
+      decididoNosPenaltis: false,
+      penaltisA: 0,
+      penaltisB: 0,
+      penaltiIniciaPor: "",
+      penaltiProximoTime: "",
       duracaoSegundos: GAME_DURATION_SECONDS,
       totalPausadoMs: 0,
       pausadoEm: "",
@@ -5975,7 +7090,10 @@
         jogoId,
         jogadorId,
         time: "A",
-        timeId: timeAId,
+         timeId: timeAId,
+         ativo: true,
+         entrouEm: savedAt,
+         saiuEm: "",
         createdAt: savedAt,
         updatedAt: savedAt,
         revision: 1,
@@ -5985,21 +7103,27 @@
         jogoId,
         jogadorId,
         time: "B",
-        timeId: timeBId,
+         timeId: timeBId,
+         ativo: true,
+         entrouEm: savedAt,
+         saiuEm: "",
         createdAt: savedAt,
         updatedAt: savedAt,
         revision: 1,
       })),
     ];
 
+    const persistentPresetUpdates = buildPersistentPresetUpdates(presets, data, savedAt);
+
     await putRecords({
       jogos: [jogoRecord],
-      times: [timeA, timeB],
+      times: [timeA, timeB, ...persistentPresetUpdates],
       escalacoes,
       syncQueue: [
         createSyncQueueRecord("jogos", "upsert", jogoId, jogoRecord),
         createSyncQueueRecord("times", "upsert", timeAId, timeA),
         createSyncQueueRecord("times", "upsert", timeBId, timeB),
+        ...persistentPresetUpdates.map((preset) => createSyncQueueRecord("times", "upsert", preset.id, preset)),
         ...escalacoes.map((escalacao) =>
           createSyncQueueRecord("escalacoes", "upsert", escalacao.id, escalacao)
         ),
@@ -6010,6 +7134,8 @@
     setActiveGameId(jogoId);
     state.selectedGameSummaryId = jogoId;
     state.gameDraft = createEmptyGameDraft();
+    state.matchPresetIds = { A: "", B: "" };
+    state.matchPersist = { A: false, B: false };
     state.liveMessage = "";
     await switchSection("ao-vivo", { historyMode: "replace" });
     runBackgroundTask(syncNow, "Falha ao sincronizar início do jogo");
@@ -6019,7 +7145,7 @@
     setSectionTitle("Jogo", "Partida ao Vivo");
     const activeGame = await findActiveGame();
 
-    if (activeGame && getRemainingGameSeconds(activeGame) <= 0) {
+    if (activeGame && normalizeToken(activeGame.fase) !== "penaltis" && getRemainingGameSeconds(activeGame) <= 0) {
       await finalizeGame(activeGame.id, "Tempo");
       return;
     }
@@ -6045,6 +7171,17 @@
     const { jogo, playersA, playersB } = bundle;
     const remaining = getRemainingGameSeconds(jogo);
     const gameNumber = await resolveGameNumber(jogo);
+
+    if (normalizeToken(jogo.fase) === "penaltis") {
+      stopLiveTimer();
+      $("#section-content").innerHTML = `
+        <div class="live-screen penalty-live-screen" data-game-id="${escapeHtml(jogo.id)}">
+          ${renderPenaltyShootoutScreen(bundle, gameNumber)}
+        </div>
+      `;
+      bindLiveSectionEvents();
+      return;
+    }
 
     $("#section-content").innerHTML = `
       <div class="live-screen" data-game-id="${escapeHtml(jogo.id)}">
@@ -6101,6 +7238,7 @@
           <span class="live-idle-score-center">
             <small>Placar final</small>
             <strong><span>${escapeHtml(jogo.placarA ?? 0)}</span><i aria-hidden="true">-</i><span>${escapeHtml(jogo.placarB ?? 0)}</span></strong>
+            ${jogo.decididoNosPenaltis ? `<em>Pênaltis · ${escapeHtml(jogo.penaltisA || 0)} - ${escapeHtml(jogo.penaltisB || 0)}</em>` : ""}
           </span>
           ${renderLiveIdleTeam(jogo, "B")}
         </div>
@@ -6196,6 +7334,96 @@
         <span>${escapeHtml(initials)}</span>
         <strong>${escapeHtml(name)}</strong>
       </div>
+    `;
+  }
+
+  function getPenaltyEvents(bundle) {
+    return (bundle?.eventos || []).filter((evento) => normalizeToken(evento.tipo) === "penalti_desempate");
+  }
+
+  function renderPenaltyShootoutScreen(bundle, gameNumber) {
+    const { jogo } = bundle;
+    const penaltyEvents = getPenaltyEvents(bundle);
+    const starterChosen = ["A", "B"].includes(jogo.penaltiIniciaPor);
+    const nextTeam = jogo.penaltiProximoTime || jogo.penaltiIniciaPor || "";
+
+    return `
+      <section class="penalty-shootout-shell">
+        <header class="penalty-shootout-heading">
+          <span>Jogo ${escapeHtml(gameNumber)}</span>
+          <strong>Desempate por pênaltis</strong>
+          <p>O placar do tempo normal permanece separado da disputa.</p>
+        </header>
+        <div class="penalty-regular-score">
+          ${renderPenaltyTeamSummary(bundle, "A")}
+          <span><small>Tempo normal</small><strong>${escapeHtml(jogo.placarA ?? 0)} <i>–</i> ${escapeHtml(jogo.placarB ?? 0)}</strong></span>
+          ${renderPenaltyTeamSummary(bundle, "B")}
+        </div>
+        ${starterChosen
+          ? `
+            <section class="penalty-score-panel">
+              <span class="penalty-score-label">Disputa</span>
+              <div class="penalty-score-values"><strong>${escapeHtml(jogo.penaltisA || 0)}</strong><i>×</i><strong>${escapeHtml(jogo.penaltisB || 0)}</strong></div>
+              <div class="penalty-attempt-tracks">
+                ${renderPenaltyTrack(bundle, "A", penaltyEvents)}
+                ${renderPenaltyTrack(bundle, "B", penaltyEvents)}
+              </div>
+            </section>
+            <section class="penalty-next-kick" style="--team-color:${escapeHtml(teamColorFromGame(jogo, nextTeam))}">
+              <span>Próxima cobrança</span>
+              <strong>${escapeHtml(teamNameFromGame(jogo, nextTeam))}</strong>
+              <small>Escolha o cobrador e registre o resultado.</small>
+              <button class="primary-button big-touch" type="button" data-live-action="penalty-attempt" data-team="${escapeHtml(nextTeam)}">Registrar cobrança</button>
+            </section>
+          `
+          : `
+            <section class="penalty-starter-picker">
+              <span class="panel-kicker">Primeira cobrança</span>
+              <h3>Quem começa?</h3>
+              <p>Escolha o time que fará a primeira cobrança. Depois o aplicativo alterna automaticamente.</p>
+              <div>
+                <button type="button" data-live-action="select-penalty-starter" data-team="A" style="--team-color:${escapeHtml(teamColorFromGame(jogo, "A"))}">
+                  <i>${escapeHtml(getLiveTeamInitials(teamNameFromGame(jogo, "A"), "A"))}</i><strong>${escapeHtml(teamNameFromGame(jogo, "A"))}</strong><small>Começa cobrando</small>
+                </button>
+                <button type="button" data-live-action="select-penalty-starter" data-team="B" style="--team-color:${escapeHtml(teamColorFromGame(jogo, "B"))}">
+                  <i>${escapeHtml(getLiveTeamInitials(teamNameFromGame(jogo, "B"), "B"))}</i><strong>${escapeHtml(teamNameFromGame(jogo, "B"))}</strong><small>Começa cobrando</small>
+                </button>
+              </div>
+            </section>
+          `}
+        ${penaltyEvents.length ? `
+          <section class="penalty-history">
+            <header><span>Cobranças</span><strong>${penaltyEvents.length} registrada${penaltyEvents.length === 1 ? "" : "s"}</strong></header>
+            ${penaltyEvents.map((evento, index) => {
+              const player = bundle.playerById.get(evento.jogadorId);
+              const result = normalizeToken(evento.resultadoPenalti);
+              const label = result === "gol" ? "Gol" : result === "defendido" ? "Defendido" : "Para fora";
+              return `<div><i>${index + 1}</i>${renderPlayerAvatar(player || {}, "player-avatar small")}<span><strong>${escapeHtml(player ? playerDisplayName(player) : "Jogador")}</strong><small>${escapeHtml(teamNameFromGame(jogo, evento.time))}</small></span><em class="is-${escapeHtml(result)}">${escapeHtml(label)}</em></div>`;
+            }).join("")}
+          </section>
+        ` : ""}
+      </section>
+    `;
+  }
+
+  function renderPenaltyTeamSummary(bundle, teamKey) {
+    const name = teamNameFromGame(bundle.jogo, teamKey);
+    return `
+      <span class="penalty-team-summary" style="--team-color:${escapeHtml(teamColorFromGame(bundle.jogo, teamKey))}">
+        <i>${escapeHtml(getLiveTeamInitials(name, teamKey))}</i>
+        <strong>${escapeHtml(name)}</strong>
+      </span>
+    `;
+  }
+
+  function renderPenaltyTrack(bundle, teamKey, events) {
+    const attempts = events.filter((evento) => evento.time === teamKey);
+    return `
+      <div><span>${escapeHtml(teamNameFromGame(bundle.jogo, teamKey))}</span><strong>
+        ${attempts.length
+          ? attempts.map((evento) => `<i class="is-${escapeHtml(normalizeToken(evento.resultadoPenalti))}" title="${escapeHtml(evento.resultadoPenalti)}"></i>`).join("")
+          : `<small>Aguardando</small>`}
+      </strong></div>
     `;
   }
 
@@ -6386,6 +7614,7 @@
       ? [
           ["save", "Defesa difícil", "DD"],
           ["foul-suffered", "Falta sofrida", "FS"],
+          ["substitute", "Substituir", "↔"],
           ["yellow-card", "Cartão amarelo", "CA"],
           ["red-card", "Cartão vermelho", "CV"],
         ]
@@ -6393,6 +7622,7 @@
           ["goal", "Gol", "G"],
           ["foul-suffered", "Falta sofrida", "FS"],
           ["defensive", "Desarme", "D"],
+          ["substitute", "Substituir", "↔"],
           ["yellow-card", "Cartão amarelo", "CA"],
           ["red-card", "Cartão vermelho", "CV"],
           ["own-goal", "Gol contra", "GC"],
@@ -6463,6 +7693,11 @@
       return;
     }
 
+    if (action === "substitute") {
+      await openPlayerSubstitutionModal(bundle, player);
+      return;
+    }
+
     if (action === "yellow-card" || action === "red-card") {
       await saveCardEvent({
         jogo: bundle.jogo,
@@ -6471,6 +7706,319 @@
         cartao: action === "yellow-card" ? "amarelo" : "vermelho",
       });
     }
+  }
+
+  function findPresetContainingPlayer(presets, playerId, ignoredPresetId = "") {
+    return presets.find((preset) =>
+      preset.id !== ignoredPresetId &&
+      uniqueIds([preset.goleiroId, ...(preset.linha || [])]).includes(playerId)
+    ) || null;
+  }
+
+  function replacePlayerInTeamRecord(team, outgoingId, incomingId) {
+    if (!team) return null;
+    const wasGoalkeeper = team.goleiroId === outgoingId;
+    let nextLine = uniqueIds(team.linha || []).filter((id) => id !== outgoingId && id !== incomingId);
+
+    if (!wasGoalkeeper) {
+      const originalPosition = uniqueIds(team.linha || []).indexOf(outgoingId);
+      nextLine.splice(originalPosition >= 0 ? originalPosition : nextLine.length, 0, incomingId);
+    }
+
+    const nextGoalkeeperId = wasGoalkeeper ? incomingId : team.goleiroId;
+    return {
+      ...team,
+      goleiroId: nextGoalkeeperId,
+      linha: uniqueIds(nextLine),
+      jogadores: uniqueIds([nextGoalkeeperId, ...nextLine]),
+    };
+  }
+
+  function removePlayerFromPreset(preset, playerId) {
+    if (!preset) return null;
+    const nextGoalkeeperId = preset.goleiroId === playerId ? "" : preset.goleiroId;
+    const nextLine = uniqueIds(preset.linha || []).filter((id) => id !== playerId);
+    return {
+      ...preset,
+      goleiroId: nextGoalkeeperId,
+      linha: nextLine,
+      jogadores: uniqueIds([nextGoalkeeperId, ...nextLine]),
+    };
+  }
+
+  function renderSubstitutionCandidateOptions(candidates, presets, targetPresetId) {
+    if (!candidates.length) {
+      return `
+        <div class="substitution-empty">
+          <strong>Nenhum atleta disponível</strong>
+          <span>Todos os jogadores ativos já estão em campo.</span>
+        </div>
+      `;
+    }
+
+    return candidates.map((candidate) => {
+      const sourcePreset = findPresetContainingPlayer(presets, candidate.id, targetPresetId);
+      return `
+        <label class="substitution-player-option" data-substitution-player="${escapeHtml(candidate.id)}">
+          <input type="radio" name="jogadorEntrouId" value="${escapeHtml(candidate.id)}" required />
+          ${renderPlayerAvatar(candidate, "player-avatar small")}
+          <span>
+            <strong>${escapeHtml(playerDisplayName(candidate))}</strong>
+            <small>${escapeHtml(candidate.posicaoPrincipal || "Linha")} · ${escapeHtml(candidate.overall || "-")} OVR</small>
+          </span>
+          ${sourcePreset ? `<em>Vem do ${escapeHtml(sourcePreset.nome)}</em>` : `<em>Livre</em>`}
+          <i aria-hidden="true">✓</i>
+        </label>
+      `;
+    }).join("");
+  }
+
+  async function openPlayerSubstitutionModal(bundle, outgoingPlayer) {
+    if (!bundle?.jogo || normalizeToken(bundle.jogo.fase) === "penaltis") {
+      state.liveMessage = "Substituições ficam bloqueadas durante a disputa de pênaltis.";
+      await renderCurrentSection();
+      return;
+    }
+
+    const [activePlayers, presets] = await Promise.all([
+      readActivePlayers(),
+      readTeamPresets(bundle.jogo.peladaId),
+    ]);
+    const teamKey = getLineupTeamForPlayer(bundle, outgoingPlayer.id);
+    const targetPresetId = teamKey === "A" ? bundle.jogo.presetAId : bundle.jogo.presetBId;
+    const activeOnField = new Set(
+      [...(bundle.playersA || []), ...(bundle.playersB || [])].map((player) => player.id)
+    );
+    const candidates = activePlayers
+      .filter((player) => !activeOnField.has(player.id))
+      .sort(comparePlayersByNickname);
+    const candidateById = new Map(candidates.map((player) => [player.id, player]));
+    const modal = openLiveModal(
+      `Substituir ${playerDisplayName(outgoingPlayer)}`,
+      `
+        <form class="substitution-form" id="player-substitution-form" novalidate>
+          <section class="substitution-hero" style="--team-color:${escapeHtml(teamColorFromGame(bundle.jogo, teamKey))}">
+            <span class="substitution-direction" aria-hidden="true">↔</span>
+            <div>
+              <small>${escapeHtml(teamNameFromGame(bundle.jogo, teamKey))}</small>
+              <strong>Quem entra no lugar de ${escapeHtml(playerDisplayName(outgoingPlayer))}?</strong>
+              <p>O campo e o histórico são atualizados imediatamente.</p>
+            </div>
+          </section>
+          <div class="substitution-player-list">
+            ${renderSubstitutionCandidateOptions(candidates, presets, targetPresetId)}
+          </div>
+          <fieldset class="substitution-scope">
+            <legend>Por quanto tempo vale a troca?</legend>
+            <label>
+              <input type="radio" name="escopo" value="jogo" checked />
+              <span><strong>Somente neste jogo</strong><small>Os times originais voltam na próxima partida.</small></span>
+            </label>
+            <label>
+              <input type="radio" name="escopo" value="proximos" />
+              <span><strong>Manter nos próximos jogos</strong><small>Atualiza o time pelo restante da pelada.</small></span>
+            </label>
+          </fieldset>
+          <div class="substitution-warning" data-substitution-warning hidden></div>
+          <div class="form-errors" id="substitution-errors" hidden></div>
+          <div class="form-actions">
+            <button class="primary-button big-touch" type="submit" ${candidates.length ? "" : "disabled"}>Confirmar substituição</button>
+            <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
+          </div>
+        </form>
+      `
+    );
+    const form = modal.querySelector("#player-substitution-form");
+    const warning = form.querySelector("[data-substitution-warning]");
+    const refreshWarning = () => {
+      const incomingId = form.elements.jogadorEntrouId?.value || "";
+      const sourcePreset = findPresetContainingPlayer(presets, incomingId, targetPresetId);
+      const keepNext = form.elements.escopo?.value === "proximos";
+      const incomingPlayer = candidateById.get(incomingId);
+
+      if (!incomingPlayer || !sourcePreset) {
+        warning.hidden = true;
+        warning.innerHTML = "";
+        return;
+      }
+
+      warning.hidden = false;
+      warning.innerHTML = keepNext
+        ? `<strong>Atenção ao ${escapeHtml(sourcePreset.nome)}</strong><span>${escapeHtml(playerDisplayName(incomingPlayer))} sairá desse time, que ficará incompleto até você editá-lo.</span>`
+        : `<strong>Empréstimo neste jogo</strong><span>${escapeHtml(sourcePreset.nome)} continua salvo como está e será restaurado na próxima partida.</span>`;
+    };
+
+    form.addEventListener("change", refreshWarning);
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const incomingId = form.elements.jogadorEntrouId?.value || "";
+      const incomingPlayer = candidateById.get(incomingId);
+      if (!incomingPlayer) {
+        showFormErrors("substitution-errors", ["Escolha quem entrará em campo."]);
+        return;
+      }
+
+      const submit = form.querySelector('button[type="submit"]');
+      submit.disabled = true;
+      submit.textContent = "Substituindo...";
+      await savePlayerSubstitution({
+        bundle,
+        outgoingPlayer,
+        incomingPlayer,
+        teamKey,
+        scope: form.elements.escopo?.value || "jogo",
+        presets,
+      });
+    });
+  }
+
+  async function savePlayerSubstitution({
+    bundle,
+    outgoingPlayer,
+    incomingPlayer,
+    teamKey,
+    scope,
+    presets,
+  }) {
+    if (!bundle?.jogo?.id || !incomingPlayer?.id || !requirePermission("eventos:criar")) return;
+    const latestBundle = await readGameBundle(bundle.jogo.id);
+
+    if (
+      !latestBundle ||
+      latestBundle.jogo.status === "Finalizado" ||
+      normalizeToken(latestBundle.jogo.fase) === "penaltis"
+    ) {
+      closeLiveModal();
+      state.liveMessage = "A substituição não pode mais ser realizada.";
+      await renderCurrentSection();
+      return;
+    }
+
+    const activeOnField = new Set(
+      [...(latestBundle.playersA || []), ...(latestBundle.playersB || [])].map((player) => player.id)
+    );
+    if (activeOnField.has(incomingPlayer.id)) {
+      showFormErrors("substitution-errors", ["Esse jogador já está em campo."]);
+      return;
+    }
+
+    const savedAt = nowIso();
+    const timeId = teamKey === "A" ? latestBundle.jogo.timeA?.id : latestBundle.jogo.timeB?.id;
+    const outgoingLineup = latestBundle.escalacoes.find((item) =>
+      item.jogadorId === outgoingPlayer.id && item.ativo !== false
+    );
+    const gameTeam = latestBundle.times.find((time) => time.id === timeId);
+
+    if (!outgoingLineup || !gameTeam) {
+      closeLiveModal();
+      state.liveMessage = "A escalação mudou. Abra o jogador novamente para substituir.";
+      await renderCurrentSection();
+      return;
+    }
+
+    const existingIncomingLineup = latestBundle.escalacoes.find(
+      (item) => item.jogadorId === incomingPlayer.id
+    );
+    const updatedOutgoing = {
+      ...outgoingLineup,
+      ativo: false,
+      saiuEm: savedAt,
+      updatedAt: savedAt,
+      revision: (outgoingLineup.revision || 0) + 1,
+    };
+    const updatedIncoming = {
+      ...(existingIncomingLineup || {}),
+      id: existingIncomingLineup?.id || `${latestBundle.jogo.id}-${incomingPlayer.id}`,
+      jogoId: latestBundle.jogo.id,
+      jogadorId: incomingPlayer.id,
+      time: teamKey,
+      timeId,
+      ativo: true,
+      entrouEm: savedAt,
+      saiuEm: "",
+      createdAt: existingIncomingLineup?.createdAt || savedAt,
+      updatedAt: savedAt,
+      revision: (existingIncomingLineup?.revision || 0) + 1,
+    };
+    const updatedGameTeam = {
+      ...replacePlayerInTeamRecord(gameTeam, outgoingPlayer.id, incomingPlayer.id),
+      updatedAt: savedAt,
+      revision: (gameTeam.revision || 0) + 1,
+    };
+    const targetPresetId = teamKey === "A"
+      ? latestBundle.jogo.presetAId
+      : latestBundle.jogo.presetBId;
+    const sourcePreset = findPresetContainingPlayer(presets, incomingPlayer.id, targetPresetId);
+    const evento = {
+      id: uid(),
+      jogoId: latestBundle.jogo.id,
+      peladaId: latestBundle.jogo.peladaId,
+      tipo: "SUBSTITUICAO",
+      time: teamKey,
+      timeId,
+      jogadorId: incomingPlayer.id,
+      jogadorSaiuId: outgoingPlayer.id,
+      jogadorEntrouId: incomingPlayer.id,
+      escopoSubstituicao: scope,
+      presetDestinoId: targetPresetId || "",
+      presetOrigemId: sourcePreset?.id || "",
+      presetOrigemPapel: sourcePreset?.goleiroId === incomingPlayer.id ? "goleiro" : "linha",
+      minuto: getEventMinute(latestBundle.jogo),
+      detalhe: `${playerDisplayName(incomingPlayer)} entrou no lugar de ${playerDisplayName(outgoingPlayer)}`,
+      criadoPor: getActorId(),
+      createdAt: savedAt,
+      updatedAt: savedAt,
+      revision: 1,
+      cancelado: false,
+    };
+    const presetUpdates = [];
+
+    if (scope === "proximos") {
+      const targetPreset = presets.find((preset) => preset.id === targetPresetId);
+
+      if (targetPreset) {
+        presetUpdates.push({
+          ...replacePlayerInTeamRecord(targetPreset, outgoingPlayer.id, incomingPlayer.id),
+          updatedAt: savedAt,
+          revision: (targetPreset.revision || 0) + 1,
+        });
+      }
+
+      if (sourcePreset) {
+        presetUpdates.push({
+          ...removePlayerFromPreset(sourcePreset, incomingPlayer.id),
+          updatedAt: savedAt,
+          revision: (sourcePreset.revision || 0) + 1,
+        });
+      }
+    }
+
+    await putRecords({
+      escalacoes: [updatedOutgoing, updatedIncoming],
+      times: [updatedGameTeam, ...presetUpdates],
+      eventos: [evento],
+      syncQueue: [
+        createSyncQueueRecord("escalacoes", "upsert", updatedOutgoing.id, updatedOutgoing),
+        createSyncQueueRecord("escalacoes", "upsert", updatedIncoming.id, updatedIncoming),
+        createSyncQueueRecord("times", "upsert", updatedGameTeam.id, updatedGameTeam),
+        ...presetUpdates.map((preset) =>
+          createSyncQueueRecord("times", "upsert", preset.id, preset)
+        ),
+        createSyncQueueRecord("eventos", "upsert", evento.id, evento),
+      ],
+      auditLog: [
+        createAuditRecord("eventos", evento.id, "substituir-jogador", null, {
+          evento,
+          escalacoes: [updatedOutgoing, updatedIncoming],
+          presets: presetUpdates,
+        }),
+      ],
+    });
+
+    closeLiveModal();
+    state.liveMessage = `${playerDisplayName(incomingPlayer)} entrou no lugar de ${playerDisplayName(outgoingPlayer)}.`;
+    await renderCurrentSection();
+    runBackgroundTask(syncNow, "Falha ao sincronizar substituição");
   }
 
   function renderYesNoRadios(name, selectedValue = "nao") {
@@ -6745,6 +8293,16 @@
       const action = actionButton.dataset.liveAction;
       const jogoId = $(".live-screen")?.dataset.gameId || state.activeGameId;
 
+      if (action === "select-penalty-starter") {
+        await selectPenaltyStarter(jogoId, actionButton.dataset.team || "");
+        return;
+      }
+
+      if (action === "penalty-attempt") {
+        await openPenaltyAttemptModal(jogoId, actionButton.dataset.team || "");
+        return;
+      }
+
       if (action === "new-game") {
         const peladaId = actionButton.dataset.peladaId || "";
         state.selectedGameSummaryId = null;
@@ -6788,6 +8346,158 @@
         }
       }
     };
+  }
+
+  async function startPenaltyShootout(jogo, formaOrigem = "Tempo") {
+    if (!jogo?.id || jogo.status === "Finalizado") return;
+    const savedAt = nowIso();
+    const updatedJogo = {
+      ...jogo,
+      fase: "penaltis",
+      formaEncerramentoPendente: formaOrigem,
+      tempoRegularEncerradoEm: savedAt,
+      pausadoEm: jogo.pausadoEm || savedAt,
+      penaltisA: Number(jogo.penaltisA || 0),
+      penaltisB: Number(jogo.penaltisB || 0),
+      penaltiIniciaPor: jogo.penaltiIniciaPor || "",
+      penaltiProximoTime: jogo.penaltiProximoTime || "",
+      updatedAt: savedAt,
+      revision: (jogo.revision || 0) + 1,
+    };
+    await putRecords({
+      jogos: [updatedJogo],
+      syncQueue: [createSyncQueueRecord("jogos", "upsert", jogo.id, updatedJogo)],
+      auditLog: [createAuditRecord("jogos", jogo.id, "iniciar-penaltis", jogo, updatedJogo)],
+    });
+    state.liveMessage = "Tempo encerrado. Escolha quem começa a disputa de pênaltis.";
+    await renderCurrentSection();
+    runBackgroundTask(syncNow, "Falha ao sincronizar início dos pênaltis");
+  }
+
+  async function selectPenaltyStarter(jogoId, teamKey) {
+    if (!["A", "B"].includes(teamKey) || !requirePermission("jogos:alterar")) return;
+    const jogo = await getRecord("jogos", jogoId);
+    if (!jogo || normalizeToken(jogo.fase) !== "penaltis" || jogo.penaltiIniciaPor) return;
+    const savedAt = nowIso();
+    const updatedJogo = {
+      ...jogo,
+      penaltiIniciaPor: teamKey,
+      penaltiProximoTime: teamKey,
+      updatedAt: savedAt,
+      revision: (jogo.revision || 0) + 1,
+    };
+    await putRecords({
+      jogos: [updatedJogo],
+      syncQueue: [createSyncQueueRecord("jogos", "upsert", jogo.id, updatedJogo)],
+      auditLog: [createAuditRecord("jogos", jogo.id, "escolher-inicio-penaltis", jogo, updatedJogo)],
+    });
+    await renderCurrentSection();
+    runBackgroundTask(syncNow, "Falha ao sincronizar ordem dos pênaltis");
+  }
+
+  async function openPenaltyAttemptModal(jogoId, teamKey) {
+    const bundle = await readGameBundle(jogoId);
+    if (!bundle || normalizeToken(bundle.jogo.fase) !== "penaltis" || bundle.jogo.penaltiProximoTime !== teamKey) return;
+    const players = getLineupPlayers(bundle, teamKey);
+    const goalkeeper = getLiveTeamLayoutPlayers(getLineupPlayers(bundle, oppositeTeam(teamKey))).goalkeeper;
+    const modal = openLiveModal(
+      `Pênalti - ${teamNameFromGame(bundle.jogo, teamKey)}`,
+      `
+        <form class="penalty-attempt-form" id="penalty-attempt-form" novalidate>
+          <div class="penalty-attempt-intro" style="--team-color:${escapeHtml(teamColorFromGame(bundle.jogo, teamKey))}">
+            <span>${escapeHtml(getLiveTeamInitials(teamNameFromGame(bundle.jogo, teamKey), teamKey))}</span>
+            <div><small>Próxima cobrança</small><strong>${escapeHtml(teamNameFromGame(bundle.jogo, teamKey))}</strong><p>${goalkeeper ? `No gol: ${escapeHtml(playerDisplayName(goalkeeper))}` : "Sem goleiro definido"}</p></div>
+          </div>
+          <label class="field-label"><span>Cobrador</span><select name="jogadorId" required>${renderPlayerOptions(players, "", "Escolha o cobrador")}</select></label>
+          <fieldset class="penalty-result-picker">
+            <legend>Resultado da cobrança</legend>
+            <label class="is-goal"><input type="radio" name="resultado" value="gol" checked /><span><i>✓</i><strong>Gol</strong><small>Converteu</small></span></label>
+            <label class="is-miss"><input type="radio" name="resultado" value="fora" /><span><i>×</i><strong>Para fora</strong><small>Não acertou o gol</small></span></label>
+            <label class="is-save"><input type="radio" name="resultado" value="defendido" /><span><i>◆</i><strong>Defendido</strong><small>Defesa do goleiro</small></span></label>
+          </fieldset>
+          <div class="form-errors" id="penalty-attempt-errors" hidden></div>
+          <div class="form-actions">
+            <button class="primary-button big-touch" type="submit">Confirmar cobrança</button>
+            <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
+          </div>
+        </form>
+      `
+    );
+    modal.querySelector("#penalty-attempt-form")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const jogadorId = form.elements.jogadorId?.value || "";
+      if (!jogadorId) {
+        showFormErrors("penalty-attempt-errors", ["Escolha o cobrador."]);
+        return;
+      }
+      const result = form.elements.resultado?.value || "gol";
+      const submit = form.querySelector('button[type="submit"]');
+      submit.disabled = true;
+      submit.textContent = "Salvando...";
+      await savePenaltyAttempt(bundle, teamKey, jogadorId, result, result === "defendido" ? goalkeeper?.id || "" : "");
+    });
+  }
+
+  async function savePenaltyAttempt(bundle, teamKey, jogadorId, resultadoPenalti, goalkeeperId) {
+    const latestGame = await getRecord("jogos", bundle.jogo.id);
+    if (!latestGame || latestGame.status === "Finalizado" || latestGame.penaltiProximoTime !== teamKey) return;
+    const existingEvents = (await getAllRecords("eventos"))
+      .filter((evento) => evento.jogoId === latestGame.id && !evento.cancelado && normalizeToken(evento.tipo) === "penalti_desempate");
+    const savedAt = nowIso();
+    const teamAttempts = existingEvents.filter((evento) => evento.time === teamKey).length;
+    const evento = {
+      id: uid(),
+      jogoId: latestGame.id,
+      peladaId: latestGame.peladaId,
+      tipo: "PENALTI_DESEMPATE",
+      time: teamKey,
+      timeId: teamKey === "A" ? latestGame.timeA?.id : latestGame.timeB?.id,
+      jogadorId,
+      goleiroId: goalkeeperId,
+      resultadoPenalti,
+      rodadaPenalti: teamAttempts + 1,
+      minuto: "P",
+      detalhe: `Pênalti ${resultadoPenalti}`,
+      criadoPor: getActorId(),
+      createdAt: savedAt,
+      updatedAt: savedAt,
+      revision: 1,
+      cancelado: false,
+    };
+    const allEvents = [...existingEvents, evento];
+    const attemptsA = allEvents.filter((item) => item.time === "A").length;
+    const attemptsB = allEvents.filter((item) => item.time === "B").length;
+    const penaltisA = allEvents.filter((item) => item.time === "A" && normalizeToken(item.resultadoPenalti) === "gol").length;
+    const penaltisB = allEvents.filter((item) => item.time === "B" && normalizeToken(item.resultadoPenalti) === "gol").length;
+    const pairComplete = attemptsA === attemptsB;
+    const hasWinner = pairComplete && penaltisA !== penaltisB;
+    const updatedJogo = {
+      ...latestGame,
+      penaltisA,
+      penaltisB,
+      decididoNosPenaltis: hasWinner,
+      penaltiProximoTime: hasWinner ? "" : oppositeTeam(teamKey),
+      updatedAt: savedAt,
+      revision: (latestGame.revision || 0) + 1,
+    };
+    await putRecords({
+      jogos: [updatedJogo],
+      eventos: [evento],
+      syncQueue: [
+        createSyncQueueRecord("jogos", "upsert", updatedJogo.id, updatedJogo),
+        createSyncQueueRecord("eventos", "upsert", evento.id, evento),
+      ],
+      auditLog: [createAuditRecord("eventos", evento.id, "registrar-penalti", null, evento)],
+    });
+    closeLiveModal();
+    if (hasWinner) {
+      await finalizeGame(updatedJogo.id, "Pênaltis");
+      return;
+    }
+    state.liveMessage = `Cobrança registrada. Agora é a vez do ${teamNameFromGame(updatedJogo, updatedJogo.penaltiProximoTime)}.`;
+    await renderCurrentSection();
+    runBackgroundTask(syncNow, "Falha ao sincronizar cobrança de pênalti");
   }
 
   async function confirmManualGameFinish(jogoId) {
@@ -7077,9 +8787,11 @@
 
   async function undoLastLiveEvent(jogoId) {
     if (!requirePermission("eventos:excluir")) return;
-    const [jogo, eventos] = await Promise.all([
+    const [jogo, eventos, allLineups, allTimes] = await Promise.all([
       getRecord("jogos", jogoId),
       getAllRecords("eventos"),
+      getAllRecords("escalacoes"),
+      getAllRecords("times"),
     ]);
 
     if (!jogo || jogo.status === "Finalizado") {
@@ -7127,6 +8839,107 @@
       records.jogos = [updatedJogo];
       records.syncQueue.push(createSyncQueueRecord("jogos", "upsert", jogo.id, updatedJogo));
       records.auditLog.push(createAuditRecord("jogos", jogo.id, "desfazer-gol", jogo, updatedJogo));
+    }
+
+    if (normalizeToken(lastEvent.tipo) === "substituicao") {
+      const outgoingLineup = allLineups.find((item) =>
+        item.jogoId === jogoId && item.jogadorId === lastEvent.jogadorSaiuId
+      );
+      const incomingLineup = allLineups.find((item) =>
+        item.jogoId === jogoId && item.jogadorId === lastEvent.jogadorEntrouId
+      );
+      const gameTeam = allTimes.find((time) => time.id === lastEvent.timeId);
+      const lineupUpdates = [];
+      const teamUpdates = [];
+
+      if (outgoingLineup) {
+        lineupUpdates.push({
+          ...outgoingLineup,
+          ativo: true,
+          saiuEm: "",
+          updatedAt: savedAt,
+          revision: (outgoingLineup.revision || 0) + 1,
+        });
+      }
+
+      if (incomingLineup) {
+        lineupUpdates.push({
+          ...incomingLineup,
+          ativo: false,
+          saiuEm: savedAt,
+          updatedAt: savedAt,
+          revision: (incomingLineup.revision || 0) + 1,
+        });
+      }
+
+      if (gameTeam) {
+        teamUpdates.push({
+          ...replacePlayerInTeamRecord(
+            gameTeam,
+            lastEvent.jogadorEntrouId,
+            lastEvent.jogadorSaiuId
+          ),
+          updatedAt: savedAt,
+          revision: (gameTeam.revision || 0) + 1,
+        });
+      }
+
+      if (lastEvent.escopoSubstituicao === "proximos") {
+        const targetPreset = allTimes.find((time) => time.id === lastEvent.presetDestinoId);
+        const sourcePreset = allTimes.find((time) => time.id === lastEvent.presetOrigemId);
+
+        if (targetPreset) {
+          teamUpdates.push({
+            ...replacePlayerInTeamRecord(
+              targetPreset,
+              lastEvent.jogadorEntrouId,
+              lastEvent.jogadorSaiuId
+            ),
+            updatedAt: savedAt,
+            revision: (targetPreset.revision || 0) + 1,
+          });
+        }
+
+        if (sourcePreset) {
+          const restoredSource = lastEvent.presetOrigemPapel === "goleiro"
+            ? {
+                ...sourcePreset,
+                goleiroId: lastEvent.jogadorEntrouId,
+                jogadores: uniqueIds([
+                  lastEvent.jogadorEntrouId,
+                  ...(sourcePreset.linha || []),
+                ]),
+              }
+            : {
+                ...sourcePreset,
+                linha: uniqueIds([...(sourcePreset.linha || []), lastEvent.jogadorEntrouId]),
+                jogadores: uniqueIds([
+                  sourcePreset.goleiroId,
+                  ...(sourcePreset.linha || []),
+                  lastEvent.jogadorEntrouId,
+                ]),
+              };
+          teamUpdates.push({
+            ...restoredSource,
+            updatedAt: savedAt,
+            revision: (sourcePreset.revision || 0) + 1,
+          });
+        }
+      }
+
+      if (lineupUpdates.length) {
+        records.escalacoes = lineupUpdates;
+        records.syncQueue.push(...lineupUpdates.map((lineup) =>
+          createSyncQueueRecord("escalacoes", "upsert", lineup.id, lineup)
+        ));
+      }
+
+      if (teamUpdates.length) {
+        records.times = teamUpdates;
+        records.syncQueue.push(...teamUpdates.map((time) =>
+          createSyncQueueRecord("times", "upsert", time.id, time)
+        ));
+      }
     }
 
     await putRecords(records);
@@ -7278,6 +9091,26 @@
     runBackgroundTask(syncNow, "Falha ao sincronizar retomada do jogo");
   }
 
+  function buildNextRotation(pelada, jogo) {
+    const winningTeamKey = getWinningTeamKey(jogo);
+    if (!pelada || !winningTeamKey || !jogo.presetAId || !jogo.presetBId) return null;
+    const winnerId = winningTeamKey === "A" ? jogo.presetAId : jogo.presetBId;
+    const loserId = winningTeamKey === "A" ? jogo.presetBId : jogo.presetAId;
+    const queue = uniqueIds(jogo.filaTimes || []).filter((id) => id !== winnerId && id !== loserId);
+    const nextOpponentId = queue.shift() || loserId;
+    const nextQueue = nextOpponentId === loserId ? queue : [...queue, loserId];
+
+    return {
+      timeAId: winnerId,
+      timeBId: nextOpponentId,
+      fila: nextQueue,
+      vencedorAnteriorId: winnerId,
+      perdedorAnteriorId: loserId,
+      jogoOrigemId: jogo.id,
+      updatedAt: nowIso(),
+    };
+  }
+
   async function finalizeGame(jogoId, formaEncerramento) {
     if (!requirePermission("jogos:finalizar")) return;
     if (finalizingGameIds.has(jogoId)) return;
@@ -7287,6 +9120,11 @@
     const jogo = await getRecord("jogos", jogoId);
 
     if (!jogo || jogo.status === "Finalizado") {
+      return;
+    }
+
+    if (getWinningTeamKey(jogo) === "" && normalizeToken(jogo.fase) !== "penaltis") {
+      await startPenaltyShootout(jogo, formaEncerramento);
       return;
     }
 
@@ -7305,16 +9143,27 @@
       updatedAt: savedAt,
       revision: (jogo.revision || 0) + 1,
     };
-    const escalacoes = (await getAllRecords("escalacoes")).filter(
-      (escalacao) => escalacao.jogoId === jogoId
-    );
+    const [allEscalacoes, pelada] = await Promise.all([
+      getAllRecords("escalacoes"),
+      getRecord("peladas", jogo.peladaId),
+    ]);
+    const escalacoes = allEscalacoes.filter((escalacao) => escalacao.jogoId === jogoId);
+    const nextRotation = buildNextRotation(pelada, finalJogo);
+    const updatedPelada = nextRotation ? {
+      ...pelada,
+      proximoConfronto: nextRotation,
+      updatedAt: savedAt,
+      revision: (pelada.revision || 0) + 1,
+    } : null;
     const statsRecords = await buildResultStats(finalJogo, escalacoes);
 
     await putRecords({
       jogos: [finalJogo],
+      ...(updatedPelada ? { peladas: [updatedPelada] } : {}),
       estatisticasCache: statsRecords,
       syncQueue: [
         createSyncQueueRecord("jogos", "upsert", jogoId, finalJogo),
+        ...(updatedPelada ? [createSyncQueueRecord("peladas", "upsert", updatedPelada.id, updatedPelada)] : []),
         ...statsRecords.map((record) =>
           createSyncQueueRecord("estatisticasCache", "upsert", record.id, record)
         ),
@@ -9877,8 +11726,8 @@
 
     try {
       const serverInfo = await callAppsScript("ping");
-      if (!isApiVersionAtLeast(serverInfo.version, "1.1.0")) {
-        throw new Error(`Apps Script desatualizado (${serverInfo.version || "versão antiga"}). Publique uma nova versão da implantação com o Code.gs 1.1.0 antes de zerar a base.`);
+      if (!isApiVersionAtLeast(serverInfo.version, MIN_SYNC_API_VERSION)) {
+        throw new Error(`Apps Script desatualizado (${serverInfo.version || "versão antiga"}). Publique uma nova versão da implantação com o Code.gs ${MIN_SYNC_API_VERSION} antes de zerar a base.`);
       }
 
       const result = await callAppsScript("resetData", {

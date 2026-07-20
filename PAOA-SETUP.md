@@ -62,11 +62,45 @@ Para criar uma conta Jogador, primeiro cadastre o atleta e depois selecione-o no
 ## 5. Teste recomendado
 
 1. Faça login no celular principal como Administrador.
-2. Crie uma pelada, cadastre os jogadores e monte os times.
-3. Inicie um jogo e registre um gol, uma assistência e uma falta.
+2. Crie uma pelada de teste e monte pelo menos três times com os presets.
+3. Inicie um jogo entre dois times e registre um gol, uma assistência e uma falta.
 4. Confirme que placar, eventos e estatísticas foram atualizados no próprio celular.
 5. Registre o segundo gol e confirme que a partida foi encerrada e salva no histórico.
-6. Abra o aplicativo no PC somente depois da partida e confirme que o histórico foi sincronizado.
+6. Confira se o vencedor permaneceu e o time que estava esperando foi carregado no próximo confronto.
+7. Teste uma substituição usando as opções **Somente neste jogo** e **Manter nos próximos jogos**.
+8. Em um empate, escolha quem começa e confira a alternância da disputa de pênaltis.
+9. Exclua o jogo ou a pelada de teste e confirme que os registros oficiais permaneceram intactos.
+10. Abra o aplicativo no PC e confirme que o histórico foi sincronizado.
+
+## Atualização 1.1.0 — fluxo rápido de pelada
+
+Esta atualização foi feita de forma aditiva: os jogadores, peladas, jogos e estatísticas que já existiam continuam sendo considerados registros oficiais. Não é necessário zerar a base.
+
+Principais mudanças:
+
+- presets de times com 5 jogadores de linha e 1 goleiro;
+- seleção rápida de confrontos e escalações carregadas automaticamente;
+- vencedor permanece e enfrenta o próximo time da fila;
+- edição dos times durante a pelada;
+- substituição somente no jogo atual ou mantida nos próximos jogos;
+- aviso quando um jogador retirado de outro time deixa o preset incompleto;
+- desempate por pênaltis alternados, com escolha prévia de quem começa;
+- placar do tempo normal separado do resultado dos pênaltis;
+- peladas oficiais e peladas de teste;
+- exclusão confirmada de jogos, peladas ou todos os registros de teste;
+- remoção em cascata dos eventos relacionados, preservando os jogadores;
+- atualização da API de sincronização para `1.5.0`.
+
+Para publicar a atualização:
+
+1. substitua o conteúdo do Apps Script pelo arquivo [`apps-script/Code.gs`](apps-script/Code.gs);
+2. execute `setupBagreScore` novamente; ela apenas garante que a estrutura necessária exista;
+3. em **Implantar > Gerenciar implantações**, edite o Aplicativo da Web;
+4. selecione **Nova versão** e conclua a implantação, mantendo a mesma URL `/exec`;
+5. publique os arquivos do aplicativo;
+6. no celular, use **Forçar atualização** uma vez.
+
+O aplicativo exige o Apps Script `1.5.0` para todas as operações novas de sincronização.
 
 ## Atualizações futuras
 

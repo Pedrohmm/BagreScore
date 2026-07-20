@@ -1,4 +1,4 @@
-var BAGRESCORE_API_VERSION = "1.4.0";
+var BAGRESCORE_API_VERSION = "1.5.0";
 var BAGRESCORE_DB_PROPERTY = "BAGRESCORE_SPREADSHEET_ID";
 var BAGRESCORE_SECRET_PROPERTY = "BAGRESCORE_AUTH_SECRET";
 var BAGRESCORE_REVISION_PROPERTY = "BAGRESCORE_GLOBAL_REVISION";
@@ -882,8 +882,19 @@ function bagreScoreRecalculateGameScore_(spreadsheet, gameId) {
 }
 
 function bagreScoreGameWinner_(gamePayload, scoreA, scoreB) {
-  if (scoreA === scoreB) return "Empate";
-  var teamKey = scoreA > scoreB ? "timeA" : "timeB";
+  var teamKey = "";
+
+  if (scoreA > scoreB) teamKey = "timeA";
+  if (scoreB > scoreA) teamKey = "timeB";
+
+  if (!teamKey && gamePayload && bagreScoreBoolean_(gamePayload.decididoNosPenaltis)) {
+    var penaltiesA = Number(gamePayload.penaltisA || 0);
+    var penaltiesB = Number(gamePayload.penaltisB || 0);
+    if (penaltiesA > penaltiesB) teamKey = "timeA";
+    if (penaltiesB > penaltiesA) teamKey = "timeB";
+  }
+
+  if (!teamKey) return "Empate";
   var team = gamePayload && gamePayload[teamKey] && typeof gamePayload[teamKey] === "object"
     ? gamePayload[teamKey]
     : {};
