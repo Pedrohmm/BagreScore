@@ -19623,3 +19623,216 @@ body[data-section="peladas"] .pelada-open-actions .primary-button:disabled {
     height: 64px;
   }
 }
+
+/* BagreScore 1.1.4 — navegação e hierarquia dos registros de peladas */
+body[data-section="peladas"] .peladas-mode-nav.has-three-tabs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+body[data-section="peladas"] .peladas-mode-nav.has-two-tabs {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+body[data-section="peladas"] .finalized-records-panel {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.085);
+  border-radius: 22px;
+  padding: 15px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.065), transparent 14rem),
+    linear-gradient(145deg, rgba(15, 16, 15, 0.97), rgba(5, 6, 5, 0.99));
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+body[data-section="peladas"] .finalized-records-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+body[data-section="peladas"] .finalized-records-heading span {
+  color: #ca713f;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+body[data-section="peladas"] .finalized-records-heading h3 {
+  margin: 3px 0 0;
+  color: #f3f3f3;
+  font-size: 1.1rem;
+}
+
+body[data-section="peladas"] .finalized-records-heading > strong {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(255, 90, 0, 0.2);
+  border-radius: 11px;
+  color: #ff8444;
+  background: rgba(255, 90, 0, 0.065);
+  font-size: 0.76rem;
+}
+
+body[data-section="peladas"] .pelada-card-main,
+body[data-section="peladas"] .pelada-card-main:is(:hover, :focus-visible) {
+  grid-template-areas:
+    "body"
+    "footer";
+  gap: 12px;
+  min-height: 0;
+  padding: 15px 16px 13px;
+}
+
+body[data-section="peladas"] .pelada-card-footer {
+  grid-area: footer;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.065);
+  padding-top: 10px;
+}
+
+body[data-section="peladas"] .pelada-card-badges {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+body[data-section="peladas"] .pelada-card-badges .pelada-type-badge,
+body[data-section="peladas"] .pelada-card-badges .pelada-status-badge {
+  min-height: 21px;
+  margin: 0;
+  border-radius: 7px;
+  padding: 4px 6px;
+  font-size: 0.5rem;
+  letter-spacing: 0.055em;
+  line-height: 1;
+  opacity: 0.86;
+}
+
+body[data-section="peladas"] .pelada-card-badges .pelada-status-badge {
+  gap: 5px;
+}
+
+body[data-section="peladas"] .pelada-card-badges .pelada-status-badge i {
+  width: 5px;
+  height: 5px;
+}
+
+body[data-section="peladas"] .pelada-card-badges .status-finalizada {
+  border-color: rgba(255, 255, 255, 0.07);
+  color: #9ea19f;
+  background: rgba(255, 255, 255, 0.035);
+  box-shadow: none;
+}
+
+body[data-section="peladas"] .pelada-card-badges .status-finalizada i {
+  box-shadow: none;
+}
+
+body[data-section="peladas"] .pelada-open-cta {
+  position: static;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+}
+
+body[data-section="peladas"] .peladas-featured-footer {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding-top: 10px;
+}
+
+body[data-section="peladas"] .peladas-featured-footer .pelada-badge-stack {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+body[data-section="peladas"] .peladas-featured-footer .pelada-type-badge,
+body[data-section="peladas"] .peladas-featured-footer .pelada-status-badge {
+  min-height: 22px;
+  margin: 0;
+  border-radius: 7px;
+  padding: 4px 7px;
+  font-size: 0.52rem;
+  opacity: 0.88;
+}
+
+body[data-section="peladas"] .peladas-featured-footer .peladas-featured-cta {
+  min-height: 30px;
+  flex: 0 0 auto;
+  border: 0;
+  padding: 0;
+}
+
+body[data-section="peladas"] .pelada-open-header {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+body[data-section="peladas"] .pelada-open-badges {
+  justify-self: start;
+}
+
+body[data-section="peladas"] .pelada-open-badges .pelada-open-status,
+body[data-section="peladas"] .pelada-open-badges .pelada-type-badge {
+  min-height: 22px;
+  border-radius: 7px;
+  padding: 4px 7px;
+  font-size: 0.52rem;
+  opacity: 0.86;
+}
+
+@media (max-width: 520px) {
+  body[data-section="peladas"] .peladas-mode-nav.has-three-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  body[data-section="peladas"] .peladas-mode-nav.has-three-tabs .peladas-mode-button {
+    padding-inline: 6px;
+    font-size: 0.7rem;
+  }
+
+  body[data-section="peladas"] .pelada-card-main,
+  body[data-section="peladas"] .pelada-card-main:is(:hover, :focus-visible) {
+    grid-template-areas:
+      "body"
+      "footer";
+    padding: 14px 14px 12px;
+  }
+}
+
+@media (max-width: 390px) {
+  body[data-section="peladas"] .peladas-mode-nav.has-three-tabs .peladas-mode-button {
+    font-size: 0.65rem;
+  }
+
+  body[data-section="peladas"] .finalized-records-panel {
+    padding: 13px;
+  }
+
+  body[data-section="peladas"] .pelada-card-badges .pelada-type-badge,
+  body[data-section="peladas"] .pelada-card-badges .pelada-status-badge {
+    padding-inline: 5px;
+    font-size: 0.47rem;
+  }
+}

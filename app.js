@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.1.3";
+  const APP_VERSION = "1.1.4";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -943,6 +943,8 @@
         peladasView = "criar";
       } else if (firstPart === "gerenciar") {
         peladasView = "gerenciar";
+      } else if (firstPart === "finalizadas") {
+        peladasView = "finalizadas";
       } else {
         try {
           peladaId = decodeURIComponent(firstPart);
@@ -969,6 +971,10 @@
 
     if (section === "peladas" && options.peladasView === "criar") {
       return "#peladas/criar";
+    }
+
+    if (section === "peladas" && options.peladasView === "finalizadas") {
+      return "#peladas/finalizadas";
     }
 
     if (section === "peladas" && options.peladaId && options.gameId) {
@@ -4624,7 +4630,11 @@
 
     if (!selectedPelada) {
       const canCreatePelada = hasPermission("peladas:criar");
-      const activeView = canCreatePelada && state.peladasView === "criar" ? "criar" : "gerenciar";
+      const activeView = canCreatePelada && state.peladasView === "criar"
+        ? "criar"
+        : state.peladasView === "finalizadas"
+          ? "finalizadas"
+          : "gerenciar";
       setSectionTitle("Crie e gerencie suas peladas", "Peladas");
 
       $("#section-content").innerHTML = `
@@ -4633,7 +4643,9 @@
           ${
             activeView === "criar"
               ? renderCreatePeladaPanel()
-              : renderManagePeladasPanel(peladas, gameCountByPeladaId, gamesByPeladaId)
+              : activeView === "finalizadas"
+                ? renderFinalizedPeladasPanel(peladas, gameCountByPeladaId, gamesByPeladaId)
+                : renderManagePeladasPanel(peladas, gameCountByPeladaId, gamesByPeladaId)
           }
         </div>
       `;
@@ -4706,19 +4718,21 @@
   }
 
   function renderPeladasModeNav(activeView) {
-    if (!hasPermission("peladas:criar")) return "";
+    const canCreate = hasPermission("peladas:criar");
 
     return `
-      <div class="peladas-mode-nav" role="tablist" aria-label="Navegação de peladas">
-        <button
-          class="peladas-mode-button ${activeView === "criar" ? "active" : ""}"
-          type="button"
-          role="tab"
-          aria-selected="${activeView === "criar"}"
-          data-pelada-action="show-create"
-        >
-          Marcar pelada
-        </button>
+      <div class="peladas-mode-nav ${canCreate ? "has-three-tabs" : "has-two-tabs"}" role="tablist" aria-label="Navegação de peladas">
+        ${canCreate ? `
+          <button
+            class="peladas-mode-button ${activeView === "criar" ? "active" : ""}"
+            type="button"
+            role="tab"
+            aria-selected="${activeView === "criar"}"
+            data-pelada-action="show-create"
+          >
+            Marcar
+          </button>
+        ` : ""}
         <button
           class="peladas-mode-button ${activeView === "gerenciar" ? "active" : ""}"
           type="button"
@@ -4727,6 +4741,15 @@
           data-pelada-action="show-manage"
         >
           Gerenciar
+        </button>
+        <button
+          class="peladas-mode-button ${activeView === "finalizadas" ? "active" : ""}"
+          type="button"
+          role="tab"
+          aria-selected="${activeView === "finalizadas"}"
+          data-pelada-action="show-finalized"
+        >
+          Finalizadas
         </button>
       </div>
     `;
@@ -4818,7 +4841,6 @@
     const officialPeladas = peladas.filter((pelada) => !isTestPelada(pelada));
     const testPeladas = peladas.filter(isTestPelada);
     const featuredPelada = selectNextOpenPelada(officialPeladas);
-    const finalizedPeladas = officialPeladas.filter(isFinalizedPelada);
 
     return `
       <section class="pelada-workspace peladas-manage-shell">
@@ -4829,22 +4851,6 @@
               gamesByPeladaId.get(featuredPelada.id) || []
             )
           : renderNoOpenPeladaCard()}
-
-        <div class="peladas-created-heading">
-          <h3>Peladas finalizadas</h3>
-          <span>${finalizedPeladas.length} finalizada${finalizedPeladas.length === 1 ? "" : "s"}</span>
-        </div>
-        ${finalizedPeladas.length
-          ? `<div class="pelada-card-grid">${finalizedPeladas
-              .map((pelada) =>
-                renderPeladaCard(
-                  pelada,
-                  gameCountByPeladaId.get(pelada.id) || 0,
-                  gamesByPeladaId.get(pelada.id) || []
-                )
-              )
-              .join("")}</div>`
-          : `<div class="peladas-finished-empty"><span aria-hidden="true">✓</span><p>Nenhuma pelada finalizada ainda.</p></div>`}
 
         ${testPeladas.length ? `
           <section class="test-records-panel">
@@ -4871,6 +4877,34 @@
             </div>
           </section>
         ` : ""}
+      </section>
+    `;
+  }
+
+  function renderFinalizedPeladasPanel(peladas, gameCountByPeladaId, gamesByPeladaId) {
+    const finalizedPeladas = peladas
+      .filter((pelada) => !isTestPelada(pelada) && isFinalizedPelada(pelada));
+
+    return `
+      <section class="pelada-workspace finalized-records-panel">
+        <header class="finalized-records-heading">
+          <div>
+            <span>Histórico oficial</span>
+            <h3>Peladas finalizadas</h3>
+          </div>
+          <strong>${finalizedPeladas.length}</strong>
+        </header>
+        ${finalizedPeladas.length
+          ? `<div class="pelada-card-grid">${finalizedPeladas
+              .map((pelada) =>
+                renderPeladaCard(
+                  pelada,
+                  gameCountByPeladaId.get(pelada.id) || 0,
+                  gamesByPeladaId.get(pelada.id) || []
+                )
+              )
+              .join("")}</div>`
+          : `<div class="peladas-finished-empty"><span aria-hidden="true">✓</span><p>Nenhuma pelada finalizada ainda.</p></div>`}
       </section>
     `;
   }
@@ -5001,7 +5035,6 @@
       <button class="peladas-featured-card" type="button" data-pelada-action="open-pelada" data-pelada-id="${escapeHtml(pelada.id)}">
         <span class="peladas-featured-top">
           <span class="peladas-featured-kicker">Próxima pelada</span>
-          <span class="pelada-badge-stack">${renderPeladaTypeBadge(pelada)}${renderPeladaStatusBadge(status)}</span>
         </span>
         <span class="peladas-featured-main">
           ${renderPeladaDateTile(pelada, "is-featured")}
@@ -5011,7 +5044,10 @@
           </span>
         </span>
         ${renderPeladaMetaRow(pelada, gameCount)}
-        <span class="peladas-featured-cta">Abrir pelada <b aria-hidden="true">&rsaquo;</b></span>
+        <span class="peladas-featured-footer">
+          <span class="pelada-badge-stack">${renderPeladaTypeBadge(pelada)}${renderPeladaStatusBadge(status)}</span>
+          <span class="peladas-featured-cta">Abrir pelada <b aria-hidden="true">&rsaquo;</b></span>
+        </span>
       </button>
     `;
   }
@@ -5025,10 +5061,6 @@
       <article class="pelada-card ${statusClass === "finalizada" ? "is-finalized" : ""} is-record-${escapeHtml(recordType)}">
         <button class="pelada-card-main" type="button" data-pelada-action="open-pelada" data-pelada-id="${escapeHtml(pelada.id)}">
           <span class="pelada-card-accent" aria-hidden="true"></span>
-          <span class="pelada-card-topline">
-            ${renderPeladaTypeBadge(pelada)}
-            ${renderPeladaStatusBadge(status)}
-          </span>
           <span class="pelada-card-body">
             ${renderPeladaDateTile(pelada)}
             <span class="pelada-card-info">
@@ -5037,8 +5069,14 @@
               ${renderPeladaMetaRow(pelada, gameCount, false)}
             </span>
           </span>
-          <span class="pelada-open-cta" aria-hidden="true">
-            <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
+          <span class="pelada-card-footer">
+            <span class="pelada-card-badges">
+              ${renderPeladaTypeBadge(pelada)}
+              ${renderPeladaStatusBadge(status)}
+            </span>
+            <span class="pelada-open-cta" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
+            </span>
           </span>
         </button>
       </article>
@@ -5060,10 +5098,6 @@
           <div class="pelada-open-title">
             <h3>${escapeHtml(pelada.local || "Pelada")}</h3>
           </div>
-          <div class="pelada-open-badges">
-            <span class="pelada-open-status status-${escapeHtml(statusClass)}"><i></i>${escapeHtml(status)}</span>
-            ${renderPeladaTypeBadge(pelada)}
-          </div>
         </header>
         <div class="pelada-open-meta">
           <span>
@@ -5078,6 +5112,10 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5h16v10H4zM7 12h.01M17 12h.01M12 9.5c1.4 0 2.5 1.1 2.5 2.5s-1.1 2.5-2.5 2.5-2.5-1.1-2.5-2.5 1.1-2.5 2.5-2.5Z"/></svg>
             <strong>${escapeHtml(formatCurrency(pelada.valor))}</strong>
           </span>
+        </div>
+        <div class="pelada-open-badges">
+          ${renderPeladaTypeBadge(pelada)}
+          <span class="pelada-open-status status-${escapeHtml(statusClass)}"><i></i>${escapeHtml(status)}</span>
         </div>
         <div class="pelada-open-actions">
           ${hasPermission("jogos:finalizar") ? `<button
@@ -6246,6 +6284,14 @@
         state.selectedGameSummaryId = null;
         state.peladasView = "gerenciar";
         await switchSection("peladas", { peladasView: "gerenciar", historyMode: "replace" });
+        return;
+      }
+
+      if (action === "show-finalized") {
+        state.selectedPeladaId = null;
+        state.selectedGameSummaryId = null;
+        state.peladasView = "finalizadas";
+        await switchSection("peladas", { peladasView: "finalizadas", historyMode: "replace" });
         return;
       }
 
