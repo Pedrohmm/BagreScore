@@ -13219,6 +13219,350 @@ body.stats-profile-mode .player-card-context .profile-tags span {
   }
 }
 
+/* BagreScore 1.2 — presenças, fila dinâmica e goleiros por confronto */
+body[data-section="peladas"] .pelada-detail-tabs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+body[data-section="peladas"] .pelada-detail-tabs button {
+  min-width: 0;
+  gap: 5px;
+  padding-inline: 6px;
+}
+
+body[data-section="peladas"] .pelada-detail-tabs button > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pelada-presence-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.presence-summary-header,
+.presence-group {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 100% 0, rgba(255, 90, 0, 0.11), transparent 15rem),
+    linear-gradient(145deg, rgba(17, 17, 17, 0.98), rgba(7, 7, 7, 0.98));
+}
+
+.presence-summary-header {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.presence-summary-header h3 {
+  margin: 3px 0 0;
+  color: #fff;
+  font-size: 1.35rem;
+}
+
+.presence-summary-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.presence-summary-metrics > span {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 13px;
+  padding: 10px 6px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.presence-summary-metrics strong {
+  color: #ff6a16;
+  font-size: 1.1rem;
+}
+
+.presence-summary-metrics small {
+  color: #898989;
+  font-size: 0.62rem;
+  font-weight: 800;
+}
+
+.presence-group {
+  overflow: hidden;
+  padding: 14px;
+}
+
+.presence-group > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 2px 12px;
+}
+
+.presence-group > header span {
+  color: #fff;
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.presence-group > header strong {
+  color: #838383;
+  font-size: 0.64rem;
+}
+
+.presence-player-list {
+  display: grid;
+  gap: 7px;
+}
+
+.presence-player-row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 66px;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 14px;
+  padding: 9px 10px;
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.presence-player-row.is-absent {
+  opacity: 0.58;
+}
+
+.presence-player-row.is-atrasado {
+  border-color: rgba(246, 190, 74, 0.18);
+  background: rgba(246, 190, 74, 0.035);
+}
+
+.presence-player-row.is-system-card {
+  border-color: rgba(246, 190, 74, 0.2);
+  background: rgba(246, 190, 74, 0.045);
+}
+
+.presence-player-row > span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.presence-player-row > span strong {
+  overflow: hidden;
+  color: #f3f3f3;
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presence-player-row > span small {
+  color: #808080;
+  font-size: 0.63rem;
+}
+
+.presence-player-row > em {
+  border-radius: 999px;
+  padding: 6px 9px;
+  color: #e8bd62;
+  background: rgba(246, 190, 74, 0.09);
+  font-size: 0.58rem;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.presence-row-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.presence-row-actions button {
+  min-height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 0 9px;
+  color: #a2a2a2;
+  background: rgba(255, 255, 255, 0.035);
+  font: inherit;
+  font-size: 0.59rem;
+  font-weight: 850;
+}
+
+.presence-status-select,
+.presence-readonly-status {
+  min-height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 0 28px 0 9px;
+  color: #a2a2a2;
+  background-color: #151515;
+  font: inherit;
+  font-size: 0.59rem;
+  font-weight: 850;
+}
+
+.presence-status-select.is-presente,
+.presence-readonly-status.is-presente {
+  border-color: rgba(34, 197, 94, 0.26);
+  color: #75dc94;
+  background-color: rgba(34, 197, 94, 0.08);
+}
+
+.presence-status-select.is-atrasado,
+.presence-readonly-status.is-atrasado {
+  border-color: rgba(246, 190, 74, 0.28);
+  color: #e8bd62;
+  background-color: rgba(246, 190, 74, 0.08);
+}
+
+.presence-status-select.is-ausente,
+.presence-readonly-status.is-ausente {
+  border-color: rgba(248, 113, 113, 0.2);
+  color: #d89696;
+  background-color: rgba(127, 29, 29, 0.12);
+}
+
+.presence-readonly-status {
+  display: inline-flex;
+  align-items: center;
+  padding-right: 9px;
+}
+
+.presence-row-actions .presence-toggle.is-on {
+  border-color: rgba(34, 197, 94, 0.26);
+  color: #75dc94;
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.presence-row-actions button.is-queued {
+  border-color: rgba(255, 90, 0, 0.34);
+  color: #ff7a2d;
+  background: rgba(255, 90, 0, 0.08);
+}
+
+.presence-empty,
+.presence-alert {
+  margin: 0;
+  border-radius: 12px;
+  padding: 12px;
+  color: #8a8a8a;
+  background: rgba(255, 255, 255, 0.025);
+  font-size: 0.72rem;
+}
+
+.presence-alert {
+  color: #d6ad5b;
+}
+
+.match-lineup-goalkeeper em {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: #ff7a2d;
+  font-size: 0.48rem;
+  font-style: normal;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-waiting-queue > em {
+  flex-basis: 100%;
+  color: #e9b65d;
+  font-size: 0.65rem;
+  font-style: normal;
+}
+
+.reserve-keeper-operator-field {
+  margin: 0 18px 16px;
+  border: 1px solid rgba(246, 190, 74, 0.2);
+  border-radius: 15px;
+  padding: 13px;
+  background: rgba(246, 190, 74, 0.045);
+}
+
+.reserve-keeper-operator-field[hidden] {
+  display: none;
+}
+
+.reserve-keeper-operator-field > small {
+  color: #8c8c8c;
+  font-size: 0.64rem;
+  line-height: 1.35;
+}
+
+body[data-section="ranking"] .ranking-pelada-filter {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+body[data-section="ranking"] .ranking-pelada-filter > span {
+  color: #898989;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+body[data-section="ranking"] .ranking-pelada-filter select {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 13px;
+  padding: 0 13px;
+  color: #fff;
+  background: #0b0b0b;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+@media (max-width: 430px) {
+  body[data-section="peladas"] .pelada-detail-tabs button {
+    min-height: 46px;
+    font-size: 0.69rem;
+  }
+
+  body[data-section="peladas"] .pelada-detail-tabs small {
+    min-width: 18px;
+    height: 18px;
+    font-size: 0.55rem;
+  }
+
+  .presence-player-row {
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+
+  .presence-player-row .player-avatar.small {
+    width: 38px;
+    height: 38px;
+  }
+
+  .presence-row-actions,
+  .presence-player-row > em {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+  }
+
+  .presence-row-actions button {
+    flex: 1;
+  }
+
+  .presence-status-select {
+    flex: 1;
+  }
+}
+
+@media (max-width: 370px) {
+  .presence-summary-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 350px) {
   body.stats-profile-mode .player-bagre-card {
     min-height: 525px;
@@ -19835,4 +20179,9 @@ body[data-section="peladas"] .pelada-open-badges .pelada-type-badge {
     padding-inline: 5px;
     font-size: 0.47rem;
   }
+}
+
+/* Final cascade for the three operational tabs introduced in 1.2. */
+body[data-section="peladas"] .pelada-detail-tabs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }

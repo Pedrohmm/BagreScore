@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.1.6";
+  const APP_VERSION = "1.2.0";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -236,6 +236,10 @@
       "observacoes",
       "tipoRegistro",
       "proximoConfronto",
+      "presencas",
+      "filaJogadores",
+      "goleirosPresentes",
+      "goleiroReservaAtualId",
       "status",
       "finalizadaEm",
       "mvpJogadorId",
@@ -260,6 +264,7 @@
       "presetAId",
       "presetBId",
       "filaTimes",
+      "filaJogadores",
       "fase",
       "decididoNosPenaltis",
       "penaltisA",
@@ -270,7 +275,7 @@
       "updatedAt",
       "revision",
     ],
-    times: ["id", "tipo", "peladaId", "jogoId", "presetId", "ordem", "nome", "cor", "jogadores", "linha", "goleiroId"],
+    times: ["id", "tipo", "peladaId", "jogoId", "presetId", "ordem", "nome", "cor", "jogadores", "linha", "goleiroId", "goleiroReservaOperadorId"],
     escalacoes: ["id", "jogoId", "jogadorId", "time", "timeId", "ativo", "entrouEm", "saiuEm", "createdAt", "updatedAt"],
     eventos: [
       "id",
@@ -515,6 +520,7 @@
   const finalizingPeladaIds = new Set();
   let sectionSwitchInProgress = false;
   let rankingViewTransitionInProgress = false;
+  let deferredViewRefreshPending = false;
   const GOAL_TYPES = [
     { value: "normal", label: "Normal" },
     { value: "penalti", label: "Pênalti" },
@@ -663,10 +669,11 @@
     selectedProfileTab: "resumo",
     rankingMode: "geral",
     rankingCategory: "overall",
+    rankingPeladaId: "",
     evolutionMessage: "",
     gameDraft: {
-      A: { nome: "Time A", cor: "#ff5a00", linha: [], goleiro: "" },
-      B: { nome: "Time B", cor: "#4aa3df", linha: [], goleiro: "" },
+      A: { nome: "Time A", cor: "#ff5a00", linha: [], goleiro: "", goleiroReservaOperadorId: "" },
+      B: { nome: "Time B", cor: "#4aa3df", linha: [], goleiro: "", goleiroReservaOperadorId: "" },
     },
     matchPresetIds: { A: "", B: "" },
     matchPersist: { A: false, B: false },
@@ -1011,6 +1018,7 @@
     const sectionContent = $("#section-content");
 
     sectionSwitchInProgress = true;
+    deferredViewRefreshPending = false;
     setActiveSection(targetSection);
 
     try {
@@ -1628,8 +1636,8 @@
 
   function createEmptyGameDraft() {
     return {
-      A: { nome: "Time A", cor: "#ff5a00", linha: [], goleiro: "" },
-      B: { nome: "Time B", cor: "#4aa3df", linha: [], goleiro: "" },
+      A: { nome: "Time A", cor: "#ff5a00", linha: [], goleiro: "", goleiroReservaOperadorId: "" },
+      B: { nome: "Time B", cor: "#4aa3df", linha: [], goleiro: "", goleiroReservaOperadorId: "" },
     };
   }
 
@@ -1654,6 +1662,56 @@
     return getPeladaRecordType(pelada) === "teste";
   }
 
+  function isReserveGoalkeeperPlayer(player) {
+    if (!player || !isGoalkeeperCandidate(player)) return false;
+    const identity = normalizeToken(`${player.nome || ""} ${player.apelido || ""}`);
+    return identity.includes("goleiro_reserva") || normalizeToken(player.perfilSistema) === "goleiro_reserva";
+  }
+
+  function getPlayerPresenceStatus(pelada, playerId) {
+    const saved = normalizeToken(pelada?.presencas?.[playerId]);
+    if (saved === "ausente") return "ausente";
+    if (["atrasado", "atrasada", "atraso"].includes(saved)) return "atrasado";
+    return "presente";
+  }
+
+  function isPlayerPresentAtPelada(pelada, playerId) {
+    return getPlayerPresenceStatus(pelada, playerId) === "presente";
+  }
+
+  function getPresentPlayersForPelada(pelada, players = []) {
+    return players.filter((player) => isReserveGoalkeeperPlayer(player) || isPlayerPresentAtPelada(pelada, player.id));
+  }
+
+  function getPresentLinePlayers(pelada, players = []) {
+    return getPresentPlayersForPelada(pelada, players).filter(
+      (player) => isLineupPlayer(player) && !isReserveGoalkeeperPlayer(player)
+    );
+  }
+
+  function getPresentGoalkeepers(pelada, players = [], options = {}) {
+    const includeReserve = options.includeReserve !== false;
+    const regular = getPresentPlayersForPelada(pelada, players).filter(
+      (player) => isGoalkeeperCandidate(player) && !isReserveGoalkeeperPlayer(player)
+    );
+    const reserve = players.find(isReserveGoalkeeperPlayer) || null;
+
+    if (includeReserve && regular.length < 2 && reserve) {
+      return [...regular, reserve];
+    }
+
+    return regular;
+  }
+
+  function normalizePeladaPlayerQueue(pelada, players = [], occupiedIds = []) {
+    const presentLineIds = getPresentLinePlayers(pelada, players).map((player) => player.id);
+    const presentSet = new Set(presentLineIds);
+    const occupied = new Set(uniqueIds(occupiedIds));
+    return uniqueIds(pelada?.filaJogadores || []).filter(
+      (playerId) => presentSet.has(playerId) && !occupied.has(playerId)
+    );
+  }
+
   function isTeamPreset(time) {
     return normalizeToken(time?.tipo) === "preset" && Boolean(time?.peladaId);
   }
@@ -1673,11 +1731,12 @@
       nome: preset?.nome || `Time ${fallbackKey}`,
       cor: preset?.cor || (fallbackKey === "A" ? "#ff5a00" : "#4aa3df"),
       linha: uniqueIds(preset?.linha || []).slice(0, 5),
-      goleiro: preset?.goleiroId || "",
+      goleiro: "",
+      goleiroReservaOperadorId: "",
     };
   }
 
-  function hydrateMatchDraft(presetA, presetB) {
+  function hydrateMatchDraft(presetA, presetB, savedMatchup = null) {
     state.matchPresetIds = {
       A: presetA?.id || "",
       B: presetB?.id || "",
@@ -1687,6 +1746,13 @@
       A: teamPresetToDraft(presetA, "A"),
       B: teamPresetToDraft(presetB, "B"),
     };
+
+    if (savedMatchup?.linhaA?.length) {
+      state.gameDraft.A.linha = uniqueIds(savedMatchup.linhaA).slice(0, 5);
+    }
+    if (savedMatchup?.linhaB?.length) {
+      state.gameDraft.B.linha = uniqueIds(savedMatchup.linhaB).slice(0, 5);
+    }
   }
 
   function getSuggestedMatchup(pelada, presets = []) {
@@ -1710,13 +1776,36 @@
 
   function getPresetCompleteness(preset) {
     const lineCount = uniqueIds(preset?.linha || []).length;
-    const hasGoalkeeper = Boolean(preset?.goleiroId);
     return {
       lineCount,
-      hasGoalkeeper,
-      total: lineCount + (hasGoalkeeper ? 1 : 0),
-      complete: lineCount === 5 && hasGoalkeeper,
+      hasGoalkeeper: false,
+      total: lineCount,
+      complete: lineCount === 5,
     };
+  }
+
+  function applyDefaultGoalkeepersToDraft(pelada, players = []) {
+    const candidates = getPresentGoalkeepers(pelada, players);
+    const candidateIds = new Set(candidates.map((player) => player.id));
+    const regularGoalkeepers = candidates.filter((player) => !isReserveGoalkeeperPlayer(player));
+    const reserve = candidates.find(isReserveGoalkeeperPlayer) || null;
+    const currentA = candidateIds.has(state.gameDraft.A.goleiro) ? state.gameDraft.A.goleiro : "";
+    const currentB = candidateIds.has(state.gameDraft.B.goleiro) ? state.gameDraft.B.goleiro : "";
+
+    state.gameDraft.A.goleiro = currentA || regularGoalkeepers[0]?.id || reserve?.id || "";
+    state.gameDraft.B.goleiro = currentB && currentB !== state.gameDraft.A.goleiro
+      ? currentB
+      : regularGoalkeepers.find((player) => player.id !== state.gameDraft.A.goleiro)?.id ||
+        (reserve?.id !== state.gameDraft.A.goleiro ? reserve?.id || "" : "");
+
+    ["A", "B"].forEach((teamKey) => {
+      const goalkeeper = players.find((player) => player.id === state.gameDraft[teamKey].goleiro);
+      if (!isReserveGoalkeeperPlayer(goalkeeper)) {
+        state.gameDraft[teamKey].goleiroReservaOperadorId = "";
+      } else if (!state.gameDraft[teamKey].goleiroReservaOperadorId) {
+        state.gameDraft[teamKey].goleiroReservaOperadorId = pelada?.goleiroReservaAtualId || "";
+      }
+    });
   }
 
   function normalizeGameDraft(players = []) {
@@ -1730,6 +1819,9 @@
       };
       draft[teamKey].linha = uniqueIds(draft[teamKey].linha).filter((id) => activeIds.has(id));
       draft[teamKey].goleiro = activeIds.has(draft[teamKey].goleiro) ? draft[teamKey].goleiro : "";
+      draft[teamKey].goleiroReservaOperadorId = activeIds.has(draft[teamKey].goleiroReservaOperadorId)
+        ? draft[teamKey].goleiroReservaOperadorId
+        : "";
     });
 
     ["A", "B"].forEach((teamKey) => {
@@ -1745,6 +1837,13 @@
         draft[teamKey].goleiro = "";
       }
     });
+
+    const reserveOperators = new Set([
+      draft.A.goleiroReservaOperadorId,
+      draft.B.goleiroReservaOperadorId,
+    ].filter(Boolean));
+    draft.A.linha = draft.A.linha.filter((id) => !reserveOperators.has(id));
+    draft.B.linha = draft.B.linha.filter((id) => !reserveOperators.has(id));
 
     state.gameDraft = draft;
     return draft;
@@ -2214,6 +2313,39 @@
     await renderCurrentSection();
   }
 
+  function hasProtectedInteraction() {
+    if ($("#live-modal")) return true;
+    if ($("#pelada-form") || $("#player-form")) return true;
+
+    const activeElement = document.activeElement;
+    if (
+      activeElement &&
+      activeElement.matches?.("input, select, textarea, [contenteditable='true']") &&
+      activeElement.closest?.("#section-content form")
+    ) {
+      return true;
+    }
+
+    return Boolean($("#section-content form[data-dirty='true']"));
+  }
+
+  async function requestSafeViewRefresh() {
+    if (hasProtectedInteraction()) {
+      deferredViewRefreshPending = true;
+      return false;
+    }
+
+    deferredViewRefreshPending = false;
+    await renderCurrentSection();
+    return true;
+  }
+
+  function flushDeferredViewRefresh() {
+    if (!deferredViewRefreshPending || hasProtectedInteraction()) return;
+    deferredViewRefreshPending = false;
+    runBackgroundTask(renderCurrentSection, "Falha ao atualizar a tela apos a edicao");
+  }
+
   async function updatePendingCount() {
     if (!state.db) {
       return;
@@ -2551,7 +2683,8 @@
       const tipoDefesa = normalizeToken(evento.tipoDefesaGoleiro);
       return eventType === "defesa_goleiro" && ["dificil", "penalti", "cara_a_cara", "reflexo"].includes(tipoDefesa);
     });
-    const suggestedMvp = playerScores
+    const awardEligibleScores = playerScores.filter((stats) => !isReserveGoalkeeperPlayer(stats.jogador));
+    const suggestedMvp = awardEligibleScores
       .filter((stats) => stats.jogos > 0 || stats.eventos > 0)
       .sort((a, b) =>
         Number(b.pontuacao || 0) - Number(a.pontuacao || 0) ||
@@ -2559,7 +2692,7 @@
         Number(b.vitorias || 0) - Number(a.vitorias || 0) ||
         playerDisplayName(a.jogador).localeCompare(playerDisplayName(b.jogador), "pt-BR")
       )[0] || null;
-    const bagreSelection = selectPeladaBagreSuggestion(playerScores, suggestedMvp);
+    const bagreSelection = selectPeladaBagreSuggestion(awardEligibleScores, suggestedMvp);
     const suggestedBagre = bagreSelection.suggestion;
 
     const summary = {
@@ -4714,16 +4847,20 @@
 
     setSectionTitle("Pelada", selectedPelada.local || "Detalhes da pelada");
     state.selectedGameSummaryId = null;
-    const detailView = state.peladaDetailView === "times" ? "times" : "confrontos";
+    const detailView = ["confrontos", "times", "presencas"].includes(state.peladaDetailView)
+      ? state.peladaDetailView
+      : "confrontos";
 
     $("#section-content").innerHTML = `
       <div class="pelada-detail-flow">
         ${renderPeladaOpenToolbar(selectedPelada, peladaSummary)}
-        ${renderPeladaDetailNav(detailView, teamPresets)}
+        ${renderPeladaDetailNav(detailView, teamPresets, selectedPelada, jogadores)}
         <div class="pelada-detail-view" data-pelada-detail-view="${escapeHtml(detailView)}">
           ${detailView === "times"
             ? renderTeamPresetsPanel(selectedPelada, teamPresets, jogadores)
-            : `
+            : detailView === "presencas"
+              ? renderPeladaPresencePanel(selectedPelada, jogadores)
+              : `
                 ${renderGameSetup(selectedPelada, jogadores, teamPresets)}
                 ${renderGameHistory(selectedPelada, jogos, eventsByGameId, playerById, peladaSummary)}
               `}
@@ -4772,8 +4909,11 @@
     `;
   }
 
-  function renderPeladaDetailNav(activeView, presets = []) {
+  function renderPeladaDetailNav(activeView, presets = [], pelada = null, jogadores = []) {
     const incomplete = presets.filter((preset) => !getPresetCompleteness(preset).complete).length;
+    const presentCount = jogadores.filter(
+      (player) => !isReserveGoalkeeperPlayer(player) && isPlayerPresentAtPelada(pelada, player.id)
+    ).length;
 
     return `
       <nav class="pelada-detail-tabs" aria-label="Área da pelada">
@@ -4794,7 +4934,92 @@
           <span>Times</span>
           <small class="${incomplete ? "has-warning" : ""}">${escapeHtml(presets.length)}</small>
         </button>
+        <button
+          class="${activeView === "presencas" ? "active" : ""}"
+          type="button"
+          data-pelada-action="show-detail-presencas"
+          aria-current="${activeView === "presencas" ? "page" : "false"}"
+        >
+          <span>Presenças</span>
+          <small>${escapeHtml(presentCount)}</small>
+        </button>
       </nav>
+    `;
+  }
+
+  function renderPeladaPresencePanel(pelada, jogadores = []) {
+    const regularPlayers = jogadores.filter((player) => !isReserveGoalkeeperPlayer(player));
+    const goalkeepers = regularPlayers.filter(isGoalkeeperCandidate);
+    const linePlayers = regularPlayers.filter(isLineupPlayer);
+    const reserve = jogadores.find(isReserveGoalkeeperPlayer) || null;
+    const queue = normalizePeladaPlayerQueue(pelada, jogadores);
+    const queuePosition = new Map(queue.map((playerId, index) => [playerId, index + 1]));
+    const presentCount = regularPlayers.filter((player) => isPlayerPresentAtPelada(pelada, player.id)).length;
+    const lateCount = regularPlayers.filter((player) => getPlayerPresenceStatus(pelada, player.id) === "atrasado").length;
+    const absentCount = regularPlayers.filter((player) => getPlayerPresenceStatus(pelada, player.id) === "ausente").length;
+
+    return `
+      <section class="pelada-presence-panel">
+        <header class="presence-summary-header">
+          <div><span class="panel-kicker">Organização</span><h3>Presenças e fila</h3></div>
+          <div class="presence-summary-metrics">
+            <span><strong>${escapeHtml(presentCount)}</strong><small>Presentes</small></span>
+            <span><strong>${escapeHtml(lateCount)}</strong><small>Atrasados</small></span>
+            <span><strong>${escapeHtml(absentCount)}</strong><small>Ausentes</small></span>
+            <span><strong>${escapeHtml(queue.length)}</strong><small>Na fila</small></span>
+          </div>
+        </header>
+
+        <section class="presence-group is-goalkeepers">
+          <header><span>Goleiros da rodada</span><strong>${escapeHtml(goalkeepers.filter((player) => isPlayerPresentAtPelada(pelada, player.id)).length)} disponíveis</strong></header>
+          <div class="presence-player-list">
+            ${goalkeepers.map((player) => renderPresencePlayerRow(pelada, player, null)).join("") || `<p class="presence-empty">Nenhum card de goleiro cadastrado.</p>`}
+            ${reserve ? `
+              <article class="presence-player-row is-system-card">
+                ${renderPlayerAvatar(reserve, "player-avatar small")}
+                <span><strong>${escapeHtml(playerDisplayName(reserve))}</strong><small>Entra automaticamente quando faltar um goleiro</small></span>
+                <em>Reserva</em>
+              </article>
+            ` : `<p class="presence-alert">Cadastre um card chamado Goleiro Reserva para cobrir a segunda meta.</p>`}
+          </div>
+        </section>
+
+        <section class="presence-group">
+          <header><span>Jogadores de linha</span><strong>${escapeHtml(linePlayers.length)} cadastrados</strong></header>
+          <div class="presence-player-list">
+            ${linePlayers.map((player) => renderPresencePlayerRow(pelada, player, queuePosition.get(player.id) || null)).join("")}
+          </div>
+        </section>
+      </section>
+    `;
+  }
+
+  function renderPresencePlayerRow(pelada, player, queuePosition = null) {
+    const status = getPlayerPresenceStatus(pelada, player.id);
+    const present = status === "presente";
+    const goalkeeper = isGoalkeeperCandidate(player);
+    const canManage = hasPermission("times:montar");
+
+    return `
+      <article class="presence-player-row is-${escapeHtml(status)}">
+        ${renderPlayerAvatar(player, "player-avatar small")}
+        <span>
+          <strong>${escapeHtml(playerDisplayName(player))}</strong>
+          <small>${escapeHtml(player.posicaoPrincipal || (goalkeeper ? "GK" : "Linha"))}${queuePosition ? ` · ${queuePosition}º na fila` : ""}</small>
+        </span>
+        <div class="presence-row-actions">
+          ${canManage && present && !goalkeeper ? `
+            <button type="button" data-pelada-action="toggle-player-queue" data-player-id="${escapeHtml(player.id)}" class="${queuePosition ? "is-queued" : ""}">${queuePosition ? "Na fila" : "Fila"}</button>
+          ` : ""}
+          ${canManage ? `
+            <select class="presence-status-select is-${escapeHtml(status)}" data-player-presence-id="${escapeHtml(player.id)}" aria-label="Presença de ${escapeHtml(playerDisplayName(player))}">
+              <option value="presente" ${status === "presente" ? "selected" : ""}>Presente</option>
+              <option value="atrasado" ${status === "atrasado" ? "selected" : ""}>Atrasado</option>
+              <option value="ausente" ${status === "ausente" ? "selected" : ""}>Ausente</option>
+            </select>
+          ` : `<span class="presence-readonly-status is-${escapeHtml(status)}">${escapeHtml(status === "atrasado" ? "Atrasado" : present ? "Presente" : "Ausente")}</span>`}
+        </div>
+      </article>
     `;
   }
 
@@ -5186,7 +5411,7 @@
               <span aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM16 10a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM3 19c0-3 2.1-5 5-5s5 2 5 5M13 15c.8-.7 1.8-1 3-1 2.8 0 4.5 1.9 4.5 4.5"/></svg>
               </span>
-              <div><h3>Crie os times antes de começar</h3><p>Adicione Time A, B e C com até 5 jogadores de linha e 1 goleiro.</p></div>
+              <div><h3>Crie os times antes de começar</h3><p>Adicione os jogadores de linha. Os goleiros serão escolhidos em cada confronto.</p></div>
               ${canManage ? `<button class="primary-button" type="button" data-pelada-action="add-team-preset">Criar primeiro time</button>` : ""}
             </div>`}
       </section>
@@ -5195,24 +5420,19 @@
 
   function renderTeamPresetCard(preset, index, playerById, canManage) {
     const completeness = getPresetCompleteness(preset);
-    const goalkeeper = playerById.get(preset.goleiroId);
     const linePlayers = uniqueIds(preset.linha || []).map((id) => playerById.get(id)).filter(Boolean);
 
     return `
       <article class="team-preset-card ${completeness.complete ? "is-complete" : "is-incomplete"}" style="--team-color:${escapeHtml(preset.cor || "#ff5a00")}">
         <div class="team-preset-top">
           <span class="team-preset-index">${String(index + 1).padStart(2, "0")}</span>
-          <span class="team-preset-status"><i></i>${completeness.complete ? "Completo" : `${completeness.total}/6`}</span>
+          <span class="team-preset-status"><i></i>${completeness.complete ? "Completo" : `${completeness.total}/5`}</span>
         </div>
         <div class="team-preset-identity">
           <span class="team-preset-monogram">${escapeHtml(getLiveTeamInitials(preset.nome, "T"))}</span>
-          <span><strong>${escapeHtml(preset.nome || "Time")}</strong><small>5 linha + 1 goleiro</small></span>
+          <span><strong>${escapeHtml(preset.nome || "Time")}</strong><small>${escapeHtml(completeness.lineCount)}/5 jogadores de linha</small></span>
         </div>
         <div class="team-preset-roster">
-          <span class="team-preset-goalkeeper">
-            <small>Goleiro</small>
-            <strong>${goalkeeper ? escapeHtml(playerDisplayName(goalkeeper)) : "Não definido"}</strong>
-          </span>
           <div class="team-preset-line">
             ${linePlayers.length
               ? linePlayers.map((player) => `<span>${renderPlayerAvatar(player, "player-avatar team-preset-avatar")}<small>${escapeHtml(shortPlayerName(player))}</small></span>`).join("")
@@ -5236,7 +5456,7 @@
 
     if (!currentA || !currentB || currentA.id === currentB.id) {
       const suggested = getSuggestedMatchup(pelada, presets);
-      hydrateMatchDraft(suggested.presetA, suggested.presetB);
+      hydrateMatchDraft(suggested.presetA, suggested.presetB, pelada?.proximoConfronto || null);
     }
 
     return {
@@ -5272,11 +5492,16 @@
       `;
     }
 
+    const presentPlayers = getPresentPlayersForPelada(pelada, jogadores);
     const { presetA, presetB } = ensureMatchDraftForPresets(pelada, presets);
-    const draft = normalizeGameDraft(jogadores);
+    applyDefaultGoalkeepersToDraft(pelada, presentPlayers);
+    const draft = normalizeGameDraft(presentPlayers);
     const suggested = getSuggestedMatchup(pelada, presets);
     const queueIds = uniqueIds(suggested.fila).filter((id) => id !== presetA?.id && id !== presetB?.id);
     const presetById = new Map(presets.map((preset) => [preset.id, preset]));
+    const playerById = new Map(presentPlayers.map((player) => [player.id, player]));
+    const dynamicQueue = normalizePeladaPlayerQueue(pelada, presentPlayers, [...draft.A.linha, ...draft.B.linha]);
+    const dynamicMode = normalizeToken(pelada?.proximoConfronto?.modo) === "fila";
 
     return `
       <section class="data-card game-setup-card next-match-card">
@@ -5299,10 +5524,18 @@
             <label><span>Lado B</span><select name="presetBId" data-match-preset="B">${renderPresetOptions(presets, presetB?.id, presetA?.id)}</select></label>
           </div>
           <div class="match-lineup-grid">
-            ${renderMatchLineupCard("A", draft.A, jogadores, state.matchPersist.A)}
-            ${renderMatchLineupCard("B", draft.B, jogadores, state.matchPersist.B)}
+            ${renderMatchLineupCard("A", draft.A, presentPlayers, state.matchPersist.A)}
+            ${renderMatchLineupCard("B", draft.B, presentPlayers, state.matchPersist.B)}
           </div>
-          ${queueIds.length ? `
+          ${dynamicMode ? `
+            <div class="waiting-queue player-waiting-queue ${dynamicQueue.length ? "" : "is-empty"}">
+              <span>Fila de jogadores</span>
+              ${dynamicQueue.length
+                ? dynamicQueue.map((id, index) => `<strong><i>${index + 1}</i>${escapeHtml(shortPlayerName(playerById.get(id) || {}))}</strong>`).join("")
+                : `<small>Todos os presentes já estão no próximo confronto.</small>`}
+              ${Number(pelada?.proximoConfronto?.vagasDesafiante || 0) > 0 ? `<em>Faltam ${escapeHtml(pelada.proximoConfronto.vagasDesafiante)} jogadores. Complete com atletas do time perdedor.</em>` : ""}
+            </div>
+          ` : queueIds.length ? `
             <div class="waiting-queue">
               <span>Na espera</span>
               ${queueIds.map((id, index) => `<strong><i>${index + 1}</i>${escapeHtml(presetById.get(id)?.nome || "Time")}</strong>`).join("")}
@@ -5329,6 +5562,7 @@
   function renderMatchLineupCard(teamKey, draft, jogadores, persistChanges) {
     const playerById = new Map(jogadores.map((player) => [player.id, player]));
     const goalkeeper = playerById.get(draft.goleiro);
+    const reserveOperator = playerById.get(draft.goleiroReservaOperadorId);
     const linePlayers = uniqueIds(draft.linha).map((id) => playerById.get(id)).filter(Boolean);
     const complete = linePlayers.length === 5 && Boolean(goalkeeper);
 
@@ -5339,6 +5573,7 @@
           <small>GK</small>
           ${goalkeeper ? renderPlayerAvatar(goalkeeper, "player-avatar match-lineup-avatar") : `<i>—</i>`}
           <strong>${goalkeeper ? escapeHtml(shortPlayerName(goalkeeper)) : "Sem goleiro"}</strong>
+          ${isReserveGoalkeeperPlayer(goalkeeper) ? `<em>${reserveOperator ? `No gol: ${escapeHtml(shortPlayerName(reserveOperator))}` : "Escolha quem vai agarrar"}</em>` : ""}
         </div>
         <div class="match-lineup-players">
           ${linePlayers.map((player) => `<span>${renderPlayerAvatar(player, "player-avatar match-lineup-avatar")}<small>${escapeHtml(shortPlayerName(player))}</small></span>`).join("")}
@@ -5346,7 +5581,7 @@
         </div>
         <div class="match-lineup-actions">
           <button type="button" data-pelada-action="open-lineup" data-team="${teamKey}">Editar escalação</button>
-          <button type="button" data-pelada-action="open-goalkeeper" data-team="${teamKey}">Trocar goleiro</button>
+          <button type="button" data-pelada-action="open-goalkeeper" data-team="${teamKey}">Definir goleiro</button>
         </div>
         <label class="persist-lineup-toggle">
           <input type="checkbox" name="persist${teamKey}" value="1" data-persist-team="${teamKey}" ${persistChanges ? "checked" : ""} />
@@ -5479,6 +5714,13 @@
       return "Já foi escolhido como goleiro deste time.";
     }
 
+    if (
+      selectionType === "linha" &&
+      [draft.A.goleiroReservaOperadorId, draft.B.goleiroReservaOperadorId].includes(player.id)
+    ) {
+      return "Está usando a carta Goleiro Reserva neste confronto.";
+    }
+
     if (selectionType === "goleiro" && draft[teamKey].linha.includes(player.id)) {
       return "Já está na linha deste time.";
     }
@@ -5488,9 +5730,22 @@
 
   function renderTeamSelectionModal(teamKey, selectionType, jogadores) {
     const isGoalkeeperSelection = selectionType === "goleiro";
-    const candidates = jogadores.filter(isGoalkeeperSelection ? isGoalkeeperCandidate : isLineupPlayer);
+    const candidates = jogadores.filter(
+      isGoalkeeperSelection
+        ? isGoalkeeperCandidate
+        : (player) => isLineupPlayer(player) && !isReserveGoalkeeperPlayer(player)
+    );
     const selectedLine = new Set(state.gameDraft[teamKey].linha);
     const selectedGoalkeeper = state.gameDraft[teamKey].goleiro;
+    const selectedGoalkeeperPlayer = jogadores.find((player) => player.id === selectedGoalkeeper);
+    const selectedReserveOperator = state.gameDraft[teamKey].goleiroReservaOperadorId || "";
+    const occupiedLineIds = new Set([...state.gameDraft.A.linha, ...state.gameDraft.B.linha]);
+    const reserveOperatorCandidates = jogadores.filter(
+      (player) =>
+        isLineupPlayer(player) &&
+        !isReserveGoalkeeperPlayer(player) &&
+        (!occupiedLineIds.has(player.id) || player.id === selectedReserveOperator)
+    );
     const selectedCount = isGoalkeeperSelection ? (selectedGoalkeeper ? 1 : 0) : selectedLine.size;
     const selectionTitle = isGoalkeeperSelection ? "Escolha o goleiro" : "Monte a escalação";
     const selectionDescription = isGoalkeeperSelection
@@ -5576,6 +5831,15 @@
               `
           }
         </div>
+        ${isGoalkeeperSelection ? `
+          <label class="field-label reserve-keeper-operator-field" ${isReserveGoalkeeperPlayer(selectedGoalkeeperPlayer) ? "" : "hidden"}>
+            <span>Quem vai usar a carta Goleiro Reserva?</span>
+            <select name="reserveOperatorId">
+              ${renderPlayerOptions(reserveOperatorCandidates, selectedReserveOperator, "Escolha quem vai agarrar")}
+            </select>
+            <small>A pessoa fica fora da linha e as estatísticas vão somente para a carta reserva.</small>
+          </label>
+        ` : ""}
         <div class="form-actions">
           <button class="primary-button big-touch" type="submit">Salvar seleção</button>
           <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
@@ -5586,7 +5850,11 @@
 
   async function openTeamSelectionModal(teamKey, selectionType) {
     syncGameDraftFromForm();
-    const jogadores = await readActivePlayers();
+    const [allPlayers, pelada] = await Promise.all([
+      readActivePlayers(),
+      state.selectedPeladaId ? getRecord("peladas", state.selectedPeladaId) : Promise.resolve(null),
+    ]);
+    const jogadores = getPresentPlayersForPelada(pelada, allPlayers);
     normalizeGameDraft(jogadores);
 
     const modal = openLiveModal(
@@ -5595,6 +5863,14 @@
     );
     const form = modal.querySelector("#team-selection-form");
     const searchInput = form.elements.search;
+    const reserveField = form.querySelector(".reserve-keeper-operator-field");
+
+    form.querySelectorAll('input[name="goalkeeperId"]').forEach((input) => {
+      input.addEventListener("change", () => {
+        const player = jogadores.find((item) => item.id === input.value);
+        if (reserveField) reserveField.hidden = !isReserveGoalkeeperPlayer(player);
+      });
+    });
 
     searchInput?.addEventListener("input", () => {
       const token = normalizeToken(searchInput.value);
@@ -5608,6 +5884,10 @@
 
       if (selectionType === "goleiro") {
         state.gameDraft[teamKey].goleiro = form.elements.goalkeeperId?.value || "";
+        const goalkeeper = jogadores.find((player) => player.id === state.gameDraft[teamKey].goleiro);
+        state.gameDraft[teamKey].goleiroReservaOperadorId = isReserveGoalkeeperPlayer(goalkeeper)
+          ? form.elements.reserveOperatorId?.value || ""
+          : "";
       } else {
         state.gameDraft[teamKey].linha = Array.from(form.querySelectorAll('input[name="playerIds"]:checked'))
           .filter((input) => !input.disabled)
@@ -5621,42 +5901,32 @@
   }
 
   function renderTeamPresetEditor(preset, players, presets) {
+    const linePlayers = players.filter((player) => isLineupPlayer(player) && !isReserveGoalkeeperPlayer(player));
     const assignedElsewhere = new Map();
     presets
       .filter((item) => item.id !== preset?.id)
       .forEach((item) => {
-        uniqueIds([item.goleiroId, ...(item.linha || [])]).forEach((playerId) => assignedElsewhere.set(playerId, item.nome || "Outro time"));
+        uniqueIds(item.linha || []).forEach((playerId) => assignedElsewhere.set(playerId, item.nome || "Outro time"));
       });
     const selectedLine = new Set(preset?.linha || []);
-    const goalkeeperId = preset?.goleiroId || "";
 
     return `
       <form class="team-preset-form" id="team-preset-form" data-preset-id="${escapeHtml(preset?.id || "")}" novalidate>
         <div class="form-errors" id="team-preset-errors" hidden></div>
         <section class="team-preset-form-hero" style="--team-color:${escapeHtml(preset?.cor || "#ff5a00")}">
           <span class="team-preset-form-icon">${escapeHtml(getLiveTeamInitials(preset?.nome, "T"))}</span>
-          <div><span>Time da pelada</span><h3>${escapeHtml(preset?.nome || "Novo time")}</h3><p>Até 5 jogadores de linha e 1 goleiro.</p></div>
+          <div><span>Time da pelada</span><h3>${escapeHtml(preset?.nome || "Novo time")}</h3><p>Até 5 jogadores de linha. O goleiro será definido no confronto.</p></div>
         </section>
         <div class="team-preset-basics">
           <label class="field-label"><span>Nome do time</span><input name="nome" value="${escapeHtml(preset?.nome || "")}" maxlength="28" placeholder="Ex.: Time A" required /></label>
           <label class="field-label team-color-field"><span>Cor</span><input type="color" name="cor" value="${escapeHtml(preset?.cor || "#ff5a00")}" /></label>
         </div>
-        <label class="field-label">
-          <span>Goleiro</span>
-          <select name="goleiroId">
-            <option value="">Escolher goleiro</option>
-            ${players.map((player) => {
-              const assignedTeam = assignedElsewhere.get(player.id);
-              return `<option value="${escapeHtml(player.id)}" ${player.id === goalkeeperId ? "selected" : ""} ${assignedTeam ? "disabled" : ""}>${escapeHtml(playerDisplayName(player))} · ${escapeHtml(player.posicaoPrincipal || "-")}${assignedTeam ? ` · ${escapeHtml(assignedTeam)}` : ""}</option>`;
-            }).join("")}
-          </select>
-        </label>
         <div class="team-preset-player-heading"><span>Jogadores de linha</span><strong data-line-count>${selectedLine.size}/5</strong></div>
         <div class="team-preset-player-list">
-          ${players.map((player) => {
+          ${linePlayers.map((player) => {
             const assignedTeam = assignedElsewhere.get(player.id);
             const checked = selectedLine.has(player.id);
-            const blocked = Boolean(assignedTeam) || player.id === goalkeeperId;
+            const blocked = Boolean(assignedTeam);
             return `
               <label class="team-preset-player-option ${checked ? "is-selected" : ""} ${blocked ? "is-disabled" : ""}" data-player-option>
                 <input type="checkbox" name="linhaIds" value="${escapeHtml(player.id)}" ${checked ? "checked" : ""} ${blocked ? "disabled" : ""} />
@@ -5687,19 +5957,12 @@
     const form = modal.querySelector("#team-preset-form");
     const lineInputs = [...form.querySelectorAll('input[name="linhaIds"]')];
     const countLabel = form.querySelector("[data-line-count]");
-    const goalkeeperSelect = form.elements.goleiroId;
 
     const refreshOptions = () => {
-      const goalkeeperId = goalkeeperSelect.value;
       let checkedCount = lineInputs.filter((input) => input.checked).length;
       lineInputs.forEach((input) => {
         const option = input.closest("[data-player-option]");
-        const isGoalkeeper = input.value === goalkeeperId;
-        if (isGoalkeeper && input.checked) {
-          input.checked = false;
-          checkedCount -= 1;
-        }
-        input.disabled = input.dataset.assigned === "true" || isGoalkeeper || (!input.checked && checkedCount >= 5);
+        input.disabled = input.dataset.assigned === "true" || (!input.checked && checkedCount >= 5);
         option?.classList.toggle("is-selected", input.checked);
         option?.classList.toggle("is-disabled", input.disabled);
       });
@@ -5707,21 +5970,18 @@
     };
 
     lineInputs.forEach((input) => {
-      if (input.disabled && input.value !== goalkeeperSelect.value) input.dataset.assigned = "true";
+      if (input.disabled) input.dataset.assigned = "true";
       input.addEventListener("change", refreshOptions);
     });
-    goalkeeperSelect.addEventListener("change", refreshOptions);
     refreshOptions();
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const nome = String(form.elements.nome?.value || "").trim();
       const linha = lineInputs.filter((input) => input.checked && !input.disabled).map((input) => input.value);
-      const goleiroId = form.elements.goleiroId?.value || "";
       const errors = [];
       if (!nome) errors.push("Informe o nome do time.");
       if (linha.length > 5) errors.push("Escolha no máximo 5 jogadores de linha.");
-      if (goleiroId && linha.includes(goleiroId)) errors.push("O goleiro não pode estar também na linha.");
       showFormErrors("team-preset-errors", errors);
       if (errors.length) return;
 
@@ -5736,8 +5996,8 @@
         nome,
         cor: form.elements.cor?.value || "#ff5a00",
         linha: uniqueIds(linha),
-        goleiroId,
-        jogadores: uniqueIds([goleiroId, ...linha]),
+        goleiroId: "",
+        jogadores: uniqueIds(linha),
         status: "Ativo",
         createdAt: preset?.createdAt || savedAt,
         updatedAt: savedAt,
@@ -5950,7 +6210,7 @@
 
   function renderAwardPlayerOptions(summary, suggestedId = "", scoreKey = "pontuacao") {
     const candidates = summary.playerScores
-      .filter((stats) => stats.jogador && (stats.jogos > 0 || stats.eventos > 0))
+      .filter((stats) => stats.jogador && !isReserveGoalkeeperPlayer(stats.jogador) && (stats.jogos > 0 || stats.eventos > 0))
       .sort((a, b) => playerDisplayName(a.jogador).localeCompare(playerDisplayName(b.jogador), "pt-BR"));
 
     if (!candidates.length) {
@@ -5973,7 +6233,9 @@
   }
 
   function renderPeladaFinishModal(summary) {
-    const canChoose = summary.playerScores.some((stats) => stats.jogador && (stats.jogos > 0 || stats.eventos > 0));
+    const canChoose = summary.playerScores.some(
+      (stats) => stats.jogador && !isReserveGoalkeeperPlayer(stats.jogador) && (stats.jogos > 0 || stats.eventos > 0)
+    );
 
     return `
       <form class="event-form finish-pelada-form" id="finish-pelada-form" data-pelada-id="${escapeHtml(summary.pelada.id)}" novalidate>
@@ -6204,6 +6466,74 @@
     `;
   }
 
+  async function savePeladaOperationalState(pelada, changes, action) {
+    if (!pelada?.id) return null;
+    const savedAt = nowIso();
+    const updated = {
+      ...pelada,
+      ...changes,
+      updatedAt: savedAt,
+      revision: (pelada.revision || 0) + 1,
+    };
+    await putRecords({
+      peladas: [updated],
+      syncQueue: [createSyncQueueRecord("peladas", "upsert", updated.id, updated)],
+      auditLog: [createAuditRecord("peladas", updated.id, action, pelada, updated)],
+    });
+    runBackgroundTask(syncNow, "Falha ao sincronizar organização da pelada");
+    return updated;
+  }
+
+  async function setPeladaPlayerPresence(playerId, requestedStatus) {
+    if (!state.selectedPeladaId || !playerId || !requirePermission("times:montar")) return;
+    const [pelada, jogadores] = await Promise.all([
+      getRecord("peladas", state.selectedPeladaId),
+      readActivePlayers(),
+    ]);
+    const player = jogadores.find((item) => item.id === playerId);
+    if (!pelada || !player || isReserveGoalkeeperPlayer(player)) return;
+    const status = ["presente", "atrasado", "ausente"].includes(normalizeToken(requestedStatus))
+      ? normalizeToken(requestedStatus)
+      : "presente";
+    const currentlyPresent = isPlayerPresentAtPelada(pelada, playerId);
+    const willBePresent = status === "presente";
+    const presencas = { ...(pelada.presencas || {}), [playerId]: status };
+    const currentQueue = normalizePeladaPlayerQueue(pelada, jogadores);
+    const filaJogadores = !willBePresent
+      ? currentQueue.filter((id) => id !== playerId)
+      : !currentlyPresent && isLineupPlayer(player)
+        ? [...currentQueue.filter((id) => id !== playerId), playerId]
+        : currentQueue;
+    const changes = {
+      presencas,
+      filaJogadores,
+      goleiroReservaAtualId: !willBePresent && pelada.goleiroReservaAtualId === playerId
+        ? ""
+        : pelada.goleiroReservaAtualId || "",
+    };
+    await savePeladaOperationalState(pelada, changes, `presenca-${status}`);
+    state.matchPresetIds = { A: "", B: "" };
+    state.gameDraft = createEmptyGameDraft();
+    await renderCurrentSection();
+  }
+
+  async function togglePeladaPlayerQueue(playerId) {
+    if (!state.selectedPeladaId || !playerId || !requirePermission("times:montar")) return;
+    const [pelada, jogadores] = await Promise.all([
+      getRecord("peladas", state.selectedPeladaId),
+      readActivePlayers(),
+    ]);
+    const player = jogadores.find((item) => item.id === playerId);
+    if (!pelada || !player || !isLineupPlayer(player) || !isPlayerPresentAtPelada(pelada, playerId)) return;
+    const queue = normalizePeladaPlayerQueue(pelada, jogadores);
+    const queued = queue.includes(playerId);
+    const filaJogadores = queued
+      ? queue.filter((id) => id !== playerId)
+      : [...queue, playerId];
+    await savePeladaOperationalState(pelada, { filaJogadores }, queued ? "remover-da-fila" : "adicionar-a-fila");
+    await renderCurrentSection();
+  }
+
   function bindPeladaSectionEvents() {
     const layout = $("#section-content");
     const peladaForm = $("#pelada-form");
@@ -6244,6 +6574,13 @@
       return;
     }
     layout.dataset.peladaActionsBound = "true";
+
+    layout.addEventListener("change", async (event) => {
+      const presenceSelect = event.target.closest("[data-player-presence-id]");
+      if (!presenceSelect) return;
+      presenceSelect.disabled = true;
+      await setPeladaPlayerPresence(presenceSelect.dataset.playerPresenceId || "", presenceSelect.value);
+    });
 
     layout.addEventListener("click", async (event) => {
       const actionButton = event.target.closest("[data-pelada-action]");
@@ -6312,9 +6649,18 @@
         return;
       }
 
-      if (action === "show-detail-confrontos" || action === "show-detail-times") {
-        state.peladaDetailView = action === "show-detail-times" ? "times" : "confrontos";
+      if (["show-detail-confrontos", "show-detail-times", "show-detail-presencas"].includes(action)) {
+        state.peladaDetailView = action === "show-detail-times"
+          ? "times"
+          : action === "show-detail-presencas"
+            ? "presencas"
+            : "confrontos";
         await renderCurrentSection();
+        return;
+      }
+
+      if (action === "toggle-player-queue") {
+        await togglePeladaPlayerQueue(actionButton.dataset.playerId || "");
         return;
       }
 
@@ -7008,6 +7354,10 @@
       ...data,
       status: "Aberta",
       proximoConfronto: null,
+      presencas: {},
+      filaJogadores: [],
+      goleirosPresentes: [],
+      goleiroReservaAtualId: "",
       createdAt: savedAt,
       updatedAt: savedAt,
       revision: 1,
@@ -7043,6 +7393,7 @@
         jogadores: teamAPlayers,
         linha: [...state.gameDraft.A.linha],
         goleiroId: state.gameDraft.A.goleiro,
+        goleiroReservaOperadorId: state.gameDraft.A.goleiroReservaOperadorId || "",
       },
       timeB: {
         nome: state.gameDraft.B.nome,
@@ -7050,6 +7401,7 @@
         jogadores: teamBPlayers,
         linha: [...state.gameDraft.B.linha],
         goleiroId: state.gameDraft.B.goleiro,
+        goleiroReservaOperadorId: state.gameDraft.B.goleiroReservaOperadorId || "",
       },
       persistA: Boolean(form.elements.persistA?.checked || state.matchPersist.A),
       persistB: Boolean(form.elements.persistB?.checked || state.matchPersist.B),
@@ -7069,6 +7421,30 @@
     return [...preferred, ...remaining];
   }
 
+  function buildPeladaGameStartUpdate(pelada, data, jogadores, savedAt) {
+    const occupied = uniqueIds([
+      ...data.timeA.linha,
+      ...data.timeB.linha,
+      data.timeA.goleiroReservaOperadorId,
+      data.timeB.goleiroReservaOperadorId,
+    ]);
+    const occupiedSet = new Set(occupied);
+    const presentLineIds = getPresentLinePlayers(pelada, jogadores).map((player) => player.id);
+    const previousQueue = normalizePeladaPlayerQueue(pelada, jogadores, occupied);
+    const remaining = presentLineIds.filter(
+      (playerId) => !occupiedSet.has(playerId) && !previousQueue.includes(playerId)
+    );
+    const reserveOperatorId = data.timeA.goleiroReservaOperadorId || data.timeB.goleiroReservaOperadorId || "";
+
+    return {
+      ...pelada,
+      filaJogadores: [...previousQueue, ...remaining],
+      goleiroReservaAtualId: reserveOperatorId,
+      updatedAt: savedAt,
+      revision: (pelada.revision || 0) + 1,
+    };
+  }
+
   function buildPersistentPresetUpdates(presets, data, savedAt) {
     return ["A", "B"].flatMap((teamKey) => {
       if (!data[`persist${teamKey}`]) return [];
@@ -7080,16 +7456,16 @@
         ...preset,
         nome: team.nome,
         cor: team.cor,
-        jogadores: [...team.jogadores],
+        jogadores: [...team.linha],
         linha: [...team.linha],
-        goleiroId: team.goleiroId,
+        goleiroId: "",
         updatedAt: savedAt,
         revision: (preset.revision || 0) + 1,
       }];
     });
   }
 
-  function validateGameForm(data, selectedPelada, activeGame) {
+  function validateGameForm(data, selectedPelada, activeGame, jogadores = []) {
     const errors = [];
 
     if (!selectedPelada) errors.push("Selecione ou crie uma pelada.");
@@ -7097,6 +7473,12 @@
     if (data.presetAId && data.presetAId === data.presetBId) errors.push("Escolha dois times diferentes.");
     if (!data.timeA.jogadores.length) errors.push("Escolha pelo menos um jogador para o Time A.");
     if (!data.timeB.jogadores.length) errors.push("Escolha pelo menos um jogador para o Time B.");
+    if (!data.timeA.goleiroId) errors.push("Defina o goleiro do Time A.");
+    if (!data.timeB.goleiroId) errors.push("Defina o goleiro do Time B.");
+    if (selectedPelada && !isTestPelada(selectedPelada)) {
+      if (data.timeA.linha.length !== 5) errors.push("Complete os 5 jogadores de linha do Time A.");
+      if (data.timeB.linha.length !== 5) errors.push("Complete os 5 jogadores de linha do Time B.");
+    }
 
     const duplicates = data.timeA.jogadores.filter((playerId) => data.timeB.jogadores.includes(playerId));
 
@@ -7106,6 +7488,21 @@
 
     if (data.timeA.goleiroId && data.timeA.goleiroId === data.timeB.goleiroId) {
       errors.push("O mesmo goleiro não pode estar nos dois times.");
+    }
+
+    [data.timeA, data.timeB].forEach((team) => {
+      const goalkeeper = jogadores.find((player) => player.id === team.goleiroId);
+      if (isReserveGoalkeeperPlayer(goalkeeper) && !team.goleiroReservaOperadorId) {
+        errors.push("Escolha quem vai usar a carta Goleiro Reserva.");
+      }
+      if (team.goleiroReservaOperadorId && team.linha.includes(team.goleiroReservaOperadorId)) {
+        errors.push("Quem está usando a carta Goleiro Reserva não pode jogar também na linha.");
+      }
+    });
+
+    const reserveOperators = [data.timeA.goleiroReservaOperadorId, data.timeB.goleiroReservaOperadorId].filter(Boolean);
+    if (new Set(reserveOperators).size !== reserveOperators.length) {
+      errors.push("A mesma pessoa não pode usar a carta Goleiro Reserva nos dois lados.");
     }
 
     return errors;
@@ -7132,8 +7529,9 @@
       state.selectedPeladaId ? readGamesForPelada(state.selectedPeladaId) : Promise.resolve([]),
       state.selectedPeladaId ? readTeamPresets(state.selectedPeladaId) : Promise.resolve([]),
     ]);
-    const data = collectGameFormData(form, jogadores);
-    const errors = validateGameForm(data, pelada, activeGame);
+    const presentPlayers = getPresentPlayersForPelada(pelada, jogadores);
+    const data = collectGameFormData(form, presentPlayers);
+    const errors = validateGameForm(data, pelada, activeGame, presentPlayers);
     showFormErrors("game-form-errors", errors);
 
     if (errors.length) {
@@ -7161,6 +7559,7 @@
       jogadores: data.timeA.jogadores,
       linha: data.timeA.linha,
       goleiroId: data.timeA.goleiroId,
+      goleiroReservaOperadorId: data.timeA.goleiroReservaOperadorId,
       createdAt: savedAt,
       updatedAt: savedAt,
       revision: 1,
@@ -7177,6 +7576,7 @@
       jogadores: data.timeB.jogadores,
       linha: data.timeB.linha,
       goleiroId: data.timeB.goleiroId,
+      goleiroReservaOperadorId: data.timeB.goleiroReservaOperadorId,
       createdAt: savedAt,
       updatedAt: savedAt,
       revision: 1,
@@ -7189,6 +7589,7 @@
       presetAId: data.presetAId,
       presetBId: data.presetBId,
       filaTimes: resolveMatchQueue(pelada, presets, data.presetAId, data.presetBId),
+      filaJogadores: [],
       timeA: { id: timeAId, nome: timeA.nome, cor: timeA.cor },
       timeB: { id: timeBId, nome: timeB.nome, cor: timeB.cor },
       placarA: 0,
@@ -7211,6 +7612,8 @@
       updatedAt: savedAt,
       revision: 1,
     };
+    const updatedPelada = buildPeladaGameStartUpdate(pelada, data, presentPlayers, savedAt);
+    jogoRecord.filaJogadores = [...updatedPelada.filaJogadores];
     const escalacoes = [
       ...data.timeA.jogadores.map((jogadorId) => ({
         id: `${jogoId}-${jogadorId}`,
@@ -7244,10 +7647,12 @@
 
     await putRecords({
       jogos: [jogoRecord],
+      peladas: [updatedPelada],
       times: [timeA, timeB, ...persistentPresetUpdates],
       escalacoes,
       syncQueue: [
         createSyncQueueRecord("jogos", "upsert", jogoId, jogoRecord),
+        createSyncQueueRecord("peladas", "upsert", updatedPelada.id, updatedPelada),
         createSyncQueueRecord("times", "upsert", timeAId, timeA),
         createSyncQueueRecord("times", "upsert", timeBId, timeB),
         ...persistentPresetUpdates.map((preset) => createSyncQueueRecord("times", "upsert", preset.id, preset)),
@@ -7255,7 +7660,10 @@
           createSyncQueueRecord("escalacoes", "upsert", escalacao.id, escalacao)
         ),
       ],
-      auditLog: [createAuditRecord("jogos", jogoId, "iniciar", null, { jogo: jogoRecord, escalacoes })],
+      auditLog: [
+        createAuditRecord("jogos", jogoId, "iniciar", null, { jogo: jogoRecord, escalacoes }),
+        createAuditRecord("peladas", updatedPelada.id, "atualizar-fila-inicio", pelada, updatedPelada),
+      ],
     });
 
     setActiveGameId(jogoId);
@@ -7938,8 +8346,11 @@
     const activeOnField = new Set(
       [...(bundle.playersA || []), ...(bundle.playersB || [])].map((player) => player.id)
     );
-    const candidates = activePlayers
-      .filter((player) => !activeOnField.has(player.id))
+    const presentPlayers = getPresentPlayersForPelada(bundle.pelada, activePlayers);
+    const outgoingIsGoalkeeper = isGoalkeeperCandidate(outgoingPlayer);
+    const candidates = presentPlayers
+      .filter((player) => !activeOnField.has(player.id) && !isReserveGoalkeeperPlayer(player))
+      .filter((player) => outgoingIsGoalkeeper ? isGoalkeeperCandidate(player) : isLineupPlayer(player))
       .sort(comparePlayersByNickname);
     const candidateById = new Map(candidates.map((player) => [player.id, player]));
     const modal = openLiveModal(
@@ -8141,10 +8552,24 @@
       }
     }
 
+    const pelada = await getRecord("peladas", latestBundle.jogo.peladaId);
+    const operationalPlayers = await readActivePlayers();
+    const currentQueue = normalizePeladaPlayerQueue(pelada, operationalPlayers);
+    const updatedPelada = pelada ? {
+      ...pelada,
+      filaJogadores: uniqueIds([
+        ...currentQueue.filter((playerId) => playerId !== incomingPlayer.id && playerId !== outgoingPlayer.id),
+        ...(isLineupPlayer(outgoingPlayer) ? [outgoingPlayer.id] : []),
+      ]),
+      updatedAt: savedAt,
+      revision: (pelada.revision || 0) + 1,
+    } : null;
+
     await putRecords({
       escalacoes: [updatedOutgoing, updatedIncoming],
       times: [updatedGameTeam, ...presetUpdates],
       eventos: [evento],
+      ...(updatedPelada ? { peladas: [updatedPelada] } : {}),
       syncQueue: [
         createSyncQueueRecord("escalacoes", "upsert", updatedOutgoing.id, updatedOutgoing),
         createSyncQueueRecord("escalacoes", "upsert", updatedIncoming.id, updatedIncoming),
@@ -8153,6 +8578,7 @@
           createSyncQueueRecord("times", "upsert", preset.id, preset)
         ),
         createSyncQueueRecord("eventos", "upsert", evento.id, evento),
+        ...(updatedPelada ? [createSyncQueueRecord("peladas", "upsert", updatedPelada.id, updatedPelada)] : []),
       ],
       auditLog: [
         createAuditRecord("eventos", evento.id, "substituir-jogador", null, {
@@ -8711,7 +9137,7 @@
   }
 
   function openLiveModal(title, bodyHtml) {
-    closeLiveModal();
+    closeLiveModal({ flush: false });
 
     const modal = document.createElement("div");
     modal.className = "modal-backdrop";
@@ -8739,7 +9165,7 @@
     return modal;
   }
 
-  function closeLiveModal() {
+  function closeLiveModal(options = {}) {
     const modal = $("#live-modal");
 
     if (modal) {
@@ -8747,6 +9173,10 @@
     }
 
     document.removeEventListener("keydown", handleModalEscape);
+
+    if (options.flush !== false) {
+      window.setTimeout(flushDeferredViewRefresh, 0);
+    }
   }
 
   function handleModalEscape(event) {
@@ -9247,7 +9677,7 @@
     runBackgroundTask(syncNow, "Falha ao sincronizar retomada do jogo");
   }
 
-  function buildNextRotation(pelada, jogo) {
+  function buildNextRotation(pelada, jogo, context = {}) {
     const winningTeamKey = getWinningTeamKey(jogo);
     if (!pelada || !winningTeamKey || !jogo.presetAId || !jogo.presetBId) return null;
     const winnerId = winningTeamKey === "A" ? jogo.presetAId : jogo.presetBId;
@@ -9256,10 +9686,60 @@
     const nextOpponentId = queue.shift() || loserId;
     const nextQueue = nextOpponentId === loserId ? queue : [...queue, loserId];
 
+    const presets = context.presets || [];
+    const players = context.players || [];
+    const gameTeams = context.gameTeams || [];
+    const reserveOperatorIds = uniqueIds([
+      pelada?.goleiroReservaAtualId,
+      ...gameTeams.map((team) => team.goleiroReservaOperadorId),
+    ]);
+    const reserveOperatorSet = new Set(reserveOperatorIds);
+    const presentIds = new Set(
+      getPresentLinePlayers(pelada, players)
+        .map((player) => player.id)
+        .filter((playerId) => !reserveOperatorSet.has(playerId))
+    );
+    const completePresetCount = presets.filter((preset) => {
+      const line = uniqueIds(preset.linha || []).filter((playerId) => presentIds.has(playerId));
+      return line.length === 5;
+    }).length;
+    const winnerTeam = gameTeams.find((team) => team.time === winningTeamKey) || null;
+    const loserTeam = gameTeams.find((team) => team.time === oppositeTeam(winningTeamKey)) || null;
+    const winnerLine = uniqueIds(winnerTeam?.linha || []).filter((playerId) => presentIds.has(playerId));
+    const loserLine = uniqueIds(loserTeam?.linha || []).filter((playerId) => presentIds.has(playerId));
+    const waitingBefore = normalizePeladaPlayerQueue(pelada, players, [...winnerLine, ...reserveOperatorIds])
+      .filter((playerId) => !loserLine.includes(playerId));
+
+    if (completePresetCount < 3) {
+      const challengerFromQueue = waitingBefore.slice(0, 5);
+      const challengerLine = uniqueIds(challengerFromQueue).slice(0, 5);
+      const nextPlayerQueue = uniqueIds([
+        ...waitingBefore.filter((playerId) => !challengerLine.includes(playerId)),
+        ...loserLine,
+      ]);
+
+      return {
+        modo: "fila",
+        timeAId: winnerId,
+        timeBId: nextOpponentId,
+        linhaA: winnerLine,
+        linhaB: challengerLine,
+        filaJogadores: nextPlayerQueue,
+        vagasDesafiante: Math.max(0, 5 - challengerLine.length),
+        fila: nextQueue,
+        vencedorAnteriorId: winnerId,
+        perdedorAnteriorId: loserId,
+        jogoOrigemId: jogo.id,
+        updatedAt: nowIso(),
+      };
+    }
+
     return {
+      modo: "times",
       timeAId: winnerId,
       timeBId: nextOpponentId,
       fila: nextQueue,
+      filaJogadores: normalizePeladaPlayerQueue(pelada, players),
       vencedorAnteriorId: winnerId,
       perdedorAnteriorId: loserId,
       jogoOrigemId: jogo.id,
@@ -9299,15 +9779,20 @@
       updatedAt: savedAt,
       revision: (jogo.revision || 0) + 1,
     };
-    const [allEscalacoes, pelada] = await Promise.all([
+    const [allEscalacoes, pelada, allTimes, allPlayers] = await Promise.all([
       getAllRecords("escalacoes"),
       getRecord("peladas", jogo.peladaId),
+      getAllRecords("times"),
+      readActivePlayers(),
     ]);
     const escalacoes = allEscalacoes.filter((escalacao) => escalacao.jogoId === jogoId);
-    const nextRotation = buildNextRotation(pelada, finalJogo);
+    const presets = allTimes.filter((time) => isTeamPreset(time) && time.peladaId === jogo.peladaId);
+    const gameTeams = allTimes.filter((time) => time.jogoId === jogoId && normalizeToken(time.tipo) === "jogo");
+    const nextRotation = buildNextRotation(pelada, finalJogo, { presets, players: allPlayers, gameTeams });
     const updatedPelada = nextRotation ? {
       ...pelada,
       proximoConfronto: nextRotation,
+      filaJogadores: [...(nextRotation.filaJogadores || pelada.filaJogadores || [])],
       updatedAt: savedAt,
       revision: (pelada.revision || 0) + 1,
     } : null;
@@ -9680,9 +10165,13 @@
   }
 
   async function renderRankingSection() {
+    const officialPeladas = (await readPeladasSorted()).filter((pelada) => !isTestPelada(pelada));
+    if (state.rankingPeladaId && !officialPeladas.some((pelada) => pelada.id === state.rankingPeladaId)) {
+      state.rankingPeladaId = "";
+    }
     const statsResult = await calcularEstatisticasJogadores({
-      periodo: "all",
-      peladaId: "",
+      periodo: state.rankingPeladaId ? "pelada" : "all",
+      peladaId: state.rankingPeladaId,
       month: "",
       temporadaId: "",
       jogadorId: "",
@@ -9691,11 +10180,11 @@
     });
 
     setSectionTitle("Ranking", "Ranking");
-    $("#section-content").innerHTML = renderRankingPremiumOverview(statsResult);
+    $("#section-content").innerHTML = renderRankingPremiumOverview(statsResult, officialPeladas);
     bindRankingSectionEvents();
   }
 
-  function renderRankingPremiumOverview(statsResult) {
+  function renderRankingPremiumOverview(statsResult, officialPeladas = []) {
     const viewModel = getRankingViewModel(statsResult);
     const { activeMode } = viewModel;
 
@@ -9708,6 +10197,17 @@
               <h2>Ranking</h2>
             </div>
           </div>
+          <label class="ranking-pelada-filter">
+            <span>Período do ranking</span>
+            <select data-ranking-pelada-filter>
+              <option value="">Todas as peladas</option>
+              ${officialPeladas.map((pelada) => `
+                <option value="${escapeHtml(pelada.id)}" ${pelada.id === state.rankingPeladaId ? "selected" : ""}>
+                  ${escapeHtml(formatDateLabel(pelada.data))} · ${escapeHtml(pelada.local || "Pelada")}
+                </option>
+              `).join("")}
+            </select>
+          </label>
           ${renderRankingModeTabs(activeMode)}
           ${renderRankingViewContent(viewModel)}
         </section>
@@ -9746,6 +10246,9 @@
 
   function buildRankingCategoryGroups(statsResult) {
     const fullLimit = getRankingFullLimit(statsResult);
+    const individualStats = statsResult.playersStats.filter(
+      (stats) => stats.jogador && !isReserveGoalkeeperPlayer(stats.jogador)
+    );
 
     return {
       geral: [
@@ -9759,67 +10262,67 @@
           id: "mvp",
           title: "MVP",
           description: "Mais vezes escolhido MVP.",
-          entries: getCompactAwardRankingEntries(statsResult.playersStats, "mvpsPelada", "MVP", fullLimit),
+          entries: getCompactAwardRankingEntries(individualStats, "mvpsPelada", "MVP", fullLimit),
         },
         {
           id: "bagre",
           title: "Bagre",
           description: "Mais marcações de Bagre.",
-          entries: getCompactAwardRankingEntries(statsResult.playersStats, "bagresPelada", "Bagre", fullLimit),
+          entries: getCompactAwardRankingEntries(individualStats, "bagresPelada", "Bagre", fullLimit),
         },
         {
           id: "artilharia",
           title: "Artilharia",
           description: "Quem mais marcou gols.",
-          entries: getMetricRankingEntries(statsResult.playersStats, "gols", { limit: fullLimit }),
+          entries: getMetricRankingEntries(individualStats, "gols", { limit: fullLimit }),
         },
         {
           id: "assistencias",
           title: "Assistências",
           description: "Os garçons da pelada.",
-          entries: getMetricRankingEntries(statsResult.playersStats, "assistencias", { limit: fullLimit }),
+          entries: getMetricRankingEntries(individualStats, "assistencias", { limit: fullLimit }),
         },
         {
           id: "participacoes",
           title: "Participações em gol",
           description: "Gols + assistências.",
-          entries: getMetricRankingEntries(statsResult.playersStats, "participacoesGol", { limit: fullLimit }),
+          entries: getMetricRankingEntries(individualStats, "participacoesGol", { limit: fullLimit }),
         },
         {
           id: "vitorias",
           title: "Mais vitórias",
           description: "Jogadores com mais jogos vencidos.",
-          entries: getMetricRankingEntries(statsResult.playersStats, "vitorias", { limit: fullLimit }),
+          entries: getMetricRankingEntries(individualStats, "vitorias", { limit: fullLimit }),
         },
         {
           id: "aproveitamento",
           title: "Melhor aproveitamento",
           description: "Percentual por vitórias, empates e derrotas.",
-          entries: getMetricRankingEntries(statsResult.playersStats, "aproveitamento", { limit: fullLimit, requireGames: true }),
+          entries: getMetricRankingEntries(individualStats, "aproveitamento", { limit: fullLimit, requireGames: true }),
         },
         {
           id: "jogos",
           title: "Mais jogos",
           description: "Quem mais entrou em campo.",
-          entries: getMetricRankingEntries(statsResult.playersStats, "jogos", { limit: fullLimit }),
+          entries: getMetricRankingEntries(individualStats, "jogos", { limit: fullLimit }),
         },
         {
           id: "media-gols",
           title: "Melhor média de gols",
           description: "Gols por jogo disputado.",
-          entries: getMetricRankingEntries(statsResult.playersStats, "golsPorJogo", { limit: fullLimit, requireGames: true }),
+          entries: getMetricRankingEntries(individualStats, "golsPorJogo", { limit: fullLimit, requireGames: true }),
         },
         {
           id: "faltas-cometidas",
           title: "Mais faltas cometidas",
           description: "Ranking de faltas feitas.",
-          entries: getMetricRankingEntries(statsResult.playersStats, "faltasCometidas", { limit: fullLimit }),
+          entries: getMetricRankingEntries(individualStats, "faltasCometidas", { limit: fullLimit }),
         },
         {
           id: "faltas-sofridas",
           title: "Mais faltas sofridas",
           description: "Quem mais sofreu faltas.",
-          entries: getMetricRankingEntries(statsResult.playersStats, "faltasSofridas", { limit: fullLimit }),
+          entries: getMetricRankingEntries(individualStats, "faltasSofridas", { limit: fullLimit }),
         },
       ],
       atributos: LINE_ATTRIBUTES.map((attribute) => ({
@@ -10059,8 +10562,8 @@
 
     try {
       const statsResult = await calcularEstatisticasJogadores({
-        periodo: "all",
-        peladaId: "",
+        periodo: state.rankingPeladaId ? "pelada" : "all",
+        peladaId: state.rankingPeladaId,
         month: "",
         temporadaId: "",
         jogadorId: "",
@@ -10110,7 +10613,7 @@
 
   function getOverallRankingEntries(statsResult, limit = 3) {
     return statsResult.playersStats
-      .filter((stats) => stats.jogador)
+      .filter((stats) => stats.jogador && !isReserveGoalkeeperPlayer(stats.jogador))
       .sort((a, b) =>
         Number(b.jogador.overall || 0) - Number(a.jogador.overall || 0) ||
         playerDisplayName(a.jogador).localeCompare(playerDisplayName(b.jogador), "pt-BR")
@@ -10173,6 +10676,14 @@
     if (!root) {
       return;
     }
+
+    root.onchange = async (event) => {
+      const filter = event.target.closest("[data-ranking-pelada-filter]");
+      if (!filter) return;
+      state.rankingPeladaId = filter.value || "";
+      state.rankingCategory = "overall";
+      await renderRankingSection();
+    };
 
     root.onclick = async (event) => {
       const modeButton = event.target.closest("[data-ranking-mode]");
@@ -12126,7 +12637,7 @@
         : `${remaining} pendente(s) · sincronizado às ${timeLabel}`);
 
       if (changedRecords) {
-        await renderCurrentSection();
+        await requestSafeViewRefresh();
       }
 
       if (response.hasMore) {
@@ -12206,6 +12717,15 @@
   }
 
   function bindEvents() {
+    document.body.addEventListener("input", (event) => {
+      const form = event.target.closest?.("#section-content form, #live-modal form");
+      if (form) form.dataset.dirty = "true";
+    });
+    document.body.addEventListener("change", (event) => {
+      const form = event.target.closest?.("#section-content form, #live-modal form");
+      if (form) form.dataset.dirty = "true";
+    });
+
     $$(".quick-action").forEach((button) => {
       button.addEventListener("click", async () => {
         await switchSection(button.dataset.section);

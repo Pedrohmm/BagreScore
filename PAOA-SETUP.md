@@ -62,7 +62,7 @@ Para criar uma conta Jogador, primeiro cadastre o atleta e depois selecione-o no
 ## 5. Teste recomendado
 
 1. Faça login no celular principal como Administrador.
-2. Crie uma pelada de teste e monte pelo menos três times com os presets.
+2. Crie uma pelada de teste, confirme as presenças e monte pelo menos três times com 5 jogadores de linha.
 3. Inicie um jogo entre dois times e registre um gol, uma assistência e uma falta.
 4. Confirme que placar, eventos e estatísticas foram atualizados no próprio celular.
 5. Registre o segundo gol e confirme que a partida foi encerrada e salva no histórico.
@@ -78,7 +78,7 @@ Esta atualização foi feita de forma aditiva: os jogadores, peladas, jogos e es
 
 Principais mudanças:
 
-- presets de times com 5 jogadores de linha e 1 goleiro;
+- presets de times com 5 jogadores de linha;
 - seleção rápida de confrontos e escalações carregadas automaticamente;
 - vencedor permanece e enfrenta o próximo time da fila;
 - edição dos times durante a pelada;
@@ -104,6 +104,24 @@ Para publicar a atualização:
 6. no celular, use **Forçar atualização** uma vez.
 
 O aplicativo exige o Apps Script `1.5.0` para todas as operações novas de sincronização.
+
+## Atualização 1.2.0 — presenças, fila e goleiros por confronto
+
+Esta atualização também é aditiva e preserva todos os registros oficiais existentes.
+
+- os formulários e seletores abertos não são mais fechados por uma sincronização em segundo plano;
+- cada atleta pode ser marcado como **Presente**, **Atrasado** ou **Ausente**;
+- os presets guardam somente os 5 jogadores de linha;
+- os goleiros são escolhidos separadamente em cada confronto e podem trocar de lado;
+- quando houver menos de dois cards de goleiro presentes, o card **Goleiro Reserva** fica disponível;
+- o organizador informa quem está fisicamente usando o Goleiro Reserva, mas as estatísticas de goleiro ficam somente no card reserva;
+- o Goleiro Reserva participa dos rankings específicos de goleiro, mas não concorre a MVP, Bagre ou ranking individual geral;
+- com três times completos, permanece a rotação por times; sem três times completos, o vencedor fica e a fila de jogadores forma o desafiante, completado por atletas do time que perdeu;
+- a escalação sugerida continua editável antes de iniciar o próximo jogo;
+- o Ranking permite alternar entre todas as peladas oficiais e uma pelada específica;
+- peladas de teste continuam fora dos rankings oficiais.
+
+Como o formato de sincronização já aceita esses campos adicionais, não é necessário substituir o `Code.gs` apenas por causa da versão 1.2.0. Publique os arquivos do aplicativo e use **Forçar atualização** no celular.
 
 ## Atualizações futuras
 
