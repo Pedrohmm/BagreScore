@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.2.2";
+  const APP_VERSION = "1.2.3";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -3573,7 +3573,6 @@
             <h3>Destaques da semana</h3>
             <p>${escapeHtml(contextLabel)}</p>
           </div>
-          ${latestPelada ? `<span class="home-period-chip">Última pelada</span>` : ""}
         </div>
         <div class="home-highlight-grid">
           ${cards.map(([title, entry, metric, singular, plural]) => renderHomeHighlightCard(title, entry, metric, singular, plural)).join("")}
@@ -3590,9 +3589,7 @@
         <div class="home-section-heading">
           <div>
             <h3>Destaques gerais</h3>
-            <p>Soma de todas as peladas oficiais</p>
           </div>
-          <span class="home-period-chip is-all-time">Histórico</span>
         </div>
         <div class="home-highlight-grid is-overall">
           ${cards.map(([title, entry, metric, singular, plural]) => renderHomeHighlightCard(title, entry, metric, singular, plural)).join("")}

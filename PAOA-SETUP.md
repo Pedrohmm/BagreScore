@@ -148,6 +148,15 @@ Não é necessário atualizar o `Code.gs` para a versão 1.2.1. Publique os arqu
 
 Não é necessário atualizar o `Code.gs` para a versão 1.2.2. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Ajuste 1.2.3 — cards de destaques
+
+- Removidos os selos “Última pelada” e “Histórico”.
+- Removido o texto explicativo abaixo de **Destaques gerais**.
+- **Destaques da semana** e **Destaques gerais** agora usam a mesma grade visual.
+- Cards receberam melhor contraste, hierarquia e acabamento para o celular.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.2.3. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.
