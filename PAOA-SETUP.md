@@ -166,6 +166,14 @@ Não é necessário atualizar o `Code.gs` para a versão 1.2.3. Publique os arqu
 
 Não é necessário atualizar o `Code.gs` para a versão 1.2.4. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Ajuste 1.2.5 — título da pelada em destaque
+
+- “Pelada em destaque” agora aparece alinhado à esquerda.
+- O título ganhou o mesmo tamanho e a mesma barra laranja das demais seções.
+- O estado vazio e o botão continuam centralizados para manter a ação evidente.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.2.5. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.

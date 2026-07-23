@@ -20808,3 +20808,47 @@ body[data-section="inicio"] .highlight-empty-medal {
     flex-basis: 34px;
   }
 }
+
+/* BagreScore 1.2.5 — título da pelada em destaque alinhado às seções */
+body[data-section="inicio"] .featured-match-card .feature-badge {
+  justify-self: start;
+  gap: 8px;
+  padding: 0;
+  color: #f2f2f2;
+  font-size: 0.94rem;
+  font-weight: 900;
+  letter-spacing: 0.035em;
+  line-height: 1.15;
+}
+
+body[data-section="inicio"] .featured-match-card .feature-badge::before {
+  width: 3px;
+  height: 24px;
+  flex: 0 0 3px;
+  border-radius: 999px;
+  background: #ff6410;
+  box-shadow: 0 0 10px rgba(255, 90, 0, 0.28);
+}
+
+body[data-section="inicio"] .featured-match-card.is-empty {
+  justify-items: stretch;
+  text-align: left;
+}
+
+body[data-section="inicio"] .featured-match-card.is-empty .feature-badge {
+  justify-self: start;
+}
+
+body[data-section="inicio"] .featured-match-card.is-empty .featured-empty-icon,
+body[data-section="inicio"] .featured-match-card.is-empty h2,
+body[data-section="inicio"] .featured-match-card.is-empty p,
+body[data-section="inicio"] .featured-match-card.is-empty .home-primary-action {
+  justify-self: center;
+  text-align: center;
+}
+
+@media (max-width: 350px) {
+  body[data-section="inicio"] .featured-match-card .feature-badge {
+    font-size: 0.88rem;
+  }
+}
