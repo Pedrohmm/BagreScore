@@ -20852,3 +20852,71 @@ body[data-section="inicio"] .featured-match-card.is-empty .home-primary-action {
     font-size: 0.88rem;
   }
 }
+
+/* BagreScore 1.2.6 — elenco direto e ranking sem rótulos redundantes */
+body[data-section="jogadores"] .players-action-grid.is-create-only {
+  grid-template-columns: minmax(0, 1fr);
+  overflow: visible;
+}
+
+body[data-section="jogadores"] .players-action-grid.is-create-only .players-action-card {
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 12px;
+  min-height: 70px;
+  border-radius: 18px;
+  padding: 11px 14px;
+}
+
+body[data-section="jogadores"] .players-action-grid.is-create-only .players-action-card > span {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  font-size: 1.25rem;
+}
+
+body[data-section="jogadores"] .players-action-grid.is-create-only .players-action-card strong {
+  grid-column: 2;
+  align-self: center;
+  font-size: 1rem;
+}
+
+body[data-section="jogadores"] .players-list-panel {
+  display: grid;
+  gap: 12px;
+}
+
+body[data-section="jogadores"] .players-list-panel .players-toolbar {
+  align-items: end;
+  flex-direction: row;
+}
+
+body[data-section="ranking"] .ranking-pelada-filter {
+  gap: 0;
+}
+
+body[data-section="ranking"] .ranking-category-rail .ranking-category-button {
+  min-height: 52px;
+  align-content: center;
+  gap: 0;
+  padding-block: 10px;
+}
+
+body[data-section="ranking"] .ranking-podium-value {
+  margin-top: 7px;
+  padding-top: 8px;
+}
+
+body[data-section="ranking"] .ranking-rest-metric {
+  align-self: center;
+}
+
+@media (max-width: 430px) {
+  body[data-section="jogadores"] .players-action-grid.is-create-only .players-action-card {
+    min-height: 66px;
+  }
+
+  body[data-section="jogadores"] .players-list-panel .players-toolbar {
+    align-items: end;
+    flex-direction: row;
+  }
+}

@@ -174,6 +174,17 @@ Não é necessário atualizar o `Code.gs` para a versão 1.2.4. Publique os arqu
 
 Não é necessário atualizar o `Code.gs` para a versão 1.2.5. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Ajuste 1.2.6 — elenco direto e ranking limpo
+
+- A aba **Jogadores** agora abre diretamente no elenco cadastrado.
+- O acesso ao cadastro virou uma ação única e compacta acima da lista.
+- Foi removida a etapa intermediária “Abrir elenco”.
+- No **Ranking**, o filtro não repete mais o rótulo “Período do ranking”.
+- As categorias não exibem mais contagens redundantes como “19 no ranking”.
+- Os cards do pódio e da classificação exibem apenas o valor da categoria, sem repetir seu nome em cada jogador.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.2.6. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.

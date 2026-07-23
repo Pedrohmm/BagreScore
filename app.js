@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.2.5";
+  const APP_VERSION = "1.2.6";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -4046,7 +4046,7 @@
     `;
   }
 
-  function renderPlayersHero(jogadores) {
+  function renderPlayersHero() {
     return `
       <section class="players-hero">
         <div class="players-hero-copy">
@@ -4057,37 +4057,29 @@
     `;
   }
 
-  function renderPlayersActionCards(jogadores) {
-    const openLabel = state.playersListOpen ? "Ocultar elenco" : "Abrir elenco";
+  function renderPlayersActionCards() {
+    if (!hasPermission("jogadores:criar")) {
+      return "";
+    }
 
     return `
-      <div class="players-action-grid">
-        ${hasPermission("jogadores:criar") ? `<button class="players-action-card is-primary" type="button" data-player-action="start-create">
+      <div class="players-action-grid is-create-only">
+        <button class="players-action-card is-primary" type="button" data-player-action="start-create">
           <span>+</span>
           <strong>Cadastrar jogador</strong>
-        </button>` : ""}
-        <button class="players-action-card" type="button" data-player-action="toggle-roster">
-          <span>${escapeHtml(jogadores.length)}</span>
-          <strong>Elenco cadastrado</strong>
-          <small>${escapeHtml(openLabel)}</small>
         </button>
       </div>
     `;
   }
 
-  function renderPlayersRosterPanel(jogadores, selectedPlayer) {
-    if (!state.playersListOpen) {
-      return "";
-    }
-
+  function renderPlayersRosterPanel(jogadores) {
     return `
       <section class="players-list-panel">
         <div class="players-toolbar">
           <div>
-            <span class="panel-kicker">Elenco local</span>
-            <h3>Jogadores cadastrados</h3>
+            <span class="panel-kicker">${escapeHtml(jogadores.length)} jogador${jogadores.length === 1 ? "" : "es"}</span>
+            <h3>Elenco cadastrado</h3>
           </div>
-          <button class="ghost-button compact-button" type="button" data-player-action="toggle-roster">Fechar elenco</button>
         </div>
         ${
           jogadores.length
@@ -4122,8 +4114,7 @@
 
     $("#section-content").innerHTML = `
       <div class="players-screen">
-        ${renderPlayersHero(jogadores)}
-        ${renderPlayersActionCards(jogadores)}
+        ${renderPlayersHero()}
         ${
           shouldShowForm
             ? `
@@ -4137,9 +4128,11 @@
                 ${renderPlayerForm(editingPlayer)}
               </section>
             `
-            : ""
+            : `
+              ${renderPlayersActionCards()}
+              ${renderPlayersRosterPanel(jogadores)}
+            `
         }
-        ${renderPlayersRosterPanel(jogadores, selectedPlayer)}
       </div>
     `;
 
@@ -4200,20 +4193,6 @@
         state.selectedPlayerId = null;
         await renderCurrentSection();
         $("#player-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
-        return;
-      }
-
-      if (action === "toggle-roster") {
-        state.playerSaving = false;
-        state.playersListOpen = !state.playersListOpen;
-        state.playerFormOpen = false;
-        state.playerFormStep = "basicos";
-        state.editingPlayerId = null;
-        state.selectedPlayerId = null;
-        await renderCurrentSection();
-        if (state.playersListOpen) {
-          scrollToPlayersRoster();
-        }
         return;
       }
 
@@ -10405,8 +10384,7 @@
             </div>
           </div>
           <label class="ranking-pelada-filter">
-            <span>Período do ranking</span>
-            <select data-ranking-pelada-filter>
+            <select data-ranking-pelada-filter aria-label="Selecionar período do ranking">
               <option value="">Todas as peladas</option>
               ${officialPeladas.map((pelada) => `
                 <option value="${escapeHtml(pelada.id)}" ${pelada.id === state.rankingPeladaId ? "selected" : ""}>
@@ -10595,7 +10573,6 @@
     return `
       <button class="ranking-category-button ${category.id === activeCategoryId ? "active" : ""}" type="button" data-ranking-category="${escapeHtml(category.id)}">
         <strong>${escapeHtml(category.title)}</strong>
-        <small>${escapeHtml(category.entries.length ? `${category.entries.length} no ranking` : "Sem dados")}</small>
       </button>
     `;
   }
@@ -10622,7 +10599,7 @@
           </div>
         </div>
         <div class="ranking-podium-places">
-          ${podium.map((item) => renderRankingPodiumPlace(item.entry, item.className, category)).join("")}
+          ${podium.map((item) => renderRankingPodiumPlace(item.entry, item.className)).join("")}
         </div>
         ${renderRankingRemainingList(category, category.entries)}
       </section>
@@ -10656,7 +10633,7 @@
     `;
   }
 
-  function renderRankingPodiumPlace(entry, className, category) {
+  function renderRankingPodiumPlace(entry, className) {
     if (!entry) {
       return `
         <article class="ranking-podium-place ${escapeHtml(className)} is-empty">
@@ -10678,7 +10655,7 @@
         ${renderPlayerAvatar(jogador, "player-avatar ranking-podium-avatar")}
         <span class="ranking-podium-name">${escapeHtml(playerDisplayName(jogador))}</span>
         <span class="ranking-podium-position">${escapeHtml(position)}</span>
-        <span class="ranking-podium-value"><strong>${escapeHtml(value)}</strong><small>${escapeHtml(category?.title || "Categoria")}</small></span>
+        <span class="ranking-podium-value"><strong>${escapeHtml(value)}</strong></span>
       </button>
     `;
   }
@@ -10695,14 +10672,14 @@
         </div>
         ${
           entries.length
-            ? `<div class="ranking-rest-list">${entries.map((entry, index) => renderRankingRestRow(entry, index + 1, category)).join("")}</div>`
+            ? `<div class="ranking-rest-list">${entries.map((entry, index) => renderRankingRestRow(entry, index + 1)).join("")}</div>`
             : `<div class="ranking-rest-empty">Nenhum jogador nesta categoria.</div>`
         }
       </div>
     `;
   }
 
-  function renderRankingRestRow(entry, position, category) {
+  function renderRankingRestRow(entry, position) {
     const { stats, value } = entry;
     const jogador = stats.jogador;
 
@@ -10714,7 +10691,7 @@
           <strong>${escapeHtml(playerDisplayName(jogador))}</strong>
           <small>${escapeHtml(jogador.posicaoPrincipal || "-")}</small>
         </span>
-        <span class="ranking-rest-metric"><small>${escapeHtml(category?.title || "Categoria")}</small><em>${escapeHtml(value)}</em></span>
+        <span class="ranking-rest-metric"><em>${escapeHtml(value)}</em></span>
       </button>
     `;
   }
