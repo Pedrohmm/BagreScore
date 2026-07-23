@@ -123,6 +123,21 @@ Esta atualização também é aditiva e preserva todos os registros oficiais exi
 
 Como o formato de sincronização já aceita esses campos adicionais, não é necessário substituir o `Code.gs` apenas por causa da versão 1.2.0. Publique os arquivos do aplicativo e use **Forçar atualização** no celular.
 
+## Correção 1.2.1 — confrontos e rotação
+
+Esta correção preserva os jogadores, as peladas e todos os resultados já registrados.
+
+- a troca dos seletores carrega somente os jogadores do preset escolhido;
+- as escalações do confronto sugerido são restauradas pelo ID do time, mesmo quando ele muda de lado;
+- o goleiro escolhido não é mais sobrescrito ao redesenhar a tela;
+- selecionar o goleiro do adversário troca automaticamente os dois goleiros de lado;
+- **Manter nos próximos jogos** atualiza o preset e remove do time de origem qualquer atleta transferido;
+- a rotação seguinte usa a escalação do jogo como fonte principal e possui fallback para escalações e presets;
+- ao criar a próxima partida, todo o estado do confronto anterior é limpo antes de carregar a sugestão;
+- confrontos antigos com a escalação vencedora vazia são recuperados a partir do preset salvo.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.2.1. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.

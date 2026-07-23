@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.2.0";
+  const APP_VERSION = "1.2.1";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -1047,7 +1047,7 @@
         const previousPeladaId = state.selectedPeladaId || null;
 
         if (previousPeladaId !== nextPeladaId) {
-          state.gameDraft = createEmptyGameDraft();
+          resetMatchSetupState();
           state.selectedGameSummaryId = null;
         }
 
@@ -1641,6 +1641,12 @@
     };
   }
 
+  function resetMatchSetupState() {
+    state.gameDraft = createEmptyGameDraft();
+    state.matchPresetIds = { A: "", B: "" };
+    state.matchPersist = { A: false, B: false };
+  }
+
   function isGoalkeeperCandidate(player) {
     const secondary = normalizeToken(player?.posicaoSecundaria);
     return isGoalkeeper(player?.tipoJogador, player?.posicaoPrincipal) || secondary === "gk" || secondary === "goleiro";
@@ -1726,13 +1732,34 @@
       );
   }
 
-  function teamPresetToDraft(preset, fallbackKey) {
+  function getSavedMatchupLineup(savedMatchup, presetId) {
+    if (!savedMatchup || !presetId) return null;
+    if (savedMatchup.timeAId === presetId && Array.isArray(savedMatchup.linhaA)) {
+      return uniqueIds(savedMatchup.linhaA).slice(0, 5);
+    }
+    if (savedMatchup.timeBId === presetId && Array.isArray(savedMatchup.linhaB)) {
+      return uniqueIds(savedMatchup.linhaB).slice(0, 5);
+    }
+    return null;
+  }
+
+  function teamPresetToDraft(preset, fallbackKey, savedMatchup = null, preservedDraft = null) {
+    const savedLineup = getSavedMatchupLineup(savedMatchup, preset?.id);
+    const presetLineup = uniqueIds(preset?.linha || []).slice(0, 5);
+    const savedMode = normalizeToken(savedMatchup?.modo);
+    const isSavedWinner = savedMatchup?.vencedorAnteriorId
+      ? savedMatchup.vencedorAnteriorId === preset?.id
+      : savedMatchup?.timeAId === preset?.id;
+    const savedLineupIsCorrupted = savedLineup !== null && (
+      (savedMode === "times" && presetLineup.length === 5 && savedLineup.length !== 5) ||
+      (savedMode === "fila" && isSavedWinner && savedLineup.length === 0 && presetLineup.length > 0)
+    );
     return {
       nome: preset?.nome || `Time ${fallbackKey}`,
       cor: preset?.cor || (fallbackKey === "A" ? "#ff5a00" : "#4aa3df"),
-      linha: uniqueIds(preset?.linha || []).slice(0, 5),
-      goleiro: "",
-      goleiroReservaOperadorId: "",
+      linha: savedLineup === null || savedLineupIsCorrupted ? presetLineup : savedLineup,
+      goleiro: preservedDraft?.goleiro || "",
+      goleiroReservaOperadorId: preservedDraft?.goleiroReservaOperadorId || "",
     };
   }
 
@@ -1743,16 +1770,21 @@
     };
     state.matchPersist = { A: false, B: false };
     state.gameDraft = {
-      A: teamPresetToDraft(presetA, "A"),
-      B: teamPresetToDraft(presetB, "B"),
+      A: teamPresetToDraft(presetA, "A", savedMatchup),
+      B: teamPresetToDraft(presetB, "B", savedMatchup),
     };
+  }
 
-    if (savedMatchup?.linhaA?.length) {
-      state.gameDraft.A.linha = uniqueIds(savedMatchup.linhaA).slice(0, 5);
-    }
-    if (savedMatchup?.linhaB?.length) {
-      state.gameDraft.B.linha = uniqueIds(savedMatchup.linhaB).slice(0, 5);
-    }
+  function replaceMatchPreset(teamKey, preset, pelada = null) {
+    const currentDraft = state.gameDraft[teamKey] || createEmptyGameDraft()[teamKey];
+    state.matchPresetIds[teamKey] = preset?.id || "";
+    state.gameDraft[teamKey] = teamPresetToDraft(
+      preset,
+      teamKey,
+      pelada?.proximoConfronto || null,
+      currentDraft
+    );
+    state.matchPersist[teamKey] = false;
   }
 
   function getSuggestedMatchup(pelada, presets = []) {
@@ -1785,7 +1817,7 @@
   }
 
   function applyDefaultGoalkeepersToDraft(pelada, players = []) {
-    const candidates = getPresentGoalkeepers(pelada, players);
+    const candidates = getPresentPlayersForPelada(pelada, players).filter(isGoalkeeperCandidate);
     const candidateIds = new Set(candidates.map((player) => player.id));
     const regularGoalkeepers = candidates.filter((player) => !isReserveGoalkeeperPlayer(player));
     const reserve = candidates.find(isReserveGoalkeeperPlayer) || null;
@@ -1808,6 +1840,33 @@
     });
   }
 
+  function setMatchGoalkeeper(teamKey, goalkeeperId, reserveOperatorId, players = []) {
+    if (!state.gameDraft?.[teamKey]) return;
+    const otherTeam = oppositeTeam(teamKey);
+    const previousGoalkeeperId = state.gameDraft[teamKey].goleiro || "";
+    const previousReserveOperatorId = state.gameDraft[teamKey].goleiroReservaOperadorId || "";
+    const selectedGoalkeeperId = goalkeeperId || "";
+    const swapsGoalkeepers = Boolean(
+      selectedGoalkeeperId && state.gameDraft[otherTeam].goleiro === selectedGoalkeeperId
+    );
+
+    if (swapsGoalkeepers) {
+      state.gameDraft[otherTeam].goleiro = previousGoalkeeperId !== selectedGoalkeeperId
+        ? previousGoalkeeperId
+        : "";
+      const previousGoalkeeper = players.find((player) => player.id === previousGoalkeeperId);
+      state.gameDraft[otherTeam].goleiroReservaOperadorId = isReserveGoalkeeperPlayer(previousGoalkeeper)
+        ? previousReserveOperatorId
+        : "";
+    }
+
+    state.gameDraft[teamKey].goleiro = selectedGoalkeeperId;
+    const goalkeeper = players.find((player) => player.id === selectedGoalkeeperId);
+    state.gameDraft[teamKey].goleiroReservaOperadorId = isReserveGoalkeeperPlayer(goalkeeper)
+      ? reserveOperatorId || ""
+      : "";
+  }
+
   function normalizeGameDraft(players = []) {
     const activeIds = new Set(players.map((player) => player.id));
     const draft = state.gameDraft || createEmptyGameDraft();
@@ -1825,17 +1884,7 @@
     });
 
     ["A", "B"].forEach((teamKey) => {
-      const otherTeam = oppositeTeam(teamKey);
-      const blockedByOther = new Set([
-        ...draft[otherTeam].linha,
-        draft[otherTeam].goleiro,
-      ].filter(Boolean));
-
-      draft[teamKey].linha = draft[teamKey].linha.filter((id) => !blockedByOther.has(id) && id !== draft[teamKey].goleiro);
-
-      if (blockedByOther.has(draft[teamKey].goleiro) || draft[teamKey].linha.includes(draft[teamKey].goleiro)) {
-        draft[teamKey].goleiro = "";
-      }
+      draft[teamKey].linha = draft[teamKey].linha.filter((id) => id !== draft[teamKey].goleiro);
     });
 
     const reserveOperators = new Set([
@@ -5706,7 +5755,7 @@
       return `Já está na escalação do Time ${otherTeam}.`;
     }
 
-    if (draft[otherTeam].goleiro === player.id) {
+    if (selectionType !== "goleiro" && draft[otherTeam].goleiro === player.id) {
       return `Já é goleiro do Time ${otherTeam}.`;
     }
 
@@ -5869,6 +5918,9 @@
       input.addEventListener("change", () => {
         const player = jogadores.find((item) => item.id === input.value);
         if (reserveField) reserveField.hidden = !isReserveGoalkeeperPlayer(player);
+        form.querySelectorAll(".player-selection-option").forEach((option) => {
+          option.classList.toggle("is-selected", Boolean(option.querySelector('input[name="goalkeeperId"]:checked')));
+        });
       });
     });
 
@@ -5883,11 +5935,12 @@
       event.preventDefault();
 
       if (selectionType === "goleiro") {
-        state.gameDraft[teamKey].goleiro = form.elements.goalkeeperId?.value || "";
-        const goalkeeper = jogadores.find((player) => player.id === state.gameDraft[teamKey].goleiro);
-        state.gameDraft[teamKey].goleiroReservaOperadorId = isReserveGoalkeeperPlayer(goalkeeper)
+        const selectedGoalkeeperId = form.querySelector('input[name="goalkeeperId"]:checked')?.value || "";
+        const goalkeeper = jogadores.find((player) => player.id === selectedGoalkeeperId);
+        const reserveOperatorId = isReserveGoalkeeperPlayer(goalkeeper)
           ? form.elements.reserveOperatorId?.value || ""
           : "";
+        setMatchGoalkeeper(teamKey, selectedGoalkeeperId, reserveOperatorId, jogadores);
       } else {
         state.gameDraft[teamKey].linha = Array.from(form.querySelectorAll('input[name="playerIds"]:checked'))
           .filter((input) => !input.disabled)
@@ -6512,8 +6565,7 @@
         : pelada.goleiroReservaAtualId || "",
     };
     await savePeladaOperationalState(pelada, changes, `presenca-${status}`);
-    state.matchPresetIds = { A: "", B: "" };
-    state.gameDraft = createEmptyGameDraft();
+    resetMatchSetupState();
     await renderCurrentSection();
   }
 
@@ -6557,12 +6609,13 @@
 
       if (presetSelect && state.selectedPeladaId) {
         const teamKey = presetSelect.dataset.matchPreset;
-        const presets = await readTeamPresets(state.selectedPeladaId);
+        const [presets, pelada] = await Promise.all([
+          readTeamPresets(state.selectedPeladaId),
+          getRecord("peladas", state.selectedPeladaId),
+        ]);
         const preset = presets.find((item) => item.id === presetSelect.value);
         if (preset) {
-          state.matchPresetIds[teamKey] = preset.id;
-          state.gameDraft[teamKey] = teamPresetToDraft(preset, teamKey);
-          state.matchPersist[teamKey] = false;
+          replaceMatchPreset(teamKey, preset, pelada);
           await renderCurrentSection();
         }
       }
@@ -6668,9 +6721,7 @@
         const peladaId = actionButton.dataset.peladaId || "";
         state.selectedGameSummaryId = null;
         state.peladaDetailView = "confrontos";
-        state.gameDraft = createEmptyGameDraft();
-        state.matchPresetIds = { A: "", B: "" };
-        state.matchPersist = { A: false, B: false };
+        resetMatchSetupState();
         await switchSection("peladas", { peladaId });
         return;
       }
@@ -7372,7 +7423,7 @@
     state.selectedPeladaId = null;
     state.selectedGameSummaryId = null;
     state.peladasView = "gerenciar";
-    state.gameDraft = createEmptyGameDraft();
+    resetMatchSetupState();
     form.reset();
     await switchSection("peladas", { historyMode: "replace", peladasView: "gerenciar" });
     await syncNow();
@@ -7403,8 +7454,12 @@
         goleiroId: state.gameDraft.B.goleiro,
         goleiroReservaOperadorId: state.gameDraft.B.goleiroReservaOperadorId || "",
       },
-      persistA: Boolean(form.elements.persistA?.checked || state.matchPersist.A),
-      persistB: Boolean(form.elements.persistB?.checked || state.matchPersist.B),
+      persistA: form.elements.persistA
+        ? Boolean(form.elements.persistA.checked)
+        : Boolean(state.matchPersist.A),
+      persistB: form.elements.persistB
+        ? Boolean(form.elements.persistB.checked)
+        : Boolean(state.matchPersist.B),
     };
   }
 
@@ -7446,18 +7501,43 @@
   }
 
   function buildPersistentPresetUpdates(presets, data, savedAt) {
-    return ["A", "B"].flatMap((teamKey) => {
-      if (!data[`persist${teamKey}`]) return [];
+    const desiredByPresetId = new Map();
+
+    ["A", "B"].forEach((teamKey) => {
+      if (!data[`persist${teamKey}`]) return;
       const presetId = data[`preset${teamKey}Id`];
-      const preset = presets.find((item) => item.id === presetId);
       const team = data[`time${teamKey}`];
-      if (!preset || !team) return [];
-      return [{
-        ...preset,
+      if (!presetId || !team) return;
+      desiredByPresetId.set(presetId, {
+        teamKey,
         nome: team.nome,
         cor: team.cor,
-        jogadores: [...team.linha],
-        linha: [...team.linha],
+        linha: uniqueIds(team.linha).slice(0, 5),
+      });
+    });
+
+    if (!desiredByPresetId.size) return [];
+
+    const claimedPlayerIds = new Set(
+      [...desiredByPresetId.values()].flatMap((desired) => desired.linha)
+    );
+
+    return presets.flatMap((preset) => {
+      const desired = desiredByPresetId.get(preset.id) || null;
+      const currentLine = uniqueIds(preset.linha || []).slice(0, 5);
+      const nextLine = desired
+        ? desired.linha
+        : currentLine.filter((playerId) => !claimedPlayerIds.has(playerId));
+      const lineupChanged = currentLine.length !== nextLine.length ||
+        currentLine.some((playerId, index) => playerId !== nextLine[index]);
+
+      if (!desired && !lineupChanged) return [];
+
+      return [{
+        ...preset,
+        ...(desired ? { nome: desired.nome, cor: desired.cor } : {}),
+        jogadores: [...nextLine],
+        linha: [...nextLine],
         goleiroId: "",
         updatedAt: savedAt,
         revision: (preset.revision || 0) + 1,
@@ -7668,9 +7748,7 @@
 
     setActiveGameId(jogoId);
     state.selectedGameSummaryId = jogoId;
-    state.gameDraft = createEmptyGameDraft();
-    state.matchPresetIds = { A: "", B: "" };
-    state.matchPersist = { A: false, B: false };
+    resetMatchSetupState();
     state.liveMessage = "";
     await switchSection("ao-vivo", { historyMode: "replace" });
     runBackgroundTask(syncNow, "Falha ao sincronizar início do jogo");
@@ -8879,7 +8957,7 @@
         const peladaId = actionButton.dataset.peladaId || "";
         state.selectedGameSummaryId = null;
         state.peladaDetailView = "confrontos";
-        state.gameDraft = createEmptyGameDraft();
+        resetMatchSetupState();
 
         if (peladaId) {
           await switchSection("peladas", { peladaId });
@@ -9677,6 +9755,37 @@
     runBackgroundTask(syncNow, "Falha ao sincronizar retomada do jogo");
   }
 
+  function resolveRotationLineup(teamKey, jogo, context, presentIds) {
+    const gameTeams = context.gameTeams || [];
+    const players = context.players || [];
+    const escalacoes = context.escalacoes || [];
+    const presets = context.presets || [];
+    const playerById = new Map(players.map((player) => [player.id, player]));
+    const teamRecord = gameTeams.find((team) => team.time === teamKey) || null;
+    const recordLine = uniqueIds(teamRecord?.linha || teamRecord?.jogadores || [])
+      .filter((playerId) => {
+        const player = playerById.get(playerId);
+        return presentIds.has(playerId) && player && isLineupPlayer(player);
+      });
+
+    if (recordLine.length) return recordLine.slice(0, 5);
+
+    const lineupFromEntries = uniqueIds(
+      escalacoes
+        .filter((lineup) => lineup.time === teamKey && lineup.ativo !== false)
+        .map((lineup) => lineup.jogadorId)
+    ).filter((playerId) => {
+      const player = playerById.get(playerId);
+      return presentIds.has(playerId) && player && isLineupPlayer(player);
+    });
+
+    if (lineupFromEntries.length) return lineupFromEntries.slice(0, 5);
+
+    const presetId = teamKey === "A" ? jogo.presetAId : jogo.presetBId;
+    const preset = presets.find((item) => item.id === presetId);
+    return uniqueIds(preset?.linha || []).filter((playerId) => presentIds.has(playerId)).slice(0, 5);
+  }
+
   function buildNextRotation(pelada, jogo, context = {}) {
     const winningTeamKey = getWinningTeamKey(jogo);
     if (!pelada || !winningTeamKey || !jogo.presetAId || !jogo.presetBId) return null;
@@ -9699,18 +9808,27 @@
         .map((player) => player.id)
         .filter((playerId) => !reserveOperatorSet.has(playerId))
     );
-    const completePresetCount = presets.filter((preset) => {
-      const line = uniqueIds(preset.linha || []).filter((playerId) => presentIds.has(playerId));
-      return line.length === 5;
-    }).length;
-    const winnerTeam = gameTeams.find((team) => team.time === winningTeamKey) || null;
-    const loserTeam = gameTeams.find((team) => team.time === oppositeTeam(winningTeamKey)) || null;
-    const winnerLine = uniqueIds(winnerTeam?.linha || []).filter((playerId) => presentIds.has(playerId));
-    const loserLine = uniqueIds(loserTeam?.linha || []).filter((playerId) => presentIds.has(playerId));
-    const waitingBefore = normalizePeladaPlayerQueue(pelada, players, [...winnerLine, ...reserveOperatorIds])
+    const completePresetLines = presets
+      .map((preset) => uniqueIds(preset.linha || []).filter((playerId) => presentIds.has(playerId)))
+      .filter((line) => line.length === 5);
+    const disjointCompletePlayers = new Set();
+    let disjointCompleteTeams = 0;
+    completePresetLines.forEach((line) => {
+      if (line.some((playerId) => disjointCompletePlayers.has(playerId))) return;
+      line.forEach((playerId) => disjointCompletePlayers.add(playerId));
+      disjointCompleteTeams += 1;
+    });
+    const hasThreeCompleteTeams = disjointCompleteTeams >= 3;
+    const winnerLine = resolveRotationLineup(winningTeamKey, jogo, context, presentIds);
+    const loserLine = resolveRotationLineup(oppositeTeam(winningTeamKey), jogo, context, presentIds);
+    const savedWaiting = normalizePeladaPlayerQueue(pelada, players, [...winnerLine, ...reserveOperatorIds]);
+    const allOutside = [...presentIds].filter(
+      (playerId) => !winnerLine.includes(playerId) && !loserLine.includes(playerId)
+    );
+    const waitingBefore = uniqueIds([...savedWaiting, ...allOutside])
       .filter((playerId) => !loserLine.includes(playerId));
 
-    if (completePresetCount < 3) {
+    if (!hasThreeCompleteTeams) {
       const challengerFromQueue = waitingBefore.slice(0, 5);
       const challengerLine = uniqueIds(challengerFromQueue).slice(0, 5);
       const nextPlayerQueue = uniqueIds([
@@ -9734,10 +9852,17 @@
       };
     }
 
+    const nextOpponentPreset = presets.find((preset) => preset.id === nextOpponentId) || null;
+    const nextOpponentLine = uniqueIds(nextOpponentPreset?.linha || [])
+      .filter((playerId) => presentIds.has(playerId))
+      .slice(0, 5);
+
     return {
       modo: "times",
       timeAId: winnerId,
       timeBId: nextOpponentId,
+      linhaA: winnerLine,
+      linhaB: nextOpponentLine,
       fila: nextQueue,
       filaJogadores: normalizePeladaPlayerQueue(pelada, players),
       vencedorAnteriorId: winnerId,
@@ -9788,7 +9913,12 @@
     const escalacoes = allEscalacoes.filter((escalacao) => escalacao.jogoId === jogoId);
     const presets = allTimes.filter((time) => isTeamPreset(time) && time.peladaId === jogo.peladaId);
     const gameTeams = allTimes.filter((time) => time.jogoId === jogoId && normalizeToken(time.tipo) === "jogo");
-    const nextRotation = buildNextRotation(pelada, finalJogo, { presets, players: allPlayers, gameTeams });
+    const nextRotation = buildNextRotation(pelada, finalJogo, {
+      presets,
+      players: allPlayers,
+      gameTeams,
+      escalacoes,
+    });
     const updatedPelada = nextRotation ? {
       ...pelada,
       proximoConfronto: nextRotation,
@@ -12358,7 +12488,7 @@
     state.remoteUsers = [];
     state.remoteProfiles = [];
     state.accountMessage = "";
-    state.gameDraft = createEmptyGameDraft();
+    resetMatchSetupState();
     stopLiveTimer();
 
     if (!preserveAuth) clearAuthSession();
@@ -12795,7 +12925,7 @@
       if (action === "open-pelada") {
         const peladaId = actionButton.dataset.peladaId || "";
         state.selectedGameSummaryId = null;
-        state.gameDraft = createEmptyGameDraft();
+        resetMatchSetupState();
         state.peladaDetailView = "confrontos";
         await switchSection("peladas", { peladaId });
         return;
