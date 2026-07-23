@@ -20651,3 +20651,160 @@ body[data-section="peladas"] .pelada-open-badges .pelada-type-badge {
 body[data-section="peladas"] .pelada-detail-tabs {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
+
+/* BagreScore 1.2.4 — destaques compactos e sem cartões aninhados */
+body[data-section="inicio"] .home-premium {
+  gap: 19px;
+}
+
+body[data-section="inicio"] .home-weekly-highlights,
+body[data-section="inicio"] .home-overall-highlights {
+  gap: 10px;
+  border-color: rgba(255, 255, 255, 0.07);
+  border-radius: 20px;
+  padding: 13px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.055), transparent 12rem),
+    linear-gradient(145deg, rgba(13, 13, 13, 0.98), rgba(4, 4, 4, 0.99));
+  box-shadow:
+    0 14px 30px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.018);
+}
+
+body[data-section="inicio"] .home-section-heading h3 {
+  padding-left: 9px;
+  font-size: 0.94rem;
+  letter-spacing: 0.035em;
+}
+
+body[data-section="inicio"] .home-section-heading p {
+  margin: 4px 0 0 9px;
+  font-size: 0.62rem;
+}
+
+body[data-section="inicio"] .home-highlight-grid,
+body[data-section="inicio"] .home-highlight-grid.is-overall {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-flow: initial;
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.065);
+  border-radius: 16px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.065);
+}
+
+body[data-section="inicio"] .home-highlight-card,
+body[data-section="inicio"] .home-highlight-grid.is-overall .home-highlight-card {
+  min-height: 94px;
+  align-content: start;
+  gap: 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  padding: 10px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.055), transparent 7rem),
+    linear-gradient(150deg, rgba(17, 17, 17, 0.99), rgba(7, 7, 7, 0.99));
+  box-shadow: none;
+}
+
+body[data-section="inicio"] .home-highlight-card::before,
+body[data-section="inicio"] .home-highlight-card::after {
+  content: none;
+  display: none;
+}
+
+body[data-section="inicio"] .home-highlight-card:hover,
+body[data-section="inicio"] .home-highlight-card:focus-visible {
+  border: 0;
+  outline: none;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.1), transparent 7rem),
+    linear-gradient(150deg, rgba(20, 20, 20, 0.99), rgba(8, 8, 8, 0.99));
+  box-shadow: inset 0 0 0 1px rgba(255, 90, 0, 0.17);
+  transform: none;
+}
+
+body[data-section="inicio"] .home-highlight-card > .highlight-kicker {
+  gap: 5px;
+  color: #d97a4a;
+  font-size: 0.54rem;
+  letter-spacing: 0.075em;
+}
+
+body[data-section="inicio"] .home-highlight-card > .highlight-kicker::before {
+  width: 4px;
+  height: 4px;
+  flex-basis: 4px;
+  box-shadow: 0 0 7px rgba(255, 90, 0, 0.45);
+}
+
+body[data-section="inicio"] .highlight-card-body,
+body[data-section="inicio"] .home-highlight-card > .highlight-card-body {
+  align-items: center;
+  gap: 8px;
+}
+
+body[data-section="inicio"] .home-avatar {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-width: 1px;
+  box-shadow:
+    0 0 0 3px rgba(255, 90, 0, 0.04),
+    0 6px 14px rgba(0, 0, 0, 0.25);
+  font-size: 0.68rem;
+}
+
+body[data-section="inicio"] .highlight-card-copy {
+  gap: 3px;
+}
+
+body[data-section="inicio"] .highlight-player-name,
+body[data-section="inicio"] .highlight-card-copy > strong {
+  font-size: 0.74rem;
+  line-height: 1.12;
+}
+
+body[data-section="inicio"] .highlight-stat-line {
+  gap: 3px;
+}
+
+body[data-section="inicio"] .highlight-stat-value {
+  font-size: 1.08rem;
+}
+
+body[data-section="inicio"] .highlight-stat-label,
+body[data-section="inicio"] .highlight-card-copy > small {
+  font-size: 0.54rem;
+}
+
+body[data-section="inicio"] .highlight-empty-medal {
+  width: 36px;
+  height: 36px;
+  flex-basis: 36px;
+  border-radius: 12px;
+}
+
+@media (min-width: 640px) {
+  body[data-section="inicio"] .home-highlight-grid,
+  body[data-section="inicio"] .home-highlight-grid.is-overall {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 350px) {
+  body[data-section="inicio"] .home-highlight-card,
+  body[data-section="inicio"] .home-highlight-grid.is-overall .home-highlight-card {
+    min-height: 90px;
+    padding: 9px 8px;
+  }
+
+  body[data-section="inicio"] .home-avatar {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+  }
+}

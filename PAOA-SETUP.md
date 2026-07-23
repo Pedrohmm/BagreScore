@@ -157,6 +157,15 @@ Não é necessário atualizar o `Code.gs` para a versão 1.2.2. Publique os arqu
 
 Não é necessário atualizar o `Code.gs` para a versão 1.2.3. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Ajuste 1.2.4 — destaques compactos
+
+- Removido o excesso de espaço vertical dos cards.
+- Retirados os círculos decorativos que competiam com fotos e estatísticas.
+- Os quatro destaques agora formam uma única matriz compacta, com divisórias discretas.
+- Categoria, jogador e número ficaram próximos e com leitura mais rápida.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.2.4. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.
