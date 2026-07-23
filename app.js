@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.2.1";
+  const APP_VERSION = "1.2.2";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -3303,6 +3303,18 @@
       sortBy: "gols",
     });
     const { jogadores, peladas, eventos, jogos } = statsResult;
+    const latestPelada = getLatestOfficialPeladaForHighlights(peladas, jogos);
+    const latestPeladaStatsResult = latestPelada
+      ? await calcularEstatisticasJogadores({
+          periodo: "pelada",
+          peladaId: latestPelada.id,
+          month: "",
+          temporadaId: "",
+          jogadorId: "",
+          posicao: "",
+          sortBy: "gols",
+        })
+      : null;
 
     const jogadorPorId = new Map(jogadores.map((jogador) => [jogador.id, jogador]));
     const eventosValidos = eventos.filter((evento) => !evento.cancelado && !evento.deletedAt);
@@ -3319,16 +3331,10 @@
     const topAssists = topFromTally(assistencias, jogadorPorId);
     const latestGame = [...jogos].sort((a, b) => String(b.inicio || "").localeCompare(String(a.inicio || "")))[0];
     const highlightedPelada = getHighlightedPelada(peladas, jogos);
-    const topScorerStats = topStats(statsResult.playersStats, "gols");
-    const topAssistStats = topStats(statsResult.playersStats, "assistencias");
-    const mvpStats = topStats(statsResult.playersStats, "mvpsPelada");
-    const latestBagreStats = getLatestPeladaAwardEntry(statsResult, "bagre_pelada")?.stats || topStats(statsResult.playersStats, "bagresPelada");
-    const bestOverallStats = statsResult.playersStats
-      .filter((stats) => stats.jogador)
-      .sort((a, b) =>
-        Number(b.jogador.overall || 0) - Number(a.jogador.overall || 0) ||
-        playerDisplayName(a.jogador).localeCompare(playerDisplayName(b.jogador), "pt-BR")
-      )[0] || null;
+    const overallHighlights = getDashboardHighlights(statsResult);
+    const latestHighlights = latestPeladaStatsResult
+      ? getDashboardHighlights(latestPeladaStatsResult)
+      : getEmptyDashboardHighlights();
     const mostWins = topFromPlayerStats(statsResult.playersStats, "vitorias", "vitória");
     const bestRate = topFromPlayerStats(
       statsResult.playersStats.filter((stats) => stats.jogos > 0),
@@ -3345,13 +3351,9 @@
       playerById: jogadorPorId,
       highlightedPelada,
       latestGame,
-      highlights: {
-        topScorer: topScorerStats,
-        topAssists: topAssistStats,
-        mvp: mvpStats,
-        bagre: latestBagreStats,
-        bestOverall: bestOverallStats,
-      },
+      latestPelada,
+      latestHighlights,
+      overallHighlights,
       topScorer,
       topAssists,
       mostWins,
@@ -3360,6 +3362,54 @@
         ? `${teamNameFromGame(latestGame, "A")} ${latestGame.placarA ?? 0} x ${latestGame.placarB ?? 0} ${teamNameFromGame(latestGame, "B")}`
         : "Sem dados",
     };
+  }
+
+  function getEmptyDashboardHighlights() {
+    return {
+      topScorer: null,
+      topAssists: null,
+      mvp: null,
+      bagre: null,
+    };
+  }
+
+  function getDashboardHighlights(statsResult) {
+    if (!statsResult) {
+      return getEmptyDashboardHighlights();
+    }
+
+    return {
+      topScorer: topStats(statsResult.playersStats, "gols"),
+      topAssists: topStats(statsResult.playersStats, "assistencias"),
+      mvp: topStats(statsResult.playersStats, "mvpsPelada"),
+      bagre: topStats(statsResult.playersStats, "bagresPelada"),
+    };
+  }
+
+  function getLatestOfficialPeladaForHighlights(peladas, jogos) {
+    const finalizedGamePeladaIds = new Set(
+      jogos
+        .filter((jogo) => normalizeToken(jogo.status) === "finalizado")
+        .map((jogo) => jogo.peladaId)
+        .filter(Boolean)
+    );
+    const officialPeladas = peladas.filter((pelada) => !isTestPelada(pelada));
+    const explicitlyFinalized = officialPeladas.filter(
+      (pelada) => normalizeToken(pelada.status) === "finalizada"
+    );
+    const candidates = explicitlyFinalized.length
+      ? explicitlyFinalized
+      : officialPeladas.filter((pelada) => finalizedGamePeladaIds.has(pelada.id));
+
+    return [...candidates].sort((a, b) => {
+      const finishDiff = String(b.finalizadaEm || "").localeCompare(String(a.finalizadaEm || ""));
+      if (finishDiff) return finishDiff;
+
+      const dateDiff = String(b.data || "").localeCompare(String(a.data || ""));
+      if (dateDiff) return dateDiff;
+
+      return String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || ""));
+    })[0] || null;
   }
 
   function tally(items, key) {
@@ -3457,6 +3507,7 @@
       <div class="home-premium">
         ${renderFeaturedPeladaCard(stats)}
         ${renderWeeklyHighlights(stats)}
+        ${renderOverallHighlights(stats)}
         ${renderRankingGeneralHomeCard(stats)}
       </div>
     `;
@@ -3509,25 +3560,54 @@
   }
 
   function renderWeeklyHighlights(stats) {
-    const cards = [
-      ["Artilheiro", stats.highlights.topScorer, "gols", "gol", "gols"],
-      ["Garçom", stats.highlights.topAssists, "assistencias", "assistência", "assistências"],
-      ["MVP", stats.highlights.mvp, "mvpsPelada", "MVP", "MVPs"],
-      ["Bagre da rodada", stats.highlights.bagre, "bagresPelada", "bagre", "bagres"],
-    ];
+    const cards = getHomeHighlightCards(stats.latestHighlights);
+    const latestPelada = stats.latestPelada;
+    const contextLabel = latestPelada
+      ? `${formatDateLabel(latestPelada.data)} · ${latestPelada.local || latestPelada.nome || "Pelada"}`
+      : "Aguardando a primeira pelada";
 
     return `
-      <section class="home-section-block">
+      <section class="home-section-block home-weekly-highlights">
         <div class="home-section-heading">
           <div>
             <h3>Destaques da semana</h3>
+            <p>${escapeHtml(contextLabel)}</p>
           </div>
+          ${latestPelada ? `<span class="home-period-chip">Última pelada</span>` : ""}
         </div>
         <div class="home-highlight-grid">
           ${cards.map(([title, entry, metric, singular, plural]) => renderHomeHighlightCard(title, entry, metric, singular, plural)).join("")}
         </div>
       </section>
     `;
+  }
+
+  function renderOverallHighlights(stats) {
+    const cards = getHomeHighlightCards(stats.overallHighlights);
+
+    return `
+      <section class="home-section-block home-overall-highlights">
+        <div class="home-section-heading">
+          <div>
+            <h3>Destaques gerais</h3>
+            <p>Soma de todas as peladas oficiais</p>
+          </div>
+          <span class="home-period-chip is-all-time">Histórico</span>
+        </div>
+        <div class="home-highlight-grid is-overall">
+          ${cards.map(([title, entry, metric, singular, plural]) => renderHomeHighlightCard(title, entry, metric, singular, plural)).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  function getHomeHighlightCards(highlights = getEmptyDashboardHighlights()) {
+    return [
+      ["Artilheiro", highlights.topScorer, "gols", "gol", "gols"],
+      ["Garçom", highlights.topAssists, "assistencias", "assistência", "assistências"],
+      ["MVP", highlights.mvp, "mvpsPelada", "MVP", "MVPs"],
+      ["Bagre", highlights.bagre, "bagresPelada", "bagre", "bagres"],
+    ];
   }
 
   function renderHomeHighlightCard(title, entry, metric, singular, plural) {
@@ -10482,37 +10562,6 @@
     };
 
     return descriptions[mode] || descriptions.geral;
-  }
-
-  function getLatestPeladaAwardEntry(statsResult, awardType) {
-    const awardToken = normalizeToken(awardType);
-    const event = [...statsResult.eventos]
-      .filter((evento) => normalizeToken(evento.tipo) === awardToken && evento.jogadorId)
-      .sort((a, b) => getPeladaAwardTimestamp(b, statsResult) - getPeladaAwardTimestamp(a, statsResult))[0];
-
-    if (!event) {
-      return null;
-    }
-
-    const stats = statsResult.playersStats.find((item) => item.jogadorId === event.jogadorId);
-    const pelada = statsResult.peladaById.get(event.peladaId);
-
-    if (!stats) {
-      return null;
-    }
-
-    return {
-      stats,
-      value: pelada?.local ? `Última: ${pelada.local}` : "Última pelada",
-    };
-  }
-
-  function getPeladaAwardTimestamp(evento, statsResult) {
-    const pelada = statsResult.peladaById.get(evento.peladaId);
-    const value = pelada?.finalizadaEm || pelada?.data || evento.updatedAt || evento.createdAt || "";
-    const timestamp = new Date(value).getTime();
-
-    return Number.isFinite(timestamp) ? timestamp : 0;
   }
 
   function renderRankingModeTabs(activeMode) {

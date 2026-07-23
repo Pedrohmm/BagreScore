@@ -13224,6 +13224,462 @@ body[data-section="peladas"] .pelada-detail-tabs {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+/* BagreScore 1.2.2 — home compacta, destaques recentes e histórico */
+body[data-section="inicio"] {
+  background:
+    radial-gradient(circle at 50% -6%, rgba(255, 90, 0, 0.12), transparent 25rem),
+    radial-gradient(circle at 100% 42%, rgba(255, 90, 0, 0.035), transparent 18rem),
+    linear-gradient(180deg, #080909, #020303 52%, #010101);
+}
+
+body[data-section="inicio"] .app-shell {
+  width: min(760px, calc(100% - 24px));
+  padding-top: 12px;
+}
+
+body[data-section="inicio"] .topbar {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 68px;
+  align-items: center;
+  place-items: initial;
+  gap: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.085);
+  border-radius: 19px;
+  margin-bottom: 16px;
+  padding: 8px 9px;
+  background:
+    radial-gradient(circle at 0% 50%, rgba(255, 90, 0, 0.1), transparent 10rem),
+    linear-gradient(145deg, rgba(19, 19, 19, 0.96), rgba(7, 7, 7, 0.98));
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+body[data-section="inicio"] .topbar::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background: linear-gradient(180deg, transparent, #ff6410 25%, #ff6410 75%, transparent);
+  opacity: 0.9;
+}
+
+body[data-section="inicio"] .home-brand-lockup {
+  position: static;
+  left: auto;
+  display: flex;
+  grid-column: auto;
+  width: auto;
+  min-width: 0;
+  align-items: center;
+  justify-items: initial;
+  gap: 10px;
+  margin: 0;
+  text-align: left;
+}
+
+body[data-section="inicio"] .home-brand-logo {
+  display: block;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  border: 1px solid rgba(255, 90, 0, 0.32);
+  border-radius: 14px;
+  object-fit: cover;
+  filter: drop-shadow(0 6px 14px rgba(255, 90, 0, 0.16));
+}
+
+body[data-section="inicio"] .home-brand-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+body[data-section="inicio"] .home-brand-copy strong {
+  overflow: hidden;
+  color: #f4f4f4;
+  font-size: 1rem;
+  font-style: italic;
+  font-weight: 950;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-section="inicio"] .home-brand-copy strong span {
+  color: #ff6410;
+}
+
+body[data-section="inicio"] .home-brand-copy small {
+  overflow: hidden;
+  color: #858585;
+  font-size: 0.64rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-section="inicio"] .topbar-actions {
+  position: static;
+  top: auto;
+  right: auto;
+  left: auto;
+  grid-column: auto;
+  transform: none;
+}
+
+body[data-section="inicio"] .home-menu-button {
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.085);
+  border-radius: 13px;
+  color: #a8a8a8;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+body[data-section="inicio"] .home-menu-button:hover,
+body[data-section="inicio"] .home-menu-button:focus-visible {
+  border-color: rgba(255, 90, 0, 0.34);
+  color: #fff;
+  background: rgba(255, 90, 0, 0.08);
+}
+
+body[data-section="inicio"] .home-premium {
+  gap: 22px;
+  padding-bottom: 8px;
+}
+
+body[data-section="inicio"] .featured-match-card {
+  gap: 16px;
+  border-color: rgba(255, 90, 0, 0.23);
+  border-radius: 21px;
+  padding: 17px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.13), transparent 14rem),
+    linear-gradient(150deg, rgba(19, 19, 19, 0.98), rgba(6, 6, 6, 0.99));
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+body[data-section="inicio"] .featured-match-card::before {
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, #ff7218, #ff4c00 62%, transparent);
+  opacity: 1;
+}
+
+body[data-section="inicio"] .featured-card-head {
+  gap: 10px;
+}
+
+body[data-section="inicio"] .feature-badge {
+  padding: 0;
+  font-size: 0.69rem;
+  letter-spacing: 0.075em;
+}
+
+body[data-section="inicio"] .feature-badge::before {
+  width: 3px;
+  height: 16px;
+}
+
+body[data-section="inicio"] .featured-status-chip {
+  min-height: 28px;
+  padding: 5px 8px;
+  font-size: 0.61rem;
+}
+
+body[data-section="inicio"] .featured-card-content {
+  gap: 14px;
+}
+
+body[data-section="inicio"] .featured-match-card h2 {
+  font-size: clamp(1.9rem, 9vw, 2.75rem);
+  line-height: 1;
+  text-transform: none;
+}
+
+body[data-section="inicio"] .featured-meta {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+body[data-section="inicio"] .featured-meta span,
+body[data-section="inicio"] .featured-meta span:first-child {
+  min-height: 59px;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  border-radius: 13px;
+  padding: 9px 10px;
+  background: rgba(255, 255, 255, 0.028);
+}
+
+body[data-section="inicio"] .featured-meta small {
+  font-size: 0.56rem;
+}
+
+body[data-section="inicio"] .featured-meta strong {
+  font-size: 0.78rem;
+}
+
+body[data-section="inicio"] .home-primary-action {
+  min-height: 48px;
+  border-radius: 14px;
+  font-size: 0.82rem;
+}
+
+body[data-section="inicio"] .featured-match-card.is-empty {
+  gap: 10px;
+  padding: 22px 17px;
+}
+
+body[data-section="inicio"] .featured-match-card.is-empty h2 {
+  font-size: clamp(1.45rem, 6.5vw, 1.95rem);
+}
+
+body[data-section="inicio"] .featured-match-card.is-empty p {
+  font-size: 0.78rem;
+}
+
+body[data-section="inicio"] .home-section-block {
+  display: grid;
+  gap: 12px;
+}
+
+body[data-section="inicio"] .home-weekly-highlights {
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 22px;
+  padding: 15px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.08), transparent 13rem),
+    linear-gradient(145deg, rgba(14, 14, 14, 0.97), rgba(5, 5, 5, 0.99));
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.25);
+}
+
+body[data-section="inicio"] .home-section-heading {
+  align-items: center;
+  gap: 10px;
+}
+
+body[data-section="inicio"] .home-section-heading h3 {
+  padding-left: 10px;
+  font-size: 1.02rem;
+  letter-spacing: 0.035em;
+}
+
+body[data-section="inicio"] .home-section-heading h3::before {
+  top: 1px;
+  bottom: 1px;
+  width: 3px;
+}
+
+body[data-section="inicio"] .home-section-heading p {
+  max-width: 100%;
+  margin: 5px 0 0 10px;
+  overflow: hidden;
+  color: #858585;
+  font-size: 0.67rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-section="inicio"] .home-period-chip {
+  display: inline-flex;
+  min-height: 25px;
+  flex: 0 0 auto;
+  align-items: center;
+  border: 1px solid rgba(255, 90, 0, 0.23);
+  border-radius: 999px;
+  padding: 5px 8px;
+  color: #ff9359;
+  background: rgba(255, 90, 0, 0.065);
+  font-size: 0.55rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+body[data-section="inicio"] .home-period-chip.is-all-time {
+  border-color: rgba(255, 255, 255, 0.085);
+  color: #999;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+body[data-section="inicio"] .home-highlight-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+body[data-section="inicio"] .home-highlight-card {
+  min-height: 118px;
+  gap: 10px;
+  border-color: rgba(255, 255, 255, 0.075);
+  border-radius: 16px;
+  padding: 11px;
+  background:
+    radial-gradient(circle at 0% 100%, rgba(255, 90, 0, 0.055), transparent 8rem),
+    linear-gradient(150deg, rgba(18, 18, 18, 0.98), rgba(7, 7, 7, 0.99));
+  box-shadow: none;
+}
+
+body[data-section="inicio"] .home-highlight-card::before {
+  height: 1px;
+  background: linear-gradient(90deg, #ff6410, rgba(255, 90, 0, 0.08) 64%, transparent);
+}
+
+body[data-section="inicio"] .home-highlight-card > .highlight-kicker {
+  font-size: 0.58rem;
+}
+
+body[data-section="inicio"] .highlight-card-body,
+body[data-section="inicio"] .home-highlight-card > .highlight-card-body {
+  gap: 8px;
+}
+
+body[data-section="inicio"] .home-avatar {
+  width: 42px;
+  height: 42px;
+  flex-basis: 42px;
+  border-width: 1.5px;
+  font-size: 0.76rem;
+}
+
+body[data-section="inicio"] .highlight-card-copy {
+  gap: 5px;
+}
+
+body[data-section="inicio"] .highlight-player-name,
+body[data-section="inicio"] .highlight-card-copy > strong {
+  font-size: 0.79rem;
+}
+
+body[data-section="inicio"] .highlight-stat-value {
+  font-size: 1.18rem;
+}
+
+body[data-section="inicio"] .highlight-stat-label,
+body[data-section="inicio"] .highlight-card-copy > small {
+  font-size: 0.61rem;
+}
+
+body[data-section="inicio"] .highlight-empty-medal {
+  width: 40px;
+  height: 40px;
+  flex-basis: 40px;
+  border-radius: 13px;
+}
+
+body[data-section="inicio"] .home-overall-highlights {
+  gap: 10px;
+}
+
+body[data-section="inicio"] .home-highlight-grid.is-overall {
+  display: grid;
+  grid-auto-columns: minmax(152px, 44%);
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  gap: 9px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  padding: 1px 1px 7px;
+  scroll-snap-type: inline proximity;
+  scrollbar-color: rgba(255, 90, 0, 0.35) transparent;
+  scrollbar-width: thin;
+}
+
+body[data-section="inicio"] .home-highlight-grid.is-overall .home-highlight-card {
+  min-height: 108px;
+  scroll-snap-align: start;
+}
+
+body[data-section="inicio"] .home-ranking-section {
+  gap: 11px;
+}
+
+@media (min-width: 640px) {
+  body[data-section="inicio"] .home-highlight-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  body[data-section="inicio"] .home-highlight-grid.is-overall {
+    grid-auto-flow: initial;
+    grid-auto-columns: auto;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    overflow: visible;
+    padding-bottom: 0;
+  }
+}
+
+@media (max-width: 420px) {
+  body[data-section="inicio"] .app-shell {
+    width: 100%;
+    padding: 9px 9px 104px;
+  }
+
+  body[data-section="inicio"] .topbar {
+    min-height: 64px;
+    border-radius: 17px;
+    padding: 7px 8px;
+  }
+
+  body[data-section="inicio"] .home-brand-logo {
+    width: 45px;
+    height: 45px;
+    flex-basis: 45px;
+    border-radius: 13px;
+  }
+
+  body[data-section="inicio"] .home-brand-copy strong {
+    font-size: 0.94rem;
+  }
+
+  body[data-section="inicio"] .home-brand-copy small {
+    font-size: 0.59rem;
+  }
+
+  body[data-section="inicio"] .home-menu-button {
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+  }
+
+  body[data-section="inicio"] .home-period-chip {
+    padding-inline: 7px;
+    font-size: 0.5rem;
+  }
+}
+
+@media (max-width: 350px) {
+  body[data-section="inicio"] .home-brand-copy small {
+    display: none;
+  }
+
+  body[data-section="inicio"] .home-section-heading h3 {
+    font-size: 0.92rem;
+  }
+
+  body[data-section="inicio"] .home-period-chip {
+    display: none;
+  }
+
+  body[data-section="inicio"] .home-highlight-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body[data-section="inicio"] .home-highlight-grid.is-overall {
+    grid-auto-columns: minmax(146px, 54%);
+    grid-template-columns: none;
+  }
+}
+
 body[data-section="peladas"] .pelada-detail-tabs button {
   min-width: 0;
   gap: 5px;

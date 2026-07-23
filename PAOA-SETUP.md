@@ -138,6 +138,16 @@ Esta correção preserva os jogadores, as peladas e todos os resultados já regi
 
 Não é necessário atualizar o `Code.gs` para a versão 1.2.1. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.2.2 — nova tela inicial
+
+- A marca e o menu passaram a ocupar uma única barra superior compacta.
+- **Destaques da semana** agora considera somente a pelada oficial finalizada mais recente.
+- **Destaques gerais** soma gols, assistências, MVPs e Bagres de todas as peladas oficiais.
+- Peladas marcadas como teste continuam fora das estatísticas oficiais.
+- A pelada em destaque e os cards de estatísticas ficaram mais compactos para uso no celular.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.2.2. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.

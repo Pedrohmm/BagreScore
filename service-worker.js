@@ -1,16 +1,17 @@
-const CACHE_VERSION = "bagrescore-v1.2.1";
+const CACHE_VERSION = "bagrescore-v1.2.2";
 const PRECACHE_URLS = [
   "./",
   "./index.html",
-  "./style.css?v=1.2.1",
-  "./app.js?v=1.2.1",
-  "./manifest.json?v=1.2.1",
-  "./assets/icons/icon-192.png?v=1.2.1",
-  "./assets/icons/icon-512.png?v=1.2.1",
-  "./assets/icons/icon-maskable-512.png?v=1.2.1",
-  "./assets/icons/apple-touch-icon.png?v=1.2.1",
+  "./style.css?v=1.2.2",
+  "./app.js?v=1.2.2",
+  "./manifest.json?v=1.2.2",
+  "./assets/icons/icon-192.png?v=1.2.2",
+  "./assets/icons/icon-512.png?v=1.2.2",
+  "./assets/icons/icon-maskable-512.png?v=1.2.2",
+  "./assets/icons/apple-touch-icon.png?v=1.2.2",
   "./assets/icons/bagrescore-logo.png",
   "./assets/icons/bagrescore-logo-header.png",
+  "./assets/icons/bagrescore-icon-mark.png",
 ];
 
 self.addEventListener("install", (event) => {
