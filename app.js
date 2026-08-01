@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.2.6";
+  const APP_VERSION = "1.2.7";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -220,6 +220,7 @@
       "REF",
       "SPE",
       "POS",
+      "xp",
       "overall",
       "estrelas",
       "updatedAt",
@@ -336,10 +337,16 @@
       "jogadorId",
       "atributo",
       "variacao",
+      "modo",
+      "xpGanho",
+      "xpAnterior",
+      "xpNovo",
+      "xpParaEvoluir",
       "motivo",
       "origem",
       "sourceKey",
       "eventoId",
+      "peladaId",
       "jogoId",
       "valorAnterior",
       "valorNovo",
@@ -424,6 +431,12 @@
     timeSofreu: "Time que sofreu",
     atributo: "Atributo",
     variacao: "Variação",
+    modo: "Modo",
+    xp: "XP dos atributos",
+    xpGanho: "XP aplicado",
+    xpAnterior: "XP anterior",
+    xpNovo: "XP atual",
+    xpParaEvoluir: "XP para evoluir",
     motivo: "Motivo",
     origem: "Origem",
     sourceKey: "Chave de origem",
@@ -639,6 +652,7 @@
     ...LINE_ATTRIBUTES.map((attribute) => attribute.key),
     ...GOALKEEPER_ATTRIBUTES.map((attribute) => attribute.key),
   ];
+  const ATTRIBUTE_XP_TO_LEVEL = 5;
 
   const OVERALL_WEIGHTS = {
     ST: { RIT: 1.3, TIR: 1.5, PAS: 1.0, REG: 1.3, DEF: 0.5, FIS: 1.0 },
@@ -754,6 +768,32 @@
     }
 
     return clamp(Math.round(numberValue), 1, 99);
+  }
+
+  function normalizeAttributeXp(value) {
+    const numberValue = Number(value);
+
+    if (!Number.isFinite(numberValue)) {
+      return 0;
+    }
+
+    return Number(Math.max(0, numberValue).toFixed(2));
+  }
+
+  function defaultAttributeXp(tipoJogador = "Linha", posicaoPrincipal = "ST") {
+    const activeKeys = getActiveAttributeKeys(tipoJogador, posicaoPrincipal);
+    return ALL_ATTRIBUTE_KEYS.reduce((xp, key) => {
+      xp[key] = activeKeys.includes(key) ? 0 : "";
+      return xp;
+    }, {});
+  }
+
+  function sanitizeAttributeXp(xp = {}, tipoJogador = "Linha", posicaoPrincipal = "ST") {
+    const activeKeys = getActiveAttributeKeys(tipoJogador, posicaoPrincipal);
+    return ALL_ATTRIBUTE_KEYS.reduce((result, key) => {
+      result[key] = activeKeys.includes(key) ? normalizeAttributeXp(xp?.[key]) : "";
+      return result;
+    }, {});
   }
 
   function calculateOverall(tipoJogador, posicaoPrincipal, attributes) {
@@ -1123,6 +1163,10 @@
     return winningTeamKey === teamKey ? "vitoria" : "derrota";
   }
 
+  function getScoreForTeam(jogo, teamKey) {
+    return Number(teamKey === "B" ? jogo?.placarB || 0 : jogo?.placarA || 0);
+  }
+
   function getElapsedGameSeconds(jogo) {
     if (!jogo?.inicio) {
       return 0;
@@ -1291,27 +1335,34 @@
     return searchable.includes(token);
   }
 
-  function createEventEvolutionChange({ sourceKey, evento, jogoId, atributo, variacao, motivo }) {
+  function createEventEvolutionChange({ sourceKey, evento, jogoId, peladaId, atributo, variacao, xp, motivo }) {
+    const isXpChange = xp !== undefined && xp !== null;
+
     return {
       sourceKey,
       eventoId: evento?.id || "",
       jogoId: jogoId || evento?.jogoId || "",
+      peladaId: peladaId || evento?.peladaId || "",
       atributo,
-      variacao,
+      variacao: isXpChange ? 0 : Number(variacao || 0),
+      xp: isXpChange ? Number(xp || 0) : "",
+      modo: isXpChange ? "xp" : "atributo",
       motivo,
       origem: "automatica",
     };
   }
 
   function addEvolutionChange(changes, change) {
-    if (!change?.atributo || !Number(change.variacao)) {
+    const amount = Number((change?.xp ?? change?.xpGanho ?? change?.variacao) || 0);
+
+    if (!change?.atributo || !Number.isFinite(amount) || amount === 0) {
       return;
     }
 
     changes.push(change);
   }
 
-  function buildEventEvolutionChanges(jogadorId, jogador, attributes, eventos) {
+  function buildEventEvolutionChangesLegacy(jogadorId, jogador, attributes, eventos) {
     const changes = [];
     const goalsByGame = new Map();
     const assistsByGame = new Map();
@@ -1561,6 +1612,520 @@
     return changes;
   }
 
+  function isDecisiveGoalEvent(evento, jogo, eventsForGame = []) {
+    if (!evento || !jogo || evento.golContra) {
+      return false;
+    }
+
+    const teamKey = getEventTeamKey(evento, jogo) || evento.time;
+    const winningTeamKey = getWinningTeamKey(jogo);
+    const orderedTeamGoals = eventsForGame
+      .filter((item) =>
+        normalizeToken(item.tipo) === "gol" &&
+        !item.cancelado &&
+        !item.golContra &&
+        (getEventTeamKey(item, jogo) || item.time) === teamKey
+      )
+      .sort((a, b) =>
+        String(a.createdAt || "").localeCompare(String(b.createdAt || "")) ||
+        String(a.id || "").localeCompare(String(b.id || ""))
+      );
+    const goalIndex = orderedTeamGoals.findIndex((item) => item.id === evento.id);
+    const isSecondGoalWinner = normalizeToken(jogo.formaEncerramento) === "2_gols" &&
+      teamKey === winningTeamKey &&
+      goalIndex + 1 === GOALS_TO_END_GAME;
+    const isLastMinuteGoal = Number(evento.minuto || 0) >= DEFAULT_RULES.duracaoJogoMinutos;
+
+    return isSecondGoalWinner || isLastMinuteGoal;
+  }
+
+  function buildEventEvolutionChanges(jogadorId, jogador, attributes, eventos, context = {}) {
+    const changes = [];
+    const isGk = isGoalkeeper(jogador?.tipoJogador, jogador?.posicaoPrincipal);
+    const jogos = context.jogos || [];
+    const escalacoes = context.escalacoes || [];
+    const gameById = new Map(jogos.map((jogo) => [jogo.id, jogo]));
+    const eventsByGameId = eventos.reduce((map, evento) => {
+      if (!evento.jogoId) return map;
+      const list = map.get(evento.jogoId) || [];
+      list.push(evento);
+      map.set(evento.jogoId, list);
+      return map;
+    }, new Map());
+    const playerLineupsByGameId = escalacoes.reduce((map, escalacao) => {
+      if (escalacao.jogadorId === jogadorId && !map.has(escalacao.jogoId)) {
+        map.set(escalacao.jogoId, escalacao);
+      }
+      return map;
+    }, new Map());
+    const appearancesByPelada = new Map();
+    const goalsByPelada = new Map();
+    const assistsByPelada = new Map();
+
+    const addXpChange = ({ sourceKey, evento = null, jogoId = "", peladaId = "", atributo, xp, motivo }) => {
+      addEvolutionChange(changes, createEventEvolutionChange({
+        sourceKey,
+        evento,
+        jogoId,
+        peladaId,
+        atributo,
+        xp,
+        motivo,
+      }));
+    };
+
+    jogos
+      .filter((jogo) => jogo.status === "Finalizado")
+      .forEach((jogo) => {
+        const lineup = playerLineupsByGameId.get(jogo.id);
+
+        if (!lineup) {
+          return;
+        }
+
+        const peladaId = jogo.peladaId || "";
+        const teamKey = lineup.time;
+        const result = getGameResultForTeam(jogo, teamKey);
+        const opponentScore = getScoreForTeam(jogo, oppositeTeam(teamKey));
+
+        if (peladaId) {
+          appearancesByPelada.set(peladaId, (appearancesByPelada.get(peladaId) || 0) + 1);
+        }
+
+        if (isGk) {
+          if (result === "vitoria" && opponentScore === 0) {
+            addXpChange({
+              sourceKey: `jogo:${jogo.id}:${jogadorId}:xp-pos-vitoria-sem-sofrer`,
+              jogoId: jogo.id,
+              peladaId,
+              atributo: "POS",
+              xp: 2,
+              motivo: "Vitória sem sofrer gol.",
+            });
+          }
+          return;
+        }
+
+        addXpChange({
+          sourceKey: `jogo:${jogo.id}:${jogadorId}:xp-fis-presenca`,
+          jogoId: jogo.id,
+          peladaId,
+          atributo: "FIS",
+          xp: 1,
+          motivo: "Jogo disputado.",
+        });
+        addXpChange({
+          sourceKey: `jogo:${jogo.id}:${jogadorId}:xp-rit-presenca`,
+          jogoId: jogo.id,
+          peladaId,
+          atributo: "RIT",
+          xp: 0.5,
+          motivo: "Ritmo de jogo.",
+        });
+
+        if (result === "vitoria") {
+          addXpChange({
+            sourceKey: `jogo:${jogo.id}:${jogadorId}:xp-rit-vitoria`,
+            jogoId: jogo.id,
+            peladaId,
+            atributo: "RIT",
+            xp: 1,
+            motivo: "Vitória na partida.",
+          });
+
+          if (opponentScore === 0) {
+            addXpChange({
+              sourceKey: `jogo:${jogo.id}:${jogadorId}:xp-def-vitoria-sem-sofrer`,
+              jogoId: jogo.id,
+              peladaId,
+              atributo: "DEF",
+              xp: 2,
+              motivo: "Vitória sem sofrer gol.",
+            });
+          }
+        }
+      });
+
+    eventos
+      .filter((evento) => !evento.cancelado)
+      .forEach((evento) => {
+        const eventType = normalizeToken(evento.tipo);
+        const tipoGol = normalizeToken(evento.tipoGol);
+        const cartao = normalizeToken(evento.cartao);
+        const jogo = gameById.get(evento.jogoId) || null;
+        const jogoId = evento.jogoId || "";
+        const peladaId = evento.peladaId || jogo?.peladaId || "";
+
+        if (eventType === "gol") {
+          const isOwnGoal = Boolean(evento.golContra) || tipoGol === "gol_contra";
+
+          if (evento.jogadorId === jogadorId) {
+            if (isOwnGoal) {
+              addXpChange({
+                sourceKey: `evento:${evento.id}:gol-contra-def`,
+                evento,
+                jogoId,
+                peladaId,
+                atributo: "DEF",
+                xp: -2,
+                motivo: "Gol contra registrado.",
+              });
+            } else {
+              if (peladaId) {
+                goalsByPelada.set(peladaId, (goalsByPelada.get(peladaId) || 0) + 1);
+              }
+
+              addXpChange({
+                sourceKey: `evento:${evento.id}:gol-tir`,
+                evento,
+                jogoId,
+                peladaId,
+                atributo: "TIR",
+                xp: 2,
+                motivo: "Gol registrado.",
+              });
+              addXpChange({
+                sourceKey: `evento:${evento.id}:gol-rit`,
+                evento,
+                jogoId,
+                peladaId,
+                atributo: "RIT",
+                xp: 1,
+                motivo: "Gol marcado com participação intensa.",
+              });
+              addXpChange({
+                sourceKey: `evento:${evento.id}:gol-participacao-pas`,
+                evento,
+                jogoId,
+                peladaId,
+                atributo: "PAS",
+                xp: 0.5,
+                motivo: "Participação em gol.",
+              });
+
+              if (tipoGol === "penalti") {
+                addXpChange({
+                  sourceKey: `evento:${evento.id}:gol-penalti-tir`,
+                  evento,
+                  jogoId,
+                  peladaId,
+                  atributo: "TIR",
+                  xp: 1,
+                  motivo: "Gol de pênalti.",
+                });
+              }
+
+              if (tipoGol === "falta") {
+                addXpChange({
+                  sourceKey: `evento:${evento.id}:gol-falta-tir`,
+                  evento,
+                  jogoId,
+                  peladaId,
+                  atributo: "TIR",
+                  xp: 2,
+                  motivo: "Gol de falta.",
+                });
+              }
+
+              if (eventIncludes(evento, "gol_individual") || eventIncludes(evento, "jogada_individual")) {
+                addXpChange({
+                  sourceKey: `evento:${evento.id}:gol-individual-reg`,
+                  evento,
+                  jogoId,
+                  peladaId,
+                  atributo: "REG",
+                  xp: 2,
+                  motivo: "Gol em jogada individual.",
+                });
+              }
+
+              if (isDecisiveGoalEvent(evento, jogo, eventsByGameId.get(jogoId) || [])) {
+                addXpChange({
+                  sourceKey: `evento:${evento.id}:gol-decisivo-rit`,
+                  evento,
+                  jogoId,
+                  peladaId,
+                  atributo: "RIT",
+                  xp: 1,
+                  motivo: "Gol decisivo.",
+                });
+              }
+            }
+          }
+
+          if (evento.assistenteId === jogadorId) {
+            if (peladaId) {
+              assistsByPelada.set(peladaId, (assistsByPelada.get(peladaId) || 0) + 1);
+            }
+
+            if (isGk) {
+              addXpChange({
+                sourceKey: `evento:${evento.id}:assistencia-goleiro-kic`,
+                evento,
+                jogoId,
+                peladaId,
+                atributo: "KIC",
+                xp: 1,
+                motivo: "Assistência do goleiro.",
+              });
+            } else {
+              addXpChange({
+                sourceKey: `evento:${evento.id}:assistencia-pas`,
+                evento,
+                jogoId,
+                peladaId,
+                atributo: "PAS",
+                xp: 2,
+                motivo: "Assistência registrada.",
+              });
+              addXpChange({
+                sourceKey: `evento:${evento.id}:assistencia-reg`,
+                evento,
+                jogoId,
+                peladaId,
+                atributo: "REG",
+                xp: 1,
+                motivo: "Assistência com criação de jogada.",
+              });
+              addXpChange({
+                sourceKey: `evento:${evento.id}:assistencia-participacao-pas`,
+                evento,
+                jogoId,
+                peladaId,
+                atributo: "PAS",
+                xp: 0.5,
+                motivo: "Participação em gol.",
+              });
+            }
+          }
+        }
+
+        if (eventType === "falta") {
+          if (evento.jogadorSofreuId === jogadorId) {
+            addXpChange({
+              sourceKey: `evento:${evento.id}:falta-sofrida-fis`,
+              evento,
+              jogoId,
+              peladaId,
+              atributo: "FIS",
+              xp: 0.5,
+              motivo: "Falta sofrida.",
+            });
+          }
+
+          if (evento.jogadorId === jogadorId) {
+            if (cartao === "amarelo") {
+              addXpChange({
+                sourceKey: `evento:${evento.id}:cartao-amarelo-def`,
+                evento,
+                jogoId,
+                peladaId,
+                atributo: "DEF",
+                xp: -1,
+                motivo: "Cartão amarelo.",
+              });
+            }
+
+            if (cartao === "vermelho") {
+              addXpChange({
+                sourceKey: `evento:${evento.id}:cartao-vermelho-def`,
+                evento,
+                jogoId,
+                peladaId,
+                atributo: "DEF",
+                xp: -2,
+                motivo: "Cartão vermelho.",
+              });
+            }
+          }
+        }
+
+        if (eventType === "cartao" && evento.jogadorId === jogadorId) {
+          if (cartao === "amarelo") {
+            addXpChange({
+              sourceKey: `evento:${evento.id}:cartao-amarelo-def`,
+              evento,
+              jogoId,
+              peladaId,
+              atributo: "DEF",
+              xp: -1,
+              motivo: "Cartão amarelo.",
+            });
+          }
+
+          if (cartao === "vermelho") {
+            addXpChange({
+              sourceKey: `evento:${evento.id}:cartao-vermelho-def`,
+              evento,
+              jogoId,
+              peladaId,
+              atributo: "DEF",
+              xp: -2,
+              motivo: "Cartão vermelho.",
+            });
+          }
+        }
+
+        if (eventType === "acao_defensiva" && evento.jogadorId === jogadorId) {
+          const tipoAcao = normalizeToken(evento.tipoAcaoDefensiva);
+          const isDesarme = tipoAcao === "desarme";
+
+          addXpChange({
+            sourceKey: `evento:${evento.id}:acao-defensiva-def`,
+            evento,
+            jogoId,
+            peladaId,
+            atributo: "DEF",
+            xp: isDesarme ? 2 : 1,
+            motivo: isDesarme ? "Desarme registrado." : "Ação defensiva registrada.",
+          });
+        }
+
+        if (eventType === "defesa_goleiro" && evento.jogadorId === jogadorId) {
+          const tipoDefesa = normalizeToken(evento.tipoDefesaGoleiro);
+
+          if (tipoDefesa === "penalti") {
+            addXpChange({
+              sourceKey: `evento:${evento.id}:defesa-penalti-ref`,
+              evento,
+              jogoId,
+              peladaId,
+              atributo: "REF",
+              xp: 3,
+              motivo: "Defesa de pênalti.",
+            });
+          } else if (["dificil", "cara_a_cara", "reflexo"].includes(tipoDefesa)) {
+            addXpChange({
+              sourceKey: `evento:${evento.id}:defesa-goleiro-ref`,
+              evento,
+              jogoId,
+              peladaId,
+              atributo: "REF",
+              xp: 2,
+              motivo: "Defesa difícil registrada.",
+            });
+          }
+        }
+
+        if ((eventType === "mvp" || eventType === "mvp_pelada") && evento.jogadorId === jogadorId) {
+          if (isGk) {
+            addXpChange({
+              sourceKey: `evento:${evento.id}:mvp-goleiro-ref`,
+              evento,
+              jogoId,
+              peladaId,
+              atributo: "REF",
+              xp: 2,
+              motivo: eventType === "mvp_pelada" ? "MVP da pelada." : "MVP da partida.",
+            });
+            addXpChange({
+              sourceKey: `evento:${evento.id}:mvp-goleiro-div`,
+              evento,
+              jogoId,
+              peladaId,
+              atributo: "DIV",
+              xp: 1,
+              motivo: eventType === "mvp_pelada" ? "MVP da pelada." : "MVP da partida.",
+            });
+          } else {
+            addXpChange({
+              sourceKey: `evento:${evento.id}:mvp-pelada-fis`,
+              evento,
+              jogoId,
+              peladaId,
+              atributo: "FIS",
+              xp: 1,
+              motivo: eventType === "mvp_pelada" ? "MVP da pelada." : "MVP da partida.",
+            });
+            addXpChange({
+              sourceKey: `evento:${evento.id}:mvp-pelada-rit`,
+              evento,
+              jogoId,
+              peladaId,
+              atributo: "RIT",
+              xp: 2,
+              motivo: eventType === "mvp_pelada" ? "MVP da pelada." : "MVP da partida.",
+            });
+            addXpChange({
+              sourceKey: `evento:${evento.id}:mvp-pelada-reg`,
+              evento,
+              jogoId,
+              peladaId,
+              atributo: "REG",
+              xp: 2,
+              motivo: eventType === "mvp_pelada" ? "MVP da pelada." : "MVP da partida.",
+            });
+          }
+        }
+
+        if ((eventType === "bagre" || eventType === "bagre_pelada") && evento.jogadorId === jogadorId) {
+          const atributo = getLowestUsefulAttributeKey(jogador, attributes);
+
+          addXpChange({
+            sourceKey: `evento:${evento.id}:bagre-${atributo}`,
+            evento,
+            jogoId,
+            peladaId,
+            atributo,
+            xp: -2,
+            motivo: eventType === "bagre_pelada" ? "Bagre da pelada." : "Bagre da rodada.",
+          });
+        }
+
+        if (evento.jogadorId === jogadorId && (eventIncludes(evento, "falha_goleiro") || eventIncludes(evento, "gol_sofrido_por_falha"))) {
+          addXpChange({
+            sourceKey: `evento:${evento.id}:falha-goleiro-pos`,
+            evento,
+            jogoId,
+            peladaId,
+            atributo: "POS",
+            xp: -2,
+            motivo: "Gol sofrido por falha.",
+          });
+        }
+      });
+
+    if (!isGk) {
+      appearancesByPelada.forEach((total, peladaId) => {
+        if (total >= 8) {
+          addXpChange({
+            sourceKey: `pelada:${peladaId}:${jogadorId}:xp-fis-8-jogos`,
+            peladaId,
+            atributo: "FIS",
+            xp: 2,
+            motivo: "Oito ou mais jogos na mesma pelada.",
+          });
+        }
+      });
+
+      goalsByPelada.forEach((total, peladaId) => {
+        if (total >= 3) {
+          addXpChange({
+            sourceKey: `pelada:${peladaId}:${jogadorId}:xp-tir-3-gols`,
+            peladaId,
+            atributo: "TIR",
+            xp: 2,
+            motivo: "Três ou mais gols na pelada.",
+          });
+        }
+      });
+
+      assistsByPelada.forEach((total, peladaId) => {
+        if (total >= 4) {
+          addXpChange({
+            sourceKey: `pelada:${peladaId}:${jogadorId}:xp-pas-4-assistencias`,
+            peladaId,
+            atributo: "PAS",
+            xp: 2,
+            motivo: "Quatro ou mais assistências na pelada.",
+          });
+        }
+      });
+    }
+
+    return changes;
+  }
+
   function oppositeTeam(teamKey) {
     return teamKey === "A" ? "B" : "A";
   }
@@ -1743,8 +2308,22 @@
     return null;
   }
 
+  function getSavedMatchupGoalkeeper(savedMatchup, sideKey) {
+    if (!savedMatchup || !["A", "B"].includes(sideKey)) {
+      return { goleiro: "", goleiroReservaOperadorId: "" };
+    }
+
+    return {
+      goleiro: sideKey === "A" ? savedMatchup.goleiroAId || "" : savedMatchup.goleiroBId || "",
+      goleiroReservaOperadorId: sideKey === "A"
+        ? savedMatchup.goleiroReservaOperadorAId || ""
+        : savedMatchup.goleiroReservaOperadorBId || "",
+    };
+  }
+
   function teamPresetToDraft(preset, fallbackKey, savedMatchup = null, preservedDraft = null) {
     const savedLineup = getSavedMatchupLineup(savedMatchup, preset?.id);
+    const savedGoalkeeper = getSavedMatchupGoalkeeper(savedMatchup, fallbackKey);
     const presetLineup = uniqueIds(preset?.linha || []).slice(0, 5);
     const savedMode = normalizeToken(savedMatchup?.modo);
     const isSavedWinner = savedMatchup?.vencedorAnteriorId
@@ -1758,8 +2337,8 @@
       nome: preset?.nome || `Time ${fallbackKey}`,
       cor: preset?.cor || (fallbackKey === "A" ? "#ff5a00" : "#4aa3df"),
       linha: savedLineup === null || savedLineupIsCorrupted ? presetLineup : savedLineup,
-      goleiro: preservedDraft?.goleiro || "",
-      goleiroReservaOperadorId: preservedDraft?.goleiroReservaOperadorId || "",
+      goleiro: preservedDraft?.goleiro || savedGoalkeeper.goleiro || "",
+      goleiroReservaOperadorId: preservedDraft?.goleiroReservaOperadorId || savedGoalkeeper.goleiroReservaOperadorId || "",
     };
   }
 
@@ -2200,7 +2779,10 @@
   }
 
   async function aplicarAlteracoesAtributos(jogadorId, changes) {
-    const filteredChanges = (changes || []).filter((change) => change && Number(change.variacao));
+    const filteredChanges = (changes || []).filter((change) => {
+      const amount = Number((change?.xp ?? change?.xpGanho ?? change?.variacao) || 0);
+      return change && Number.isFinite(amount) && amount !== 0;
+    });
 
     if (!filteredChanges.length) {
       return [];
@@ -2230,6 +2812,11 @@
       },
     });
     const nextAttributes = { ...cardBefore.attributes };
+    const nextXp = sanitizeAttributeXp(
+      existingAttributes?.xp || {},
+      jogador.tipoJogador,
+      jogador.posicaoPrincipal
+    );
     const evolucoes = [];
 
     filteredChanges.forEach((change) => {
@@ -2243,24 +2830,62 @@
         return;
       }
 
+      const modo = normalizeToken(change.modo) === "xp" || change.xp !== undefined || change.xpGanho !== undefined
+        ? "xp"
+        : "atributo";
       const valorAnterior = normalizeAttributeValue(nextAttributes[atributo]);
-      const valorNovo = clamp(valorAnterior + Math.round(Number(change.variacao)), 1, 99);
-      const variacaoReal = valorNovo - valorAnterior;
+      const xpAnterior = normalizeAttributeXp(nextXp[atributo]);
+      let xpGanho = "";
+      let xpNovo = xpAnterior;
+      let valorNovo = valorAnterior;
+      let variacaoReal = 0;
 
-      if (!variacaoReal) {
-        return;
+      if (modo === "xp") {
+        xpGanho = Number((change.xp ?? change.xpGanho ?? change.variacao) || 0);
+
+        if (!Number.isFinite(xpGanho) || xpGanho === 0) {
+          return;
+        }
+
+        const xpAcumulado = normalizeAttributeXp(xpAnterior + xpGanho);
+        const evolucoesDisponiveis = xpGanho > 0 ? Math.floor(xpAcumulado / ATTRIBUTE_XP_TO_LEVEL) : 0;
+        const espacoNoAtributo = Math.max(0, 99 - valorAnterior);
+
+        variacaoReal = Math.min(evolucoesDisponiveis, espacoNoAtributo);
+        valorNovo = clamp(valorAnterior + variacaoReal, 1, 99);
+        xpNovo = valorNovo >= 99
+          ? 0
+          : normalizeAttributeXp(xpAcumulado - (variacaoReal * ATTRIBUTE_XP_TO_LEVEL));
+
+        if (xpNovo === xpAnterior && !variacaoReal) {
+          return;
+        }
+      } else {
+        valorNovo = clamp(valorAnterior + Math.round(Number(change.variacao)), 1, 99);
+        variacaoReal = valorNovo - valorAnterior;
+
+        if (!variacaoReal) {
+          return;
+        }
       }
 
       nextAttributes[atributo] = valorNovo;
+      nextXp[atributo] = xpNovo;
       evolucoes.push({
         id: uid(),
         jogadorId,
         atributo,
         variacao: variacaoReal,
+        modo,
+        xpGanho,
+        xpAnterior: modo === "xp" ? xpAnterior : "",
+        xpNovo: modo === "xp" ? xpNovo : "",
+        xpParaEvoluir: modo === "xp" && valorNovo < 99 ? normalizeAttributeXp(ATTRIBUTE_XP_TO_LEVEL - xpNovo) : "",
         motivo: change.motivo || "Evolução da carta.",
         origem: change.origem || "automatica",
         sourceKey: change.sourceKey || `manual:${uid()}`,
         eventoId: change.eventoId || "",
+        peladaId: change.peladaId || "",
         jogoId: change.jogoId || "",
         valorAnterior,
         valorNovo,
@@ -2290,6 +2915,7 @@
     const atributosAtualizados = {
       jogadorId,
       ...cardAfter.attributes,
+      xp: sanitizeAttributeXp(nextXp, jogador.tipoJogador, jogador.posicaoPrincipal),
       overall: cardAfter.overall,
       estrelas: cardAfter.estrelas,
       updatedAt: savedAt,
@@ -2320,11 +2946,13 @@
   }
 
   async function aplicarEvolucaoPorEventos(jogadorId) {
-    const [jogador, attributesRecord, eventos, peladas] = await Promise.all([
+    const [jogador, attributesRecord, eventos, peladas, jogos, escalacoes] = await Promise.all([
       getRecord("jogadores", jogadorId),
       getRecord("atributos", jogadorId),
       getAllRecords("eventos"),
       getAllRecords("peladas"),
+      getAllRecords("jogos"),
+      getAllRecords("escalacoes"),
     ]);
 
     if (!jogador) {
@@ -2339,8 +2967,19 @@
       },
     });
     const peladaById = new Map(peladas.map((pelada) => [pelada.id, pelada]));
-    const officialEvents = eventos.filter((evento) => !isTestPelada(peladaById.get(evento.peladaId)));
-    const changes = buildEventEvolutionChanges(jogadorId, jogador, card.attributes, officialEvents);
+    const gameById = new Map(jogos.map((jogo) => [jogo.id, jogo]));
+    const officialGames = jogos.filter((jogo) => !isTestPelada(peladaById.get(jogo.peladaId)));
+    const officialGameIds = new Set(officialGames.map((jogo) => jogo.id));
+    const officialEvents = eventos.filter((evento) => {
+      const eventPeladaId = evento.peladaId || gameById.get(evento.jogoId)?.peladaId || "";
+      return !isTestPelada(peladaById.get(eventPeladaId));
+    });
+    const officialEscalacoes = escalacoes.filter((escalacao) => officialGameIds.has(escalacao.jogoId));
+    const changes = buildEventEvolutionChanges(jogadorId, jogador, card.attributes, officialEvents, {
+      jogos: officialGames,
+      escalacoes: officialEscalacoes,
+      peladas: peladas.filter((pelada) => !isTestPelada(pelada)),
+    });
 
     return aplicarAlteracoesAtributos(jogadorId, changes);
   }
@@ -3791,19 +4430,26 @@
 
     return jogadores
       .map((jogador) => {
+        const attributeRecord = attributesByPlayer.get(jogador.id) || {};
         const card = recalcularOverallJogador({
           ...jogador,
           attributes: {
             ...defaultAttributes(jogador.tipoJogador, jogador.posicaoPrincipal),
-            ...(attributesByPlayer.get(jogador.id) || {}),
+            ...attributeRecord,
           },
         });
+        const xp = sanitizeAttributeXp(
+          attributeRecord.xp || {},
+          jogador.tipoJogador,
+          jogador.posicaoPrincipal
+        );
 
         return {
           ...jogador,
           overall: card.overall,
           estrelas: card.estrelas,
           attributes: card.attributes,
+          xp,
         };
       })
       .sort(comparePlayersByNickname);
@@ -4684,6 +5330,11 @@
       const atributosRecord = {
         jogadorId,
         ...card.attributes,
+        xp: sanitizeAttributeXp(
+          existingAttributes?.xp || {},
+          formData.player.tipoJogador,
+          formData.player.posicaoPrincipal
+        ),
         overall: card.overall,
         estrelas: card.estrelas,
         updatedAt: savedAt,
@@ -6841,6 +7492,7 @@
       atributos.map((record) => [record.jogadorId, record])
     );
     const changesByPlayerId = new Map();
+    const xpChangesByPlayerId = new Map();
 
     evolutions.forEach((evolution) => {
       if (!evolution.jogadorId || !evolution.atributo) return;
@@ -6850,11 +7502,28 @@
         (byAttribute.get(evolution.atributo) || 0) + Number(evolution.variacao || 0)
       );
       changesByPlayerId.set(evolution.jogadorId, byAttribute);
+
+      const xpGanho = Number(evolution.xpGanho || 0);
+      if (Number.isFinite(xpGanho) && xpGanho !== 0) {
+        const byXpAttribute = xpChangesByPlayerId.get(evolution.jogadorId) || new Map();
+        byXpAttribute.set(
+          evolution.atributo,
+          (byXpAttribute.get(evolution.atributo) || 0) + xpGanho
+        );
+        xpChangesByPlayerId.set(evolution.jogadorId, byXpAttribute);
+      }
     });
 
     const playerUpdates = [];
     const attributeUpdates = [];
-    changesByPlayerId.forEach((byAttribute, playerId) => {
+    const affectedPlayerIds = new Set([
+      ...changesByPlayerId.keys(),
+      ...xpChangesByPlayerId.keys(),
+    ]);
+
+    affectedPlayerIds.forEach((playerId) => {
+      const byAttribute = changesByPlayerId.get(playerId) || new Map();
+      const byXpAttribute = xpChangesByPlayerId.get(playerId) || new Map();
       const player = playerById.get(playerId);
       if (!player) return;
       const currentRecord = attributesByPlayerId.get(playerId) || {};
@@ -6866,6 +7535,11 @@
         },
       });
       const nextAttributes = { ...currentCard.attributes };
+      const nextXp = sanitizeAttributeXp(
+        currentRecord.xp || {},
+        player.tipoJogador,
+        player.posicaoPrincipal
+      );
       byAttribute.forEach((variation, attribute) => {
         if (attribute in nextAttributes) {
           nextAttributes[attribute] = clamp(
@@ -6873,6 +7547,11 @@
             1,
             99
           );
+        }
+      });
+      byXpAttribute.forEach((xpGanho, attribute) => {
+        if (attribute in nextXp) {
+          nextXp[attribute] = normalizeAttributeXp(Number(nextXp[attribute] || 0) - xpGanho);
         }
       });
       const nextCard = recalcularOverallJogador({ ...player, attributes: nextAttributes });
@@ -6887,6 +7566,7 @@
         ...currentRecord,
         jogadorId: playerId,
         ...nextCard.attributes,
+        xp: sanitizeAttributeXp(nextXp, player.tipoJogador, player.posicaoPrincipal),
         overall: nextCard.overall,
         estrelas: nextCard.estrelas,
         updatedAt: savedAt,
@@ -9457,7 +10137,9 @@
       auditLog: [createAuditRecord("eventos", evento.id, "criar-falta", null, { evento, falta })],
     });
 
-    await aplicarEvolucaoPorEventos(jogadorId);
+    for (const playerId of [...new Set([jogadorId, jogadorSofreuId].filter(Boolean))]) {
+      await aplicarEvolucaoPorEventos(playerId);
+    }
 
     closeLiveModal();
     state.liveMessage = "Falta salva.";
@@ -9507,11 +10189,14 @@
 
   async function undoLastLiveEvent(jogoId) {
     if (!requirePermission("eventos:excluir")) return;
-    const [jogo, eventos, allLineups, allTimes] = await Promise.all([
+    const [jogo, eventos, allLineups, allTimes, allEvolucoes, allPlayers, allAttributes] = await Promise.all([
       getRecord("jogos", jogoId),
       getAllRecords("eventos"),
       getAllRecords("escalacoes"),
       getAllRecords("times"),
+      getAllRecords("evolucoes"),
+      getAllRecords("jogadores"),
+      getAllRecords("atributos"),
     ]);
 
     if (!jogo || jogo.status === "Finalizado") {
@@ -9662,7 +10347,40 @@
       }
     }
 
-    await putRecords(records);
+    const evolutionsToDelete = allEvolucoes.filter((evolution) =>
+      evolution.eventoId === lastEvent.id ||
+      String(evolution.sourceKey || "").startsWith(`evento:${lastEvent.id}:`)
+    );
+
+    if (evolutionsToDelete.length) {
+      const rollback = buildEvolutionRollbackUpdates(evolutionsToDelete, allPlayers, allAttributes, savedAt);
+      records.jogadores = [...(records.jogadores || []), ...rollback.playerUpdates];
+      records.atributos = [...(records.atributos || []), ...rollback.attributeUpdates];
+      records.syncQueue.push(
+        ...evolutionsToDelete.map((evolution) =>
+          createSyncQueueRecord("evolucoes", "delete", evolution.id, {
+            id: evolution.id,
+            jogadorId: evolution.jogadorId || "",
+          })
+        ),
+        ...rollback.playerUpdates.map((player) =>
+          createSyncQueueRecord("jogadores", "upsert", player.id, player)
+        ),
+        ...rollback.attributeUpdates.map((record) =>
+          createSyncQueueRecord("atributos", "upsert", record.jogadorId, record)
+        )
+      );
+      records.auditLog.push(
+        createAuditRecord("evolucoes", lastEvent.id, "desfazer-evolucoes", evolutionsToDelete, rollback)
+      );
+
+      await mutateRecords({
+        deletes: { evolucoes: evolutionsToDelete.map((evolution) => evolution.id) },
+        puts: records,
+      });
+    } else {
+      await putRecords(records);
+    }
     state.liveMessage = "Último evento desfeito.";
     await syncNow();
     await renderCurrentSection();
@@ -9883,6 +10601,40 @@
     );
     const waitingBefore = uniqueIds([...savedWaiting, ...allOutside])
       .filter((playerId) => !loserLine.includes(playerId));
+    const gameTeamBySide = new Map(gameTeams.map((team) => [team.time, team]));
+    const sideGoalkeepers = {
+      A: {
+        goleiroId: gameTeamBySide.get("A")?.goleiroId || "",
+        goleiroReservaOperadorId: gameTeamBySide.get("A")?.goleiroReservaOperadorId || "",
+      },
+      B: {
+        goleiroId: gameTeamBySide.get("B")?.goleiroId || "",
+        goleiroReservaOperadorId: gameTeamBySide.get("B")?.goleiroReservaOperadorId || "",
+      },
+    };
+    const buildSideAwareMatchup = (modo, challengerLine, extra = {}) => {
+      const winnerStaysOnA = winningTeamKey === "A";
+
+      return {
+        modo,
+        timeAId: winnerStaysOnA ? winnerId : nextOpponentId,
+        timeBId: winnerStaysOnA ? nextOpponentId : winnerId,
+        linhaA: winnerStaysOnA ? winnerLine : challengerLine,
+        linhaB: winnerStaysOnA ? challengerLine : winnerLine,
+        goleiroAId: sideGoalkeepers.A.goleiroId,
+        goleiroBId: sideGoalkeepers.B.goleiroId,
+        goleiroReservaOperadorAId: sideGoalkeepers.A.goleiroReservaOperadorId,
+        goleiroReservaOperadorBId: sideGoalkeepers.B.goleiroReservaOperadorId,
+        fila: nextQueue,
+        vencedorAnteriorId: winnerId,
+        vencedorAnteriorLado: winningTeamKey,
+        perdedorAnteriorId: loserId,
+        perdedorAnteriorLado: oppositeTeam(winningTeamKey),
+        jogoOrigemId: jogo.id,
+        updatedAt: nowIso(),
+        ...extra,
+      };
+    };
 
     if (!hasThreeCompleteTeams) {
       const challengerFromQueue = waitingBefore.slice(0, 5);
@@ -9892,20 +10644,10 @@
         ...loserLine,
       ]);
 
-      return {
-        modo: "fila",
-        timeAId: winnerId,
-        timeBId: nextOpponentId,
-        linhaA: winnerLine,
-        linhaB: challengerLine,
+      return buildSideAwareMatchup("fila", challengerLine, {
         filaJogadores: nextPlayerQueue,
         vagasDesafiante: Math.max(0, 5 - challengerLine.length),
-        fila: nextQueue,
-        vencedorAnteriorId: winnerId,
-        perdedorAnteriorId: loserId,
-        jogoOrigemId: jogo.id,
-        updatedAt: nowIso(),
-      };
+      });
     }
 
     const nextOpponentPreset = presets.find((preset) => preset.id === nextOpponentId) || null;
@@ -9913,19 +10655,9 @@
       .filter((playerId) => presentIds.has(playerId))
       .slice(0, 5);
 
-    return {
-      modo: "times",
-      timeAId: winnerId,
-      timeBId: nextOpponentId,
-      linhaA: winnerLine,
-      linhaB: nextOpponentLine,
-      fila: nextQueue,
+    return buildSideAwareMatchup("times", nextOpponentLine, {
       filaJogadores: normalizePeladaPlayerQueue(pelada, players),
-      vencedorAnteriorId: winnerId,
-      perdedorAnteriorId: loserId,
-      jogoOrigemId: jogo.id,
-      updatedAt: nowIso(),
-    };
+    });
   }
 
   async function finalizeGame(jogoId, formaEncerramento) {
