@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.2.7";
+  const APP_VERSION = "1.2.8";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -534,6 +534,8 @@
   let sectionSwitchInProgress = false;
   let rankingViewTransitionInProgress = false;
   let deferredViewRefreshPending = false;
+  const bootStartedAt = window.performance?.now?.() || Date.now();
+  let bootFinished = false;
   const GOAL_TYPES = [
     { value: "normal", label: "Normal" },
     { value: "penalti", label: "Pênalti" },
@@ -13750,6 +13752,27 @@
     });
   }
 
+  function finishAppBoot() {
+    if (bootFinished) {
+      return;
+    }
+
+    bootFinished = true;
+    const currentTime = window.performance?.now?.() || Date.now();
+    const elapsed = Math.max(0, currentTime - bootStartedAt);
+    const delay = Math.max(0, 760 - elapsed);
+
+    window.setTimeout(() => {
+      document.body.classList.remove("is-booting");
+      const bootScreen = $("#app-boot-screen");
+
+      if (bootScreen) {
+        bootScreen.setAttribute("aria-hidden", "true");
+        window.setTimeout(() => bootScreen.remove(), 520);
+      }
+    }, delay);
+  }
+
   async function init() {
     $("#app-version").textContent = APP_VERSION;
     const initialRoute = readRouteFromHash();
@@ -13771,6 +13794,7 @@
       restoreAuthState(await getRecord("configs", "app"));
       $("#db-status").textContent = "Banco local pronto";
       await renderCurrentSection();
+      finishAppBoot();
       await registerServiceWorker();
       await syncNow();
       window.setInterval(syncNow, SYNC_INTERVAL_MS);
@@ -13783,6 +13807,7 @@
           <p>${escapeHtml(error.message)}</p>
         </div>
       `;
+      finishAppBoot();
     }
   }
 
