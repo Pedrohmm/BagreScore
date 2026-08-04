@@ -185,6 +185,17 @@ Não é necessário atualizar o `Code.gs` para a versão 1.2.5. Publique os arqu
 
 Não é necessário atualizar o `Code.gs` para a versão 1.2.6. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.2.9 — empate com quatro times
+
+- A nova dinâmica é ativada somente quando a pelada possui exatamente quatro times cadastrados.
+- Ao encerrar uma partida empatada, o aplicativo pergunta se haverá disputa de pênaltis ou se os dois times em campo sairão.
+- Em **Saem os dois times**, o jogo é salvo como empate e os dois times que estavam fora são preparados automaticamente para o próximo confronto.
+- Os times que saíram passam a compor a fila seguinte, preservando o ciclo dos quatro times.
+- Em **Disputar pênaltis**, o fluxo anterior é mantido: o vencedor permanece e enfrenta o próximo time da fila.
+- Com dois ou três times, a regra atual continua sem alterações.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.2.9. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.

@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.2.8";
+  const APP_VERSION = "1.2.9";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -9905,11 +9905,100 @@
       return false;
     }
 
+    if (getWinningTeamKey(jogo) === "" && normalizeToken(jogo.fase) !== "penaltis") {
+      const presets = await readTeamPresets(jogo.peladaId);
+      if (getFourTeamDrawOutsidePresets(jogo, presets).length === 2) {
+        return true;
+      }
+    }
+
     const score = `${teamNameFromGame(jogo, "A")} ${jogo.placarA ?? 0} x ${jogo.placarB ?? 0} ${teamNameFromGame(jogo, "B")}`;
 
     return window.confirm(
       `Finalizar este jogo agora?\n\n${score}\n\nEssa ação encerra a partida manualmente e salva o resultado atual.`
     );
+  }
+
+  function getFourTeamDrawOutsidePresets(jogo, presets = []) {
+    if (
+      !jogo?.presetAId ||
+      !jogo?.presetBId ||
+      presets.length !== 4 ||
+      getWinningTeamKey(jogo) !== "" ||
+      normalizeToken(jogo.fase) === "penaltis"
+    ) {
+      return [];
+    }
+
+    const currentIds = new Set([jogo.presetAId, jogo.presetBId]);
+    const presetById = new Map(presets.map((preset) => [preset.id, preset]));
+    if (
+      currentIds.size !== 2 ||
+      !presetById.has(jogo.presetAId) ||
+      !presetById.has(jogo.presetBId)
+    ) {
+      return [];
+    }
+    const outsideIds = uniqueIds([
+      ...(jogo.filaTimes || []),
+      ...presets.map((preset) => preset.id),
+    ]).filter((presetId) => presetById.has(presetId) && !currentIds.has(presetId));
+
+    return outsideIds.slice(0, 2).map((presetId) => presetById.get(presetId)).filter(Boolean);
+  }
+
+  function requestFourTeamDrawDecision(jogo, presets) {
+    const outsidePresets = getFourTeamDrawOutsidePresets(jogo, presets);
+
+    if (outsidePresets.length !== 2) {
+      return Promise.resolve("penaltis");
+    }
+
+    const currentA = teamNameFromGame(jogo, "A");
+    const currentB = teamNameFromGame(jogo, "B");
+    const nextA = outsidePresets[0]?.nome || "Time de fora 1";
+    const nextB = outsidePresets[1]?.nome || "Time de fora 2";
+    const modal = openLiveModal(
+      "Decidir o empate",
+      `
+        <section class="four-team-draw-decision" aria-label="Escolher regra para o empate">
+          <header class="four-team-draw-hero">
+            <span>Regra de 4 times</span>
+            <h3>O que acontece agora?</h3>
+            <p>Escolha antes de encerrar a partida e preparar o próximo confronto.</p>
+          </header>
+          <div class="four-team-draw-score">
+            <span><i>${escapeHtml(getLiveTeamInitials(currentA, "A"))}</i><strong>${escapeHtml(currentA)}</strong></span>
+            <em><small>Empate</small><b>${escapeHtml(jogo.placarA ?? 0)} – ${escapeHtml(jogo.placarB ?? 0)}</b></em>
+            <span><i>${escapeHtml(getLiveTeamInitials(currentB, "B"))}</i><strong>${escapeHtml(currentB)}</strong></span>
+          </div>
+          <div class="four-team-draw-options">
+            <button class="is-rotation" type="button" data-four-team-draw-choice="rotate">
+              <span class="four-team-draw-option-icon" aria-hidden="true">⇄</span>
+              <span><strong>Saem os dois times</strong><small>${escapeHtml(currentA)} e ${escapeHtml(currentB)} saem. O próximo jogo será ${escapeHtml(nextA)} × ${escapeHtml(nextB)}.</small></span>
+            </button>
+            <button class="is-penalties" type="button" data-four-team-draw-choice="penaltis">
+              <span class="four-team-draw-option-icon" aria-hidden="true">P</span>
+              <span><strong>Disputar pênaltis</strong><small>O vencedor permanece e a rotação normal continua.</small></span>
+            </button>
+          </div>
+        </section>
+      `,
+      { dismissible: false }
+    );
+
+    return new Promise((resolve) => {
+      modal.querySelectorAll("[data-four-team-draw-choice]").forEach((button) => {
+        button.addEventListener("click", () => {
+          modal.querySelectorAll("button").forEach((item) => {
+            item.disabled = true;
+          });
+          const choice = button.dataset.fourTeamDrawChoice || "penaltis";
+          closeLiveModal({ flush: false });
+          resolve(choice);
+        }, { once: true });
+      });
+    });
   }
 
   function stopLiveTimer() {
@@ -9952,8 +10041,9 @@
     }
   }
 
-  function openLiveModal(title, bodyHtml) {
+  function openLiveModal(title, bodyHtml, options = {}) {
     closeLiveModal({ flush: false });
+    const dismissible = options.dismissible !== false;
 
     const modal = document.createElement("div");
     modal.className = "modal-backdrop";
@@ -9962,22 +10052,25 @@
       <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="live-modal-title">
         <div class="modal-header">
           <h3 id="live-modal-title">${escapeHtml(title)}</h3>
-          <button class="live-modal-close" type="button" data-modal-close aria-label="Fechar formulário">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg>
-          </button>
+          ${dismissible ? `
+            <button class="live-modal-close" type="button" data-modal-close aria-label="Fechar formulário">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg>
+            </button>
+          ` : ""}
         </div>
         ${bodyHtml}
       </div>
     `;
     document.body.appendChild(modal);
 
-    modal.addEventListener("click", (event) => {
-      if (event.target === modal || event.target.closest("[data-modal-close]")) {
-        closeLiveModal();
-      }
-    });
-
-    document.addEventListener("keydown", handleModalEscape);
+    if (dismissible) {
+      modal.addEventListener("click", (event) => {
+        if (event.target === modal || event.target.closest("[data-modal-close]")) {
+          closeLiveModal();
+        }
+      });
+      document.addEventListener("keydown", handleModalEscape);
+    }
     return modal;
   }
 
@@ -10563,14 +10656,7 @@
   }
 
   function buildNextRotation(pelada, jogo, context = {}) {
-    const winningTeamKey = getWinningTeamKey(jogo);
-    if (!pelada || !winningTeamKey || !jogo.presetAId || !jogo.presetBId) return null;
-    const winnerId = winningTeamKey === "A" ? jogo.presetAId : jogo.presetBId;
-    const loserId = winningTeamKey === "A" ? jogo.presetBId : jogo.presetAId;
-    const queue = uniqueIds(jogo.filaTimes || []).filter((id) => id !== winnerId && id !== loserId);
-    const nextOpponentId = queue.shift() || loserId;
-    const nextQueue = nextOpponentId === loserId ? queue : [...queue, loserId];
-
+    if (!pelada || !jogo.presetAId || !jogo.presetBId) return null;
     const presets = context.presets || [];
     const players = context.players || [];
     const gameTeams = context.gameTeams || [];
@@ -10584,6 +10670,59 @@
         .map((player) => player.id)
         .filter((playerId) => !reserveOperatorSet.has(playerId))
     );
+    const gameTeamBySide = new Map(gameTeams.map((team) => [team.time, team]));
+    const sideGoalkeepers = {
+      A: {
+        goleiroId: gameTeamBySide.get("A")?.goleiroId || "",
+        goleiroReservaOperadorId: gameTeamBySide.get("A")?.goleiroReservaOperadorId || "",
+      },
+      B: {
+        goleiroId: gameTeamBySide.get("B")?.goleiroId || "",
+        goleiroReservaOperadorId: gameTeamBySide.get("B")?.goleiroReservaOperadorId || "",
+      },
+    };
+
+    if (context.rotateBothAfterDraw) {
+      const outsidePresets = getFourTeamDrawOutsidePresets(jogo, presets);
+
+      if (outsidePresets.length === 2) {
+        const lineA = uniqueIds(outsidePresets[0]?.linha || [])
+          .filter((playerId) => presentIds.has(playerId))
+          .slice(0, 5);
+        const lineB = uniqueIds(outsidePresets[1]?.linha || [])
+          .filter((playerId) => presentIds.has(playerId))
+          .slice(0, 5);
+
+        return {
+          modo: "times",
+          timeAId: outsidePresets[0].id,
+          timeBId: outsidePresets[1].id,
+          linhaA: lineA,
+          linhaB: lineB,
+          goleiroAId: sideGoalkeepers.A.goleiroId,
+          goleiroBId: sideGoalkeepers.B.goleiroId,
+          goleiroReservaOperadorAId: sideGoalkeepers.A.goleiroReservaOperadorId,
+          goleiroReservaOperadorBId: sideGoalkeepers.B.goleiroReservaOperadorId,
+          fila: [jogo.presetAId, jogo.presetBId],
+          filaJogadores: normalizePeladaPlayerQueue(
+            pelada,
+            players,
+            [...lineA, ...lineB, ...reserveOperatorIds]
+          ),
+          rotacaoEmpate: "troca_dupla",
+          jogoOrigemId: jogo.id,
+          updatedAt: nowIso(),
+        };
+      }
+    }
+
+    const winningTeamKey = getWinningTeamKey(jogo);
+    if (!winningTeamKey) return null;
+    const winnerId = winningTeamKey === "A" ? jogo.presetAId : jogo.presetBId;
+    const loserId = winningTeamKey === "A" ? jogo.presetBId : jogo.presetAId;
+    const queue = uniqueIds(jogo.filaTimes || []).filter((id) => id !== winnerId && id !== loserId);
+    const nextOpponentId = queue.shift() || loserId;
+    const nextQueue = nextOpponentId === loserId ? queue : [...queue, loserId];
     const completePresetLines = presets
       .map((preset) => uniqueIds(preset.linha || []).filter((playerId) => presentIds.has(playerId)))
       .filter((line) => line.length === 5);
@@ -10603,17 +10742,6 @@
     );
     const waitingBefore = uniqueIds([...savedWaiting, ...allOutside])
       .filter((playerId) => !loserLine.includes(playerId));
-    const gameTeamBySide = new Map(gameTeams.map((team) => [team.time, team]));
-    const sideGoalkeepers = {
-      A: {
-        goleiroId: gameTeamBySide.get("A")?.goleiroId || "",
-        goleiroReservaOperadorId: gameTeamBySide.get("A")?.goleiroReservaOperadorId || "",
-      },
-      B: {
-        goleiroId: gameTeamBySide.get("B")?.goleiroId || "",
-        goleiroReservaOperadorId: gameTeamBySide.get("B")?.goleiroReservaOperadorId || "",
-      },
-    };
     const buildSideAwareMatchup = (modo, challengerLine, extra = {}) => {
       const winnerStaysOnA = winningTeamKey === "A";
 
@@ -10668,15 +10796,30 @@
     finalizingGameIds.add(jogoId);
 
     try {
-    const jogo = await getRecord("jogos", jogoId);
+    const [jogo, allTimes] = await Promise.all([
+      getRecord("jogos", jogoId),
+      getAllRecords("times"),
+    ]);
 
     if (!jogo || jogo.status === "Finalizado") {
       return;
     }
 
+    const presets = allTimes.filter((time) => isTeamPreset(time) && time.peladaId === jogo.peladaId);
+    let rotateBothAfterDraw = false;
+
     if (getWinningTeamKey(jogo) === "" && normalizeToken(jogo.fase) !== "penaltis") {
-      await startPenaltyShootout(jogo, formaEncerramento);
-      return;
+      if (getFourTeamDrawOutsidePresets(jogo, presets).length === 2) {
+        const drawDecision = await requestFourTeamDrawDecision(jogo, presets);
+        if (drawDecision === "penaltis") {
+          await startPenaltyShootout(jogo, formaEncerramento);
+          return;
+        }
+        rotateBothAfterDraw = true;
+      } else {
+        await startPenaltyShootout(jogo, formaEncerramento);
+        return;
+      }
     }
 
     const savedAt = nowIso();
@@ -10694,20 +10837,19 @@
       updatedAt: savedAt,
       revision: (jogo.revision || 0) + 1,
     };
-    const [allEscalacoes, pelada, allTimes, allPlayers] = await Promise.all([
+    const [allEscalacoes, pelada, allPlayers] = await Promise.all([
       getAllRecords("escalacoes"),
       getRecord("peladas", jogo.peladaId),
-      getAllRecords("times"),
       readActivePlayers(),
     ]);
     const escalacoes = allEscalacoes.filter((escalacao) => escalacao.jogoId === jogoId);
-    const presets = allTimes.filter((time) => isTeamPreset(time) && time.peladaId === jogo.peladaId);
     const gameTeams = allTimes.filter((time) => time.jogoId === jogoId && normalizeToken(time.tipo) === "jogo");
     const nextRotation = buildNextRotation(pelada, finalJogo, {
       presets,
       players: allPlayers,
       gameTeams,
       escalacoes,
+      rotateBothAfterDraw,
     });
     const updatedPelada = nextRotation ? {
       ...pelada,
@@ -10735,7 +10877,9 @@
     stopLiveTimer();
     setActiveGameId(null);
     state.selectedGameSummaryId = jogoId;
-    state.liveMessage = `Jogo finalizado por ${formaEncerramento}.`;
+    state.liveMessage = rotateBothAfterDraw
+      ? "Empate finalizado. Os dois times de fora estão no próximo confronto."
+      : `Jogo finalizado por ${formaEncerramento}.`;
     await renderCurrentSection();
 
     runBackgroundTask(async () => {
