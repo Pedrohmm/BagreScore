@@ -196,6 +196,20 @@ Não é necessário atualizar o `Code.gs` para a versão 1.2.6. Publique os arqu
 
 Não é necessário atualizar o `Code.gs` para a versão 1.2.9. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.3.0 — evolução rápida e balanceada
+
+- Atributos abaixo de 60 agora precisam de 3 XP para evoluir; de 60 a 69 precisam de 4 XP; a partir de 70 precisam de 5 XP.
+- Gols distribuem XP pelos seis atributos ativos, com maior peso para finalização.
+- Vitórias premiam o atributo central de cada posição.
+- Jogos sem sofrer gols contam inclusive em empates por 0 a 0.
+- Zagueiros recebem o maior bônus defensivo; meias recebem bônus intermediário e atacantes recebem um bônus pequeno.
+- Goleiros passam a receber XP por participação, vitória e jogo sem sofrer gols.
+- O Bagre da Pelada deixa de perder XP.
+- A finalização da pelada permite escolher, opcionalmente, o Defensor da Pelada.
+- As novas bonificações por resultado valem para jogos criados a partir desta versão, preservando a evolução registrada anteriormente.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.3.0. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.
