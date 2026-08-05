@@ -6430,49 +6430,6 @@
     };
   }
 
-  function getUnavailablePresetPlayers(pelada, presets = [], jogadores = []) {
-    const playerById = new Map(jogadores.map((player) => [player.id, player]));
-    return presets.flatMap((preset) =>
-      uniqueIds(preset.linha || [])
-        .map((playerId) => playerById.get(playerId))
-        .filter(Boolean)
-        .filter((player) => !isReserveGoalkeeperPlayer(player) && getPlayerPresenceStatus(pelada, player.id) !== "presente")
-        .map((player) => ({
-          player,
-          preset,
-          status: getPlayerPresenceStatus(pelada, player.id),
-        }))
-    );
-  }
-
-  function renderMatchPresenceWarning(pelada, presets = [], jogadores = []) {
-    const unavailable = getUnavailablePresetPlayers(pelada, presets, jogadores);
-
-    if (!unavailable.length) {
-      return "";
-    }
-
-    const lateCount = unavailable.filter((item) => item.status === "atrasado").length;
-    const absentCount = unavailable.filter((item) => item.status === "ausente").length;
-    const sampleNames = unavailable
-      .slice(0, 4)
-      .map((item) => playerDisplayName(item.player))
-      .join(", ");
-    const extra = unavailable.length > 4 ? ` +${unavailable.length - 4}` : "";
-
-    return `
-      <div class="match-presence-warning" role="status">
-        <span aria-hidden="true">!</span>
-        <div>
-          <strong>Faça a chamada antes de iniciar</strong>
-          <p>${escapeHtml(unavailable.length)} jogador${unavailable.length === 1 ? "" : "es"} dos times ${unavailable.length === 1 ? "está" : "estão"} fora da lista de presentes. ${lateCount ? `${lateCount} atrasado${lateCount === 1 ? "" : "s"}. ` : ""}${absentCount ? `${absentCount} ausente${absentCount === 1 ? "" : "s"}. ` : ""}</p>
-          <small>${escapeHtml(sampleNames)}${escapeHtml(extra)}</small>
-        </div>
-        <button type="button" data-pelada-action="show-detail-presencas">Abrir Presenças</button>
-      </div>
-    `;
-  }
-
   function renderGameSetup(pelada, jogadores, presets = []) {
     if (!hasPermission("jogos:iniciar")) return "";
 
@@ -6526,7 +6483,6 @@
           <input type="hidden" name="timeACor" value="${escapeHtml(draft.A.cor)}" />
           <input type="hidden" name="timeBNome" value="${escapeHtml(draft.B.nome)}" />
           <input type="hidden" name="timeBCor" value="${escapeHtml(draft.B.cor)}" />
-          ${renderMatchPresenceWarning(pelada, presets, jogadores)}
           <div class="matchup-selectors">
             <label><span>Lado A</span><select name="presetAId" data-match-preset="A">${renderPresetOptions(presets, presetA?.id, presetB?.id)}</select></label>
             <span class="matchup-versus">VS</span>
