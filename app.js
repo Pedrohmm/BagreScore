@@ -1,15 +1,19 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.0";
+  const APP_VERSION = "1.3.1";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 5000;
   const SYNC_BATCH_SIZE = 100;
   const BAGRE_MIN_PARTICIPATION_RATE = 0.3;
+  const GOALKEEPER_MVP_SAVE_POINTS = 1;
+  const GOALKEEPER_MVP_PENALTY_SAVE_POINTS = 2.5;
+  const GOALKEEPER_MVP_SAVE_POINTS_CAP = 6;
   const AUTH_TOKEN_STORAGE_KEY = "bagrescore:auth-token";
   const AUTH_USER_STORAGE_KEY = "bagrescore:auth-user";
+  const KEEP_SCREEN_AWAKE_STORAGE_KEY = "bagrescore:keep-screen-awake";
   const REMOTE_SYNC_STORES = new Set([
     "jogadores",
     "atributos",
@@ -716,6 +720,9 @@
     authToken: "",
     currentUser: null,
     syncInProgress: false,
+    keepScreenAwake: localStorage.getItem(KEEP_SCREEN_AWAKE_STORAGE_KEY) !== "0",
+    wakeLock: null,
+    wakeLockMessage: "",
     remoteUsers: [],
     remoteProfiles: [],
     accountMessage: "",
@@ -3341,6 +3348,7 @@
       disputasPenaltis: 0,
       eventos: 0,
       pontuacao: 0,
+      pontosDefesasGoleiro: 0,
       mediaDesempenho: 0,
     };
   }
@@ -3539,16 +3547,23 @@
           if (tipoDefesa === "penalti") {
             stats.defesasDificeis += 1;
             stats.defesasPenalti += 1;
-            stats.pontuacao += 4;
+            stats.pontuacao += GOALKEEPER_MVP_PENALTY_SAVE_POINTS;
+            stats.pontosDefesasGoleiro += GOALKEEPER_MVP_PENALTY_SAVE_POINTS;
           } else if (["dificil", "cara_a_cara", "reflexo"].includes(tipoDefesa)) {
             stats.defesasDificeis += 1;
-            stats.pontuacao += 2;
+            stats.pontuacao += GOALKEEPER_MVP_SAVE_POINTS;
+            stats.pontosDefesasGoleiro += GOALKEEPER_MVP_SAVE_POINTS;
           }
         }
       }
     });
 
     const playerScores = [...scoreByPlayerId.values()].map((stats) => {
+      if (Number(stats.pontosDefesasGoleiro || 0) > GOALKEEPER_MVP_SAVE_POINTS_CAP) {
+        stats.pontuacao -= Number(stats.pontosDefesasGoleiro || 0) - GOALKEEPER_MVP_SAVE_POINTS_CAP;
+        stats.pontosDefesasGoleiro = GOALKEEPER_MVP_SAVE_POINTS_CAP;
+      }
+
       stats.participacoesGol = stats.gols + stats.assistencias;
       stats.mediaDesempenho = stats.jogos > 0
         ? Number((stats.pontuacao / stats.jogos).toFixed(2))
@@ -6415,6 +6430,49 @@
     };
   }
 
+  function getUnavailablePresetPlayers(pelada, presets = [], jogadores = []) {
+    const playerById = new Map(jogadores.map((player) => [player.id, player]));
+    return presets.flatMap((preset) =>
+      uniqueIds(preset.linha || [])
+        .map((playerId) => playerById.get(playerId))
+        .filter(Boolean)
+        .filter((player) => !isReserveGoalkeeperPlayer(player) && getPlayerPresenceStatus(pelada, player.id) !== "presente")
+        .map((player) => ({
+          player,
+          preset,
+          status: getPlayerPresenceStatus(pelada, player.id),
+        }))
+    );
+  }
+
+  function renderMatchPresenceWarning(pelada, presets = [], jogadores = []) {
+    const unavailable = getUnavailablePresetPlayers(pelada, presets, jogadores);
+
+    if (!unavailable.length) {
+      return "";
+    }
+
+    const lateCount = unavailable.filter((item) => item.status === "atrasado").length;
+    const absentCount = unavailable.filter((item) => item.status === "ausente").length;
+    const sampleNames = unavailable
+      .slice(0, 4)
+      .map((item) => playerDisplayName(item.player))
+      .join(", ");
+    const extra = unavailable.length > 4 ? ` +${unavailable.length - 4}` : "";
+
+    return `
+      <div class="match-presence-warning" role="status">
+        <span aria-hidden="true">!</span>
+        <div>
+          <strong>Faça a chamada antes de iniciar</strong>
+          <p>${escapeHtml(unavailable.length)} jogador${unavailable.length === 1 ? "" : "es"} dos times ${unavailable.length === 1 ? "está" : "estão"} fora da lista de presentes. ${lateCount ? `${lateCount} atrasado${lateCount === 1 ? "" : "s"}. ` : ""}${absentCount ? `${absentCount} ausente${absentCount === 1 ? "" : "s"}. ` : ""}</p>
+          <small>${escapeHtml(sampleNames)}${escapeHtml(extra)}</small>
+        </div>
+        <button type="button" data-pelada-action="show-detail-presencas">Abrir Presenças</button>
+      </div>
+    `;
+  }
+
   function renderGameSetup(pelada, jogadores, presets = []) {
     if (!hasPermission("jogos:iniciar")) return "";
 
@@ -6468,6 +6526,7 @@
           <input type="hidden" name="timeACor" value="${escapeHtml(draft.A.cor)}" />
           <input type="hidden" name="timeBNome" value="${escapeHtml(draft.B.nome)}" />
           <input type="hidden" name="timeBCor" value="${escapeHtml(draft.B.cor)}" />
+          ${renderMatchPresenceWarning(pelada, presets, jogadores)}
           <div class="matchup-selectors">
             <label><span>Lado A</span><select name="presetAId" data-match-preset="A">${renderPresetOptions(presets, presetA?.id, presetB?.id)}</select></label>
             <span class="matchup-versus">VS</span>
@@ -13960,10 +14019,95 @@
     window.location.reload();
   }
 
+  function wakeLockSupported() {
+    return Boolean(navigator.wakeLock?.request);
+  }
+
+  function updateWakeLockButton() {
+    const button = $("#wake-lock-toggle");
+    const label = $("#wake-lock-label");
+    const status = $("#wake-lock-status");
+
+    if (!button || !label || !status) {
+      return;
+    }
+
+    const supported = wakeLockSupported();
+    button.classList.toggle("is-active", Boolean(state.wakeLock));
+    button.classList.toggle("is-muted", !state.keepScreenAwake || !supported);
+    button.setAttribute("aria-pressed", String(Boolean(state.keepScreenAwake)));
+    label.textContent = state.keepScreenAwake ? "Tela sempre ligada" : "Tela pode bloquear";
+
+    if (!supported) {
+      status.textContent = "Seu navegador não permite manter a tela ligada.";
+    } else if (state.wakeLock) {
+      status.textContent = "Ativa enquanto o app estiver aberto.";
+    } else if (state.keepScreenAwake) {
+      status.textContent = state.wakeLockMessage || "Toque no app para ativar.";
+    } else {
+      status.textContent = "Desativado nas configurações.";
+    }
+  }
+
+  async function requestScreenWakeLock() {
+    if (!state.keepScreenAwake || state.wakeLock || document.visibilityState !== "visible") {
+      updateWakeLockButton();
+      return;
+    }
+
+    if (!wakeLockSupported()) {
+      state.wakeLockMessage = "Seu navegador não permite manter a tela ligada.";
+      updateWakeLockButton();
+      return;
+    }
+
+    try {
+      state.wakeLock = await navigator.wakeLock.request("screen");
+      state.wakeLockMessage = "Tela mantida ligada.";
+      state.wakeLock.addEventListener("release", () => {
+        state.wakeLock = null;
+        updateWakeLockButton();
+      });
+    } catch (error) {
+      console.warn("Wake Lock indisponível", error);
+      state.wakeLock = null;
+      state.wakeLockMessage = "Toque no app para tentar manter a tela ligada.";
+    }
+
+    updateWakeLockButton();
+  }
+
+  async function releaseScreenWakeLock() {
+    const wakeLock = state.wakeLock;
+    state.wakeLock = null;
+
+    if (wakeLock) {
+      try {
+        await wakeLock.release();
+      } catch (error) {
+        console.warn("Falha ao liberar Wake Lock", error);
+      }
+    }
+
+    updateWakeLockButton();
+  }
+
+  async function setKeepScreenAwake(enabled) {
+    state.keepScreenAwake = Boolean(enabled);
+    localStorage.setItem(KEEP_SCREEN_AWAKE_STORAGE_KEY, state.keepScreenAwake ? "1" : "0");
+
+    if (state.keepScreenAwake) {
+      await requestScreenWakeLock();
+    } else {
+      await releaseScreenWakeLock();
+    }
+  }
+
   function openSettingsDrawer() {
     $("#settings-drawer")?.setAttribute("aria-hidden", "false");
     $("#settings-drawer-backdrop")?.removeAttribute("hidden");
     document.body.classList.add("settings-open");
+    updateWakeLockButton();
   }
 
   function closeSettingsDrawer() {
@@ -14013,6 +14157,9 @@
     $("#settings-drawer-close")?.addEventListener("click", closeSettingsDrawer);
     $("#settings-drawer-backdrop")?.addEventListener("click", closeSettingsDrawer);
     $("#drawer-sync-option")?.addEventListener("click", syncNow);
+    $("#wake-lock-toggle")?.addEventListener("click", async () => {
+      await setKeepScreenAwake(!state.keepScreenAwake);
+    });
     $("#drawer-statistics-option")?.addEventListener("click", async () => {
       state.selectedStatsPlayerId = null;
       state.selectedProfileTab = "resumo";
@@ -14116,8 +14263,15 @@
     window.addEventListener("offline", updateNetworkStatus);
     window.addEventListener("focus", () => syncNow());
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") syncNow();
+      if (document.visibilityState === "visible") {
+        syncNow();
+        requestScreenWakeLock();
+      } else {
+        releaseScreenWakeLock();
+      }
     });
+    window.addEventListener("pointerdown", () => requestScreenWakeLock(), { once: true, passive: true });
+    window.addEventListener("keydown", () => requestScreenWakeLock(), { once: true });
     window.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
         closeSettingsDrawer();
@@ -14184,6 +14338,8 @@
       restoreAuthState(await getRecord("configs", "app"));
       $("#db-status").textContent = "Banco local pronto";
       await renderCurrentSection();
+      updateWakeLockButton();
+      requestScreenWakeLock();
       finishAppBoot();
       await registerServiceWorker();
       await syncNow();
