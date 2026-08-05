@@ -21409,3 +21409,102 @@ body[data-section="peladas"] .start-next-game-button[aria-disabled="true"] small
     font-size: 0.6rem;
   }
 }
+
+.live-next-team-card {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(255, 90, 0, 0.18);
+  border-radius: 20px;
+  padding: 14px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.11), transparent 13rem),
+    linear-gradient(145deg, rgba(21, 21, 21, 0.94), rgba(7, 7, 7, 0.97));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+.live-next-team-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.live-next-team-card h3 {
+  margin: 3px 0 0;
+  color: #fff;
+  font-size: 1.05rem;
+}
+
+.live-next-team-card header button {
+  min-height: 34px;
+  border: 1px solid rgba(255, 90, 0, 0.32);
+  border-radius: 999px;
+  padding: 6px 12px;
+  color: #ff9a55;
+  background: rgba(255, 90, 0, 0.08);
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
+.live-next-team-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.live-next-team-list span {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  justify-items: center;
+  gap: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 9px 5px 8px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.live-next-team-list span > i {
+  position: absolute;
+  top: 5px;
+  left: 6px;
+  color: var(--orange);
+  font-size: 0.58rem;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.live-next-team-list strong {
+  max-width: 100%;
+  overflow: hidden;
+  color: #d8d8d8;
+  font-size: 0.58rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live-next-team-list p,
+.live-next-team-card > small {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.live-next-team-card > small {
+  color: rgba(255, 255, 255, 0.52);
+}
+
+@media (max-width: 520px) {
+  .live-next-team-card {
+    padding: 12px;
+  }
+
+  .live-next-team-list {
+    grid-template-columns: repeat(5, minmax(44px, 1fr));
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+}

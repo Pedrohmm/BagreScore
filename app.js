@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.2";
+  const APP_VERSION = "1.3.3";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -5961,12 +5961,12 @@
     return `
       <section class="pelada-presence-panel">
         <header class="presence-summary-header">
-          <div><span class="panel-kicker">Organização</span><h3>Presenças e fila</h3></div>
+          <div><span class="panel-kicker">Organização</span><h3>Presenças e Time da vez</h3></div>
           <div class="presence-summary-metrics">
             <span><strong>${escapeHtml(presentCount)}</strong><small>Presentes</small></span>
             <span><strong>${escapeHtml(lateCount)}</strong><small>Atrasados</small></span>
             <span><strong>${escapeHtml(absentCount)}</strong><small>Ausentes</small></span>
-            <span><strong>${escapeHtml(queue.length)}</strong><small>Na fila</small></span>
+            <span><strong>${escapeHtml(queue.length)}</strong><small>Time da vez</small></span>
           </div>
         </header>
 
@@ -6005,11 +6005,11 @@
         ${renderPlayerAvatar(player, "player-avatar small")}
         <span>
           <strong>${escapeHtml(playerDisplayName(player))}</strong>
-          <small>${escapeHtml(player.posicaoPrincipal || (goalkeeper ? "GK" : "Linha"))}${queuePosition ? ` · ${queuePosition}º na fila` : ""}</small>
+          <small>${escapeHtml(player.posicaoPrincipal || (goalkeeper ? "GK" : "Linha"))}${queuePosition ? ` · ${queuePosition}º no Time da vez` : ""}</small>
         </span>
         <div class="presence-row-actions">
           ${canManage && present && !goalkeeper ? `
-            <button type="button" data-pelada-action="toggle-player-queue" data-player-id="${escapeHtml(player.id)}" class="${queuePosition ? "is-queued" : ""}">${queuePosition ? "Na fila" : "Fila"}</button>
+            <button type="button" data-pelada-action="toggle-player-queue" data-player-id="${escapeHtml(player.id)}" class="${queuePosition ? "is-queued" : ""}">${queuePosition ? "No Time da vez" : "Time da vez"}</button>
           ` : ""}
           ${canManage ? `
             <select class="presence-status-select is-${escapeHtml(status)}" data-player-presence-id="${escapeHtml(player.id)}" aria-label="Presença de ${escapeHtml(playerDisplayName(player))}">
@@ -6530,11 +6530,11 @@
           </div>
           ${dynamicMode ? `
             <div class="waiting-queue player-waiting-queue ${dynamicQueue.length ? "" : "is-empty"}">
-              <span>Fila de jogadores</span>
+              <span>Time da vez</span>
               ${dynamicQueue.length
                 ? dynamicQueue.map((id, index) => `<strong><i>${index + 1}</i>${escapeHtml(shortPlayerName(playerById.get(id) || {}))}</strong>`).join("")
-                : `<small>Todos os presentes já estão no próximo confronto.</small>`}
-              ${Number(pelada?.proximoConfronto?.vagasDesafiante || 0) > 0 ? `<em>Faltam ${escapeHtml(pelada.proximoConfronto.vagasDesafiante)} jogadores. Complete com atletas do time perdedor.</em>` : ""}
+                : `<small>Monte o Time da vez em Presenças enquanto o jogo atual acontece.</small>`}
+              ${Number(pelada?.proximoConfronto?.vagasDesafiante || 0) > 0 ? `<em>Faltam ${escapeHtml(pelada.proximoConfronto.vagasDesafiante)} jogadores. O app pode aproveitar até 2 atletas do time perdedor.</em>` : ""}
             </div>
           ` : queueIds.length ? `
             <div class="waiting-queue">
@@ -8833,6 +8833,7 @@
       <div class="live-screen" data-game-id="${escapeHtml(jogo.id)}">
         ${renderLiveScoreCard(bundle, remaining, gameNumber)}
         ${renderLivePitch(bundle)}
+        ${renderLiveNextTeamCard(bundle)}
         ${state.liveMessage ? `
           <p class="live-message-bar" id="live-message">
             <span class="live-message-icon" aria-hidden="true">
@@ -8980,6 +8981,45 @@
         <span>${escapeHtml(initials)}</span>
         <strong>${escapeHtml(name)}</strong>
       </div>
+    `;
+  }
+
+  function renderLiveNextTeamCard(bundle) {
+    const { pelada, playerById, playersA, playersB } = bundle;
+    if (!pelada) return "";
+
+    const occupied = new Set(
+      [...(playersA || []), ...(playersB || [])]
+        .filter((player) => player?.id && isLineupPlayer(player))
+        .map((player) => player.id)
+    );
+    const availablePlayers = Array.from(playerById.values());
+    const nextTeamIds = normalizePeladaPlayerQueue(pelada, availablePlayers, [...occupied]).slice(0, 5);
+    const nextPlayers = nextTeamIds.map((id) => playerById.get(id)).filter(Boolean);
+    const missing = Math.max(0, 5 - nextPlayers.length);
+
+    return `
+      <section class="live-next-team-card ${nextPlayers.length ? "" : "is-empty"}">
+        <header>
+          <div>
+            <span class="panel-kicker">Próximo desafiante</span>
+            <h3>Time da vez</h3>
+          </div>
+          <button type="button" data-live-action="edit-next-team" data-pelada-id="${escapeHtml(pelada.id)}">Editar</button>
+        </header>
+        <div class="live-next-team-list">
+          ${nextPlayers.length
+            ? nextPlayers.map((player, index) => `
+              <span>
+                <i>${escapeHtml(index + 1)}</i>
+                ${renderPlayerAvatar(player, "player-avatar small")}
+                <strong>${escapeHtml(shortPlayerName(player))}</strong>
+              </span>
+            `).join("")
+            : `<p>Monte o Time da vez em Presenças enquanto a partida acontece.</p>`}
+        </div>
+        ${missing ? `<small>Faltam ${escapeHtml(missing)}. Se precisar, ao finalizar o jogo o app aproveita até 2 jogadores do time perdedor.</small>` : `<small>Pronto para enfrentar o vencedor do jogo atual.</small>`}
+      </section>
     `;
   }
 
@@ -9996,6 +10036,17 @@
           await switchSection("peladas", { peladaId });
         } else {
           await switchSection("peladas", { peladasView: "gerenciar" });
+        }
+        return;
+      }
+
+      if (action === "edit-next-team") {
+        const peladaId = actionButton.dataset.peladaId || "";
+        state.selectedGameSummaryId = null;
+        state.peladaDetailView = "presencas";
+
+        if (peladaId) {
+          await switchSection("peladas", { peladaId });
         }
         return;
       }
@@ -11042,7 +11093,7 @@
       const winnerStaysOnA = winningTeamKey === "A";
       const winnerName = teamNameFromGame(jogo, winningTeamKey);
       const challengerName = modo === "fila"
-        ? "Time da fila"
+        ? "Time da vez"
         : nextOpponentPreset?.nome || "Desafiante";
 
       return {
@@ -11069,16 +11120,19 @@
     };
 
     if (!hasThreeCompleteTeams) {
-      const challengerFromQueue = waitingBefore.slice(0, 5);
-      const challengerLine = uniqueIds(challengerFromQueue).slice(0, 5);
+      const outsideChallenger = waitingBefore.slice(0, 5);
+      const missingFromOutside = Math.max(0, 5 - outsideChallenger.length);
+      const loserFill = loserLine.slice(0, Math.min(2, missingFromOutside));
+      const challengerLine = uniqueIds([...outsideChallenger, ...loserFill]).slice(0, 5);
       const nextPlayerQueue = uniqueIds([
         ...waitingBefore.filter((playerId) => !challengerLine.includes(playerId)),
-        ...loserLine,
+        ...loserLine.filter((playerId) => !loserFill.includes(playerId)),
       ]);
 
       return buildSideAwareMatchup("fila", challengerLine, {
         filaJogadores: nextPlayerQueue,
         vagasDesafiante: Math.max(0, 5 - challengerLine.length),
+        jogadoresAproveitadosDoPerdedor: loserFill,
       });
     }
 
