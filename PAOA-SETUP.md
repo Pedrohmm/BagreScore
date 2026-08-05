@@ -210,6 +210,19 @@ Não é necessário atualizar o `Code.gs` para a versão 1.2.9. Publique os arqu
 
 Não é necessário atualizar o `Code.gs` para a versão 1.3.0. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.3.6 — confronto direto e Time da vez automático
+
+- a aba **Confrontos** não exige mais a criação prévia de dois times;
+- o primeiro confronto abre com os lados A e B vazios, sem jogadores ou goleiros selecionados;
+- jogadores e goleiros são escolhidos diretamente entre os atletas presentes;
+- times salvos continuam disponíveis, mas agora funcionam apenas como atalhos opcionais;
+- ao iniciar a partida, até cinco jogadores de linha presentes que ficaram fora formam automaticamente o **Time da vez**;
+- o Time da vez continua editável durante o jogo e será preparado para enfrentar o vencedor;
+- a rotação por vencedor também funciona em peladas que nunca tiveram times salvos;
+- peladas, jogos e times criados nas versões anteriores continuam compatíveis.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.3.6. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.

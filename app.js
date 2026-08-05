@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.5";
+  const APP_VERSION = "1.3.6";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -705,6 +705,7 @@
     },
     matchPresetIds: { A: "", B: "" },
     matchPersist: { A: false, B: false },
+    matchSetupKey: "",
     statsFilters: {
       periodo: "all",
       peladaId: "",
@@ -2401,6 +2402,7 @@
     state.gameDraft = createEmptyGameDraft();
     state.matchPresetIds = { A: "", B: "" };
     state.matchPersist = { A: false, B: false };
+    state.matchSetupKey = "";
   }
 
   function isGoalkeeperCandidate(player) {
@@ -2574,27 +2576,44 @@
     };
   }
 
+  function savedMatchupSideToDraft(savedMatchup, sideKey) {
+    const fallback = createEmptyGameDraft()[sideKey];
+    const goalkeeper = getSavedMatchupGoalkeeper(savedMatchup, sideKey);
+    return {
+      nome: String(sideKey === "A" ? savedMatchup?.nomeA || "" : savedMatchup?.nomeB || "").trim() || fallback.nome,
+      cor: (sideKey === "A" ? savedMatchup?.corA : savedMatchup?.corB) || fallback.cor,
+      linha: uniqueIds(sideKey === "A" ? savedMatchup?.linhaA || [] : savedMatchup?.linhaB || []).slice(0, 5),
+      goleiro: goalkeeper.goleiro,
+      goleiroReservaOperadorId: goalkeeper.goleiroReservaOperadorId,
+    };
+  }
+
   function hydrateMatchDraft(presetA, presetB, savedMatchup = null) {
     state.matchPresetIds = {
-      A: presetA?.id || "",
-      B: presetB?.id || "",
+      A: presetA?.id || savedMatchup?.timeAId || "",
+      B: presetB?.id || savedMatchup?.timeBId || "",
     };
     state.matchPersist = { A: false, B: false };
     state.gameDraft = {
-      A: teamPresetToDraft(presetA, "A", savedMatchup),
-      B: teamPresetToDraft(presetB, "B", savedMatchup),
+      A: presetA
+        ? teamPresetToDraft(presetA, "A", savedMatchup)
+        : savedMatchup
+          ? savedMatchupSideToDraft(savedMatchup, "A")
+          : createEmptyGameDraft().A,
+      B: presetB
+        ? teamPresetToDraft(presetB, "B", savedMatchup)
+        : savedMatchup
+          ? savedMatchupSideToDraft(savedMatchup, "B")
+          : createEmptyGameDraft().B,
     };
   }
 
   function replaceMatchPreset(teamKey, preset, pelada = null) {
     const currentDraft = state.gameDraft[teamKey] || createEmptyGameDraft()[teamKey];
     state.matchPresetIds[teamKey] = preset?.id || "";
-    state.gameDraft[teamKey] = teamPresetToDraft(
-      preset,
-      teamKey,
-      pelada?.proximoConfronto || null,
-      currentDraft
-    );
+    state.gameDraft[teamKey] = preset
+      ? teamPresetToDraft(preset, teamKey, pelada?.proximoConfronto || null, currentDraft)
+      : createEmptyGameDraft()[teamKey];
     state.matchPersist[teamKey] = false;
   }
 
@@ -2625,30 +2644,6 @@
       total: lineCount,
       complete: lineCount === 5,
     };
-  }
-
-  function applyDefaultGoalkeepersToDraft(pelada, players = []) {
-    const candidates = getPresentPlayersForPelada(pelada, players).filter(isGoalkeeperCandidate);
-    const candidateIds = new Set(candidates.map((player) => player.id));
-    const regularGoalkeepers = candidates.filter((player) => !isReserveGoalkeeperPlayer(player));
-    const reserve = candidates.find(isReserveGoalkeeperPlayer) || null;
-    const currentA = candidateIds.has(state.gameDraft.A.goleiro) ? state.gameDraft.A.goleiro : "";
-    const currentB = candidateIds.has(state.gameDraft.B.goleiro) ? state.gameDraft.B.goleiro : "";
-
-    state.gameDraft.A.goleiro = currentA || regularGoalkeepers[0]?.id || reserve?.id || "";
-    state.gameDraft.B.goleiro = currentB && currentB !== state.gameDraft.A.goleiro
-      ? currentB
-      : regularGoalkeepers.find((player) => player.id !== state.gameDraft.A.goleiro)?.id ||
-        (reserve?.id !== state.gameDraft.A.goleiro ? reserve?.id || "" : "");
-
-    ["A", "B"].forEach((teamKey) => {
-      const goalkeeper = players.find((player) => player.id === state.gameDraft[teamKey].goleiro);
-      if (!isReserveGoalkeeperPlayer(goalkeeper)) {
-        state.gameDraft[teamKey].goleiroReservaOperadorId = "";
-      } else if (!state.gameDraft[teamKey].goleiroReservaOperadorId) {
-        state.gameDraft[teamKey].goleiroReservaOperadorId = pelada?.goleiroReservaAtualId || "";
-      }
-    });
   }
 
   function setMatchGoalkeeper(teamKey, goalkeeperId, reserveOperatorId, players = []) {
@@ -6067,7 +6062,7 @@
             </span>
           `).join("")}
         </div>
-        <p>${complete ? "Pronto para enfrentar o vencedor quando este time for chamado." : "Monte manualmente. O app não completa este time automaticamente."}</p>
+        <p>${complete ? "Pronto para enfrentar o vencedor quando este time for chamado." : "Os jogadores disponíveis que estão fora do jogo entram aqui automaticamente. Você ainda pode ajustar o time."}</p>
       </section>
     `;
   }
@@ -6490,8 +6485,8 @@
               <span aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM16 10a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM3 19c0-3 2.1-5 5-5s5 2 5 5M13 15c.8-.7 1.8-1 3-1 2.8 0 4.5 1.9 4.5 4.5"/></svg>
               </span>
-              <div><h3>Crie os times antes de começar</h3><p>Adicione os jogadores de linha. Os goleiros serão escolhidos em cada confronto.</p></div>
-              ${canManage ? `<button class="primary-button" type="button" data-pelada-action="add-team-preset">Criar primeiro time</button>` : ""}
+              <div><h3>Nenhum time salvo</h3><p>Times salvos são opcionais. Você pode montar cada confronto diretamente na aba Confrontos.</p></div>
+              ${canManage ? `<button class="primary-button" type="button" data-pelada-action="add-team-preset">Criar time reutilizável</button>` : ""}
             </div>`}
       </section>
     `;
@@ -6528,14 +6523,24 @@
     `;
   }
 
-  function ensureMatchDraftForPresets(pelada, presets) {
+  function ensureMatchDraftForSetup(pelada, presets) {
     const presetById = new Map(presets.map((preset) => [preset.id, preset]));
-    const currentA = presetById.get(state.matchPresetIds.A);
-    const currentB = presetById.get(state.matchPresetIds.B);
+    const savedMatchup = pelada?.proximoConfronto || null;
+    const setupKey = `${pelada?.id || ""}:${savedMatchup?.jogoOrigemId || "primeiro-confronto"}`;
 
-    if (!currentA || !currentB || currentA.id === currentB.id) {
-      const suggested = getSuggestedMatchup(pelada, presets);
-      hydrateMatchDraft(suggested.presetA, suggested.presetB, pelada?.proximoConfronto || null);
+    if (state.matchSetupKey !== setupKey) {
+      if (savedMatchup?.timeAId || savedMatchup?.timeBId) {
+        hydrateMatchDraft(
+          presetById.get(savedMatchup.timeAId) || null,
+          presetById.get(savedMatchup.timeBId) || null,
+          savedMatchup
+        );
+      } else {
+        state.gameDraft = createEmptyGameDraft();
+        state.matchPresetIds = { A: "", B: "" };
+        state.matchPersist = { A: false, B: false };
+      }
+      state.matchSetupKey = setupKey;
     }
 
     return {
@@ -6558,22 +6563,8 @@
       `;
     }
 
-    if (presets.length < 2) {
-      return `
-        <section class="data-card game-setup-card next-match-card is-locked">
-          <div class="empty-state compact-empty">
-            <span class="panel-kicker">Próximo jogo</span>
-            <h3>Faltam times para começar</h3>
-            <p>Crie pelo menos dois times da pelada. O confronto será carregado automaticamente.</p>
-            ${hasPermission("times:montar") ? `<button class="primary-button compact-button" type="button" data-pelada-action="show-detail-times">Abrir times</button>` : ""}
-          </div>
-        </section>
-      `;
-    }
-
     const presentPlayers = getPresentPlayersForPelada(pelada, jogadores);
-    const { presetA, presetB } = ensureMatchDraftForPresets(pelada, presets);
-    applyDefaultGoalkeepersToDraft(pelada, presentPlayers);
+    const { presetA, presetB } = ensureMatchDraftForSetup(pelada, presets);
     const draft = normalizeGameDraft(presentPlayers);
     const suggested = getSuggestedMatchup(pelada, presets);
     const queueIds = uniqueIds(suggested.fila).filter((id) => id !== presetA?.id && id !== presetB?.id);
@@ -6598,21 +6589,27 @@
           <input type="hidden" name="timeACor" value="${escapeHtml(draft.A.cor)}" />
           <input type="hidden" name="timeBNome" value="${escapeHtml(draft.B.nome)}" />
           <input type="hidden" name="timeBCor" value="${escapeHtml(draft.B.cor)}" />
-          <div class="matchup-selectors">
-            <label><span>Lado A</span><select name="presetAId" data-match-preset="A">${renderPresetOptions(presets, presetA?.id, presetB?.id)}</select></label>
-            <span class="matchup-versus">VS</span>
-            <label><span>Lado B</span><select name="presetBId" data-match-preset="B">${renderPresetOptions(presets, presetB?.id, presetA?.id)}</select></label>
-          </div>
+          ${presets.length ? `
+            <div class="matchup-selectors optional-team-selectors">
+              <label><span>Lado A · time salvo opcional</span><select name="presetAId" data-match-preset="A">${renderPresetOptions(presets, state.matchPresetIds.A, state.matchPresetIds.B)}</select></label>
+              <span class="matchup-versus">VS</span>
+              <label><span>Lado B · time salvo opcional</span><select name="presetBId" data-match-preset="B">${renderPresetOptions(presets, state.matchPresetIds.B, state.matchPresetIds.A)}</select></label>
+            </div>
+          ` : `
+            <div class="matchup-selectors direct-matchup-labels" aria-label="Lados do confronto">
+              <strong>Lado A</strong><span class="matchup-versus">VS</span><strong>Lado B</strong>
+            </div>
+          `}
           <div class="match-lineup-grid">
-            ${renderMatchLineupCard("A", draft.A, presentPlayers, state.matchPersist.A)}
-            ${renderMatchLineupCard("B", draft.B, presentPlayers, state.matchPersist.B)}
+            ${renderMatchLineupCard("A", draft.A, presentPlayers, state.matchPersist.A, Boolean(presetA))}
+            ${renderMatchLineupCard("B", draft.B, presentPlayers, state.matchPersist.B, Boolean(presetB))}
           </div>
           ${dynamicMode ? `
             <div class="waiting-queue player-waiting-queue ${dynamicQueue.length ? "" : "is-empty"}">
-              <span>Time da vez</span>
+              <span>Próximo Time da vez</span>
               ${dynamicQueue.length
                 ? dynamicQueue.map((id, index) => `<strong><i>${index + 1}</i>${escapeHtml(shortPlayerName(playerById.get(id) || {}))}</strong>`).join("")
-                : `<small>Monte o Time da vez em Presenças enquanto o jogo atual acontece.</small>`}
+                : `<small>Será formado automaticamente pelos jogadores que ficarem fora quando este confronto começar.</small>`}
               ${Number(pelada?.proximoConfronto?.vagasDesafiante || 0) > 0 ? `<em>Faltam ${escapeHtml(pelada.proximoConfronto.vagasDesafiante)} jogadores no desafiante. Complete manualmente antes de iniciar.</em>` : ""}
             </div>
           ` : queueIds.length ? `
@@ -6620,7 +6617,7 @@
               <span>Na espera</span>
               ${queueIds.map((id, index) => `<strong><i>${index + 1}</i>${escapeHtml(presetById.get(id)?.nome || "Time")}</strong>`).join("")}
             </div>
-          ` : `<div class="waiting-queue is-empty"><span>Sem time na espera</span></div>`}
+          ` : `<div class="waiting-queue is-empty"><span>Time da vez</span><small>Ao iniciar, os jogadores presentes que ficarem fora formarão automaticamente o próximo desafiante.</small></div>`}
           <div class="form-actions">
             <button class="primary-button big-touch start-next-game-button" type="submit" ${readiness.complete ? "" : "disabled"} aria-disabled="${readiness.complete ? "false" : "true"}">
               <span>${readiness.complete ? "Iniciar próximo jogo" : "Complete os times para iniciar"}</span><small>${escapeHtml(readiness.complete ? `${draft.A.nome} × ${draft.B.nome}` : readiness.detail)}</small>
@@ -6632,14 +6629,16 @@
   }
 
   function renderPresetOptions(presets, selectedId, blockedId) {
-    return presets.map((preset) => `
+    return `
+      <option value="" ${selectedId ? "" : "selected"}>Montar manualmente</option>
+    ` + presets.map((preset) => `
       <option value="${escapeHtml(preset.id)}" ${preset.id === selectedId ? "selected" : ""} ${preset.id === blockedId ? "disabled" : ""}>
         ${escapeHtml(preset.nome || "Time")}
       </option>
     `).join("");
   }
 
-  function renderMatchLineupCard(teamKey, draft, jogadores, persistChanges) {
+  function renderMatchLineupCard(teamKey, draft, jogadores, persistChanges, canPersist = false) {
     const playerById = new Map(jogadores.map((player) => [player.id, player]));
     const goalkeeper = playerById.get(draft.goleiro);
     const reserveOperator = playerById.get(draft.goleiroReservaOperadorId);
@@ -6663,10 +6662,12 @@
           <button type="button" data-pelada-action="open-lineup" data-team="${teamKey}">Editar escalação</button>
           <button type="button" data-pelada-action="open-goalkeeper" data-team="${teamKey}">Definir goleiro</button>
         </div>
-        <label class="persist-lineup-toggle">
-          <input type="checkbox" name="persist${teamKey}" value="1" data-persist-team="${teamKey}" ${persistChanges ? "checked" : ""} />
-          <span><strong>Manter nos próximos jogos</strong></span>
-        </label>
+        ${canPersist ? `
+          <label class="persist-lineup-toggle">
+            <input type="checkbox" name="persist${teamKey}" value="1" data-persist-team="${teamKey}" ${persistChanges ? "checked" : ""} />
+            <span><strong>Atualizar time salvo</strong></span>
+          </label>
+        ` : ""}
       </article>
     `;
   }
@@ -7123,7 +7124,7 @@
           <div>
             <span>Time manual</span>
             <h3>${escapeHtml(time.nome)}</h3>
-            <p>Escolha até 5 jogadores de linha. O app não completa esse time automaticamente.</p>
+            <p>Os jogadores que ficam fora entram automaticamente. Ajuste aqui os 5 que enfrentarão o vencedor.</p>
           </div>
         </section>
         <div class="team-preset-basics">
@@ -7152,7 +7153,7 @@
             `;
           }).join("") : `<p class="presence-empty">Marque jogadores como presentes para montar o Time da vez.</p>`}
         </div>
-        <div class="team-preset-form-note"><strong>Controle manual</strong><span>${hasActiveGame ? "Quem está em campo fica bloqueado. Se precisar usar alguém do time perdedor, complete depois que o jogo acabar." : "Se faltarem jogadores, salve incompleto e complete depois. Nada será puxado do time perdedor sem você escolher."}</span></div>
+        <div class="team-preset-form-note"><strong>Ajuste livre</strong><span>${hasActiveGame ? "Quem está em campo fica bloqueado. Você pode trocar ou ordenar os jogadores que estão esperando." : "Se faltarem jogadores, salve incompleto e complete quando eles estiverem presentes."}</span></div>
         <div class="form-actions">
           <button class="primary-button big-touch" type="submit">Salvar Time da vez</button>
           <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
@@ -7812,10 +7813,8 @@
           getRecord("peladas", state.selectedPeladaId),
         ]);
         const preset = presets.find((item) => item.id === presetSelect.value);
-        if (preset) {
-          replaceMatchPreset(teamKey, preset, pelada);
-          await renderCurrentSection();
-        }
+        replaceMatchPreset(teamKey, preset || null, pelada);
+        await renderCurrentSection();
       }
     });
 
@@ -8738,7 +8737,12 @@
       data.timeA.goleiroReservaOperadorId,
       data.timeB.goleiroReservaOperadorId,
     ]);
-    const nextTimeDaVez = normalizePeladaPlayerQueue(pelada, jogadores, occupied);
+    const occupiedSet = new Set(occupied);
+    const currentTimeDaVez = normalizePeladaPlayerQueue(pelada, jogadores, occupied);
+    const outsidePlayers = getPresentLinePlayers(pelada, jogadores)
+      .map((player) => player.id)
+      .filter((playerId) => !occupiedSet.has(playerId));
+    const nextTimeDaVez = uniqueIds([...currentTimeDaVez, ...outsidePlayers]).slice(0, 5);
     const reserveOperatorId = data.timeA.goleiroReservaOperadorId || data.timeB.goleiroReservaOperadorId || "";
 
     return {
@@ -11308,7 +11312,7 @@
   }
 
   function buildNextRotation(pelada, jogo, context = {}) {
-    if (!pelada || !jogo.presetAId || !jogo.presetBId) return null;
+    if (!pelada) return null;
     const presets = context.presets || [];
     const players = context.players || [];
     const gameTeams = context.gameTeams || [];
@@ -11371,11 +11375,15 @@
 
     const winningTeamKey = getWinningTeamKey(jogo);
     if (!winningTeamKey) return null;
-    const winnerId = winningTeamKey === "A" ? jogo.presetAId : jogo.presetBId;
-    const loserId = winningTeamKey === "A" ? jogo.presetBId : jogo.presetAId;
+    const identityA = jogo.presetAId || gameTeamBySide.get("A")?.id || jogo.timeA?.id || `${jogo.id}-A`;
+    const identityB = jogo.presetBId || gameTeamBySide.get("B")?.id || jogo.timeB?.id || `${jogo.id}-B`;
+    const winnerId = winningTeamKey === "A" ? identityA : identityB;
+    const loserId = winningTeamKey === "A" ? identityB : identityA;
     const queue = uniqueIds(jogo.filaTimes || []).filter((id) => id !== winnerId && id !== loserId);
-    const nextOpponentId = queue.shift() || loserId;
-    const nextQueue = nextOpponentId === loserId ? queue : [...queue, loserId];
+    const nextOpponentId = queue.shift() || (presets.length ? loserId : `time-da-vez:${jogo.id}`);
+    const nextQueue = presets.length
+      ? nextOpponentId === loserId ? queue : [...queue, loserId]
+      : [];
     const completePresetLines = presets
       .map((preset) => uniqueIds(preset.linha || []).filter((playerId) => presentIds.has(playerId)))
       .filter((line) => line.length === 5);
