@@ -223,6 +223,17 @@ Não é necessário atualizar o `Code.gs` para a versão 1.3.0. Publique os arqu
 
 Não é necessário atualizar o `Code.gs` para a versão 1.3.6. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.3.7 — identidade dos times e Time da vez manual
+
+- o nome e a cor dos dois times podem ser editados diretamente no confronto;
+- os nomes editáveis aparecem alinhados horizontalmente, separados por **VS**;
+- o título duplicado do confronto e o aviso inferior sobre a próxima equipe foram removidos;
+- o aplicativo não preenche mais automaticamente o **Time da vez**;
+- durante a partida ao vivo, o organizador monta manualmente o Time da vez apenas com jogadores que estão fora de campo;
+- o vencedor continua carregado automaticamente para enfrentar o Time da vez selecionado.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.3.7. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.

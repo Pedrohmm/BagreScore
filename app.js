@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.6";
+  const APP_VERSION = "1.3.7";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -2741,6 +2741,24 @@
     state.gameDraft.A.cor = form.elements.timeACor?.value || "#ff5a00";
     state.gameDraft.B.nome = String(form.elements.timeBNome?.value || "Time B").trim() || "Time B";
     state.gameDraft.B.cor = form.elements.timeBCor?.value || "#4aa3df";
+  }
+
+  function updateGameSetupIdentityPreview(form = $("#game-form")) {
+    if (!form) return;
+    syncGameDraftFromForm(form);
+
+    ["A", "B"].forEach((teamKey) => {
+      const draft = state.gameDraft[teamKey];
+      const identity = form.querySelector(`[data-match-identity="${teamKey}"]`);
+      const card = form.querySelector(`[data-match-lineup-card="${teamKey}"]`);
+      identity?.style.setProperty("--team-color", draft.cor);
+      card?.style.setProperty("--team-color", draft.cor);
+      const cardName = card?.querySelector("header strong");
+      if (cardName) cardName.textContent = draft.nome;
+    });
+
+    const summary = form.querySelector("[data-start-matchup-summary]");
+    if (summary) summary.textContent = `${state.gameDraft.A.nome} × ${state.gameDraft.B.nome}`;
   }
 
   function getDraftPlayers(teamKey, players, type = "all") {
@@ -6062,7 +6080,7 @@
             </span>
           `).join("")}
         </div>
-        <p>${complete ? "Pronto para enfrentar o vencedor quando este time for chamado." : "Os jogadores disponíveis que estão fora do jogo entram aqui automaticamente. Você ainda pode ajustar o time."}</p>
+        <p>${complete ? "Pronto para enfrentar o vencedor quando este time for chamado." : "Monte manualmente com os jogadores que estão fora do jogo."}</p>
       </section>
     `;
   }
@@ -6566,61 +6584,35 @@
     const presentPlayers = getPresentPlayersForPelada(pelada, jogadores);
     const { presetA, presetB } = ensureMatchDraftForSetup(pelada, presets);
     const draft = normalizeGameDraft(presentPlayers);
-    const suggested = getSuggestedMatchup(pelada, presets);
-    const queueIds = uniqueIds(suggested.fila).filter((id) => id !== presetA?.id && id !== presetB?.id);
-    const presetById = new Map(presets.map((preset) => [preset.id, preset]));
-    const playerById = new Map(presentPlayers.map((player) => [player.id, player]));
-    const dynamicQueue = normalizePeladaPlayerQueue(pelada, presentPlayers, [...draft.A.linha, ...draft.B.linha]);
-    const dynamicMode = normalizeToken(pelada?.proximoConfronto?.modo) === "fila";
     const readiness = getGameDraftReadiness(draft);
 
     return `
       <section class="data-card game-setup-card next-match-card ${readiness.complete ? "is-ready" : "is-incomplete"}">
         <div class="next-match-heading">
-          <div>
-            <span class="panel-kicker">Próximo confronto</span>
-            <h3>${escapeHtml(draft.A.nome)} <i>×</i> ${escapeHtml(draft.B.nome)}</h3>
-          </div>
+          <span class="panel-kicker">Próximo confronto</span>
           <span class="next-match-ready ${readiness.complete ? "is-ready" : "is-incomplete"}" title="${escapeHtml(readiness.detail || "Times completos")}"><i></i>${escapeHtml(readiness.label)}</span>
         </div>
         <form class="game-form" id="game-form" novalidate>
           <div class="form-errors" id="game-form-errors" hidden></div>
-          <input type="hidden" name="timeANome" value="${escapeHtml(draft.A.nome)}" />
-          <input type="hidden" name="timeACor" value="${escapeHtml(draft.A.cor)}" />
-          <input type="hidden" name="timeBNome" value="${escapeHtml(draft.B.nome)}" />
-          <input type="hidden" name="timeBCor" value="${escapeHtml(draft.B.cor)}" />
           ${presets.length ? `
             <div class="matchup-selectors optional-team-selectors">
               <label><span>Lado A · time salvo opcional</span><select name="presetAId" data-match-preset="A">${renderPresetOptions(presets, state.matchPresetIds.A, state.matchPresetIds.B)}</select></label>
               <span class="matchup-versus">VS</span>
               <label><span>Lado B · time salvo opcional</span><select name="presetBId" data-match-preset="B">${renderPresetOptions(presets, state.matchPresetIds.B, state.matchPresetIds.A)}</select></label>
             </div>
-          ` : `
-            <div class="matchup-selectors direct-matchup-labels" aria-label="Lados do confronto">
-              <strong>Lado A</strong><span class="matchup-versus">VS</span><strong>Lado B</strong>
-            </div>
-          `}
+          ` : ""}
+          <div class="matchup-selectors matchup-identity-editors" aria-label="Nomes e cores dos times">
+            ${renderMatchIdentityEditor("A", draft.A)}
+            <span class="matchup-versus">VS</span>
+            ${renderMatchIdentityEditor("B", draft.B)}
+          </div>
           <div class="match-lineup-grid">
             ${renderMatchLineupCard("A", draft.A, presentPlayers, state.matchPersist.A, Boolean(presetA))}
             ${renderMatchLineupCard("B", draft.B, presentPlayers, state.matchPersist.B, Boolean(presetB))}
           </div>
-          ${dynamicMode ? `
-            <div class="waiting-queue player-waiting-queue ${dynamicQueue.length ? "" : "is-empty"}">
-              <span>Próximo Time da vez</span>
-              ${dynamicQueue.length
-                ? dynamicQueue.map((id, index) => `<strong><i>${index + 1}</i>${escapeHtml(shortPlayerName(playerById.get(id) || {}))}</strong>`).join("")
-                : `<small>Será formado automaticamente pelos jogadores que ficarem fora quando este confronto começar.</small>`}
-              ${Number(pelada?.proximoConfronto?.vagasDesafiante || 0) > 0 ? `<em>Faltam ${escapeHtml(pelada.proximoConfronto.vagasDesafiante)} jogadores no desafiante. Complete manualmente antes de iniciar.</em>` : ""}
-            </div>
-          ` : queueIds.length ? `
-            <div class="waiting-queue">
-              <span>Na espera</span>
-              ${queueIds.map((id, index) => `<strong><i>${index + 1}</i>${escapeHtml(presetById.get(id)?.nome || "Time")}</strong>`).join("")}
-            </div>
-          ` : `<div class="waiting-queue is-empty"><span>Time da vez</span><small>Ao iniciar, os jogadores presentes que ficarem fora formarão automaticamente o próximo desafiante.</small></div>`}
           <div class="form-actions">
             <button class="primary-button big-touch start-next-game-button" type="submit" ${readiness.complete ? "" : "disabled"} aria-disabled="${readiness.complete ? "false" : "true"}">
-              <span>${readiness.complete ? "Iniciar próximo jogo" : "Complete os times para iniciar"}</span><small>${escapeHtml(readiness.complete ? `${draft.A.nome} × ${draft.B.nome}` : readiness.detail)}</small>
+              <span>${readiness.complete ? "Iniciar próximo jogo" : "Complete os times para iniciar"}</span><small ${readiness.complete ? "data-start-matchup-summary" : ""}>${escapeHtml(readiness.complete ? `${draft.A.nome} × ${draft.B.nome}` : readiness.detail)}</small>
             </button>
           </div>
         </form>
@@ -6638,6 +6630,15 @@
     `).join("");
   }
 
+  function renderMatchIdentityEditor(teamKey, draft) {
+    return `
+      <div class="matchup-team-identity" data-match-identity="${teamKey}" style="--team-color:${escapeHtml(draft.cor)}">
+        <input class="matchup-team-color" type="color" name="time${teamKey}Cor" value="${escapeHtml(draft.cor)}" aria-label="Cor do ${escapeHtml(draft.nome)}" title="Editar cor" />
+        <input class="matchup-team-name" type="text" name="time${teamKey}Nome" value="${escapeHtml(draft.nome)}" maxlength="28" aria-label="Nome do Time ${teamKey}" placeholder="Nome do time" />
+      </div>
+    `;
+  }
+
   function renderMatchLineupCard(teamKey, draft, jogadores, persistChanges, canPersist = false) {
     const playerById = new Map(jogadores.map((player) => [player.id, player]));
     const goalkeeper = playerById.get(draft.goleiro);
@@ -6646,7 +6647,7 @@
     const complete = linePlayers.length === 5 && Boolean(goalkeeper);
 
     return `
-      <article class="match-lineup-card is-${teamKey.toLowerCase()} ${complete ? "is-complete" : "is-incomplete"}" style="--team-color:${escapeHtml(draft.cor)}">
+      <article class="match-lineup-card is-${teamKey.toLowerCase()} ${complete ? "is-complete" : "is-incomplete"}" data-match-lineup-card="${teamKey}" style="--team-color:${escapeHtml(draft.cor)}">
         <header><span>Time ${teamKey}</span><strong>${escapeHtml(draft.nome)}</strong><small>${complete ? "6 jogadores" : `${linePlayers.length + (goalkeeper ? 1 : 0)}/6 · incompleto`}</small></header>
         <div class="match-lineup-goalkeeper">
           <small>GK</small>
@@ -7124,7 +7125,7 @@
           <div>
             <span>Time manual</span>
             <h3>${escapeHtml(time.nome)}</h3>
-            <p>Os jogadores que ficam fora entram automaticamente. Ajuste aqui os 5 que enfrentarão o vencedor.</p>
+            <p>Escolha manualmente até 5 jogadores que estão fora para enfrentar o vencedor.</p>
           </div>
         </section>
         <div class="team-preset-basics">
@@ -7153,7 +7154,7 @@
             `;
           }).join("") : `<p class="presence-empty">Marque jogadores como presentes para montar o Time da vez.</p>`}
         </div>
-        <div class="team-preset-form-note"><strong>Ajuste livre</strong><span>${hasActiveGame ? "Quem está em campo fica bloqueado. Você pode trocar ou ordenar os jogadores que estão esperando." : "Se faltarem jogadores, salve incompleto e complete quando eles estiverem presentes."}</span></div>
+        <div class="team-preset-form-note"><strong>Montagem manual</strong><span>${hasActiveGame ? "Quem está em campo fica bloqueado. Selecione somente quem está esperando." : "Se faltarem jogadores, salve incompleto e complete quando eles estiverem presentes."}</span></div>
         <div class="form-actions">
           <button class="primary-button big-touch" type="submit">Salvar Time da vez</button>
           <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
@@ -7796,7 +7797,7 @@
 
     peladaForm?.addEventListener("submit", handlePeladaFormSubmit);
     gameForm?.addEventListener("submit", handleGameFormSubmit);
-    gameForm?.addEventListener("input", () => syncGameDraftFromForm(gameForm));
+    gameForm?.addEventListener("input", () => updateGameSetupIdentityPreview(gameForm));
     gameForm?.addEventListener("change", async (event) => {
       syncGameDraftFromForm(gameForm);
       const presetSelect = event.target.closest("[data-match-preset]");
@@ -8737,12 +8738,7 @@
       data.timeA.goleiroReservaOperadorId,
       data.timeB.goleiroReservaOperadorId,
     ]);
-    const occupiedSet = new Set(occupied);
-    const currentTimeDaVez = normalizePeladaPlayerQueue(pelada, jogadores, occupied);
-    const outsidePlayers = getPresentLinePlayers(pelada, jogadores)
-      .map((player) => player.id)
-      .filter((playerId) => !occupiedSet.has(playerId));
-    const nextTimeDaVez = uniqueIds([...currentTimeDaVez, ...outsidePlayers]).slice(0, 5);
+    const nextTimeDaVez = normalizePeladaPlayerQueue(pelada, jogadores, occupied);
     const reserveOperatorId = data.timeA.goleiroReservaOperadorId || data.timeB.goleiroReservaOperadorId || "";
 
     return {
