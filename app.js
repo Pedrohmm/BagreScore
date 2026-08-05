@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.7";
+  const APP_VERSION = "1.3.8";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -2697,8 +2697,8 @@
       draft.A.goleiroReservaOperadorId,
       draft.B.goleiroReservaOperadorId,
     ].filter(Boolean));
-    draft.A.linha = draft.A.linha.filter((id) => !reserveOperators.has(id));
-    draft.B.linha = draft.B.linha.filter((id) => !reserveOperators.has(id));
+    draft.A.linha = draft.A.linha.filter((id) => !reserveOperators.has(id)).slice(0, 5);
+    draft.B.linha = draft.B.linha.filter((id) => !reserveOperators.has(id)).slice(0, 5);
 
     state.gameDraft = draft;
     return draft;
@@ -2717,11 +2717,13 @@
     const A = buildTeam(draft?.A);
     const B = buildTeam(draft?.B);
     const missing = [];
+    const nameA = String(draft?.A?.nome || "Time A").trim() || "Time A";
+    const nameB = String(draft?.B?.nome || "Time B").trim() || "Time B";
 
-    if (A.lineCount !== 5) missing.push(`Time A: ${A.lineCount}/5 linha`);
-    if (!A.hasGoalkeeper) missing.push("Time A: sem goleiro");
-    if (B.lineCount !== 5) missing.push(`Time B: ${B.lineCount}/5 linha`);
-    if (!B.hasGoalkeeper) missing.push("Time B: sem goleiro");
+    if (A.lineCount !== 5) missing.push(`${nameA}: ${A.lineCount}/5 linha`);
+    if (!A.hasGoalkeeper) missing.push(`${nameA}: sem goleiro`);
+    if (B.lineCount !== 5) missing.push(`${nameB}: ${B.lineCount}/5 linha`);
+    if (!B.hasGoalkeeper) missing.push(`${nameB}: sem goleiro`);
 
     return {
       A,
@@ -2737,28 +2739,14 @@
       return;
     }
 
-    state.gameDraft.A.nome = String(form.elements.timeANome?.value || "Time A").trim() || "Time A";
-    state.gameDraft.A.cor = form.elements.timeACor?.value || "#ff5a00";
-    state.gameDraft.B.nome = String(form.elements.timeBNome?.value || "Time B").trim() || "Time B";
-    state.gameDraft.B.cor = form.elements.timeBCor?.value || "#4aa3df";
-  }
-
-  function updateGameSetupIdentityPreview(form = $("#game-form")) {
-    if (!form) return;
-    syncGameDraftFromForm(form);
-
-    ["A", "B"].forEach((teamKey) => {
-      const draft = state.gameDraft[teamKey];
-      const identity = form.querySelector(`[data-match-identity="${teamKey}"]`);
-      const card = form.querySelector(`[data-match-lineup-card="${teamKey}"]`);
-      identity?.style.setProperty("--team-color", draft.cor);
-      card?.style.setProperty("--team-color", draft.cor);
-      const cardName = card?.querySelector("header strong");
-      if (cardName) cardName.textContent = draft.nome;
-    });
-
-    const summary = form.querySelector("[data-start-matchup-summary]");
-    if (summary) summary.textContent = `${state.gameDraft.A.nome} × ${state.gameDraft.B.nome}`;
+    if (form.elements.timeANome) {
+      state.gameDraft.A.nome = String(form.elements.timeANome.value || "Time A").trim() || "Time A";
+    }
+    if (form.elements.timeACor) state.gameDraft.A.cor = form.elements.timeACor.value || "#ff5a00";
+    if (form.elements.timeBNome) {
+      state.gameDraft.B.nome = String(form.elements.timeBNome.value || "Time B").trim() || "Time B";
+    }
+    if (form.elements.timeBCor) state.gameDraft.B.cor = form.elements.timeBCor.value || "#4aa3df";
   }
 
   function getDraftPlayers(teamKey, players, type = "all") {
@@ -6602,9 +6590,9 @@
             </div>
           ` : ""}
           <div class="matchup-selectors matchup-identity-editors" aria-label="Nomes e cores dos times">
-            ${renderMatchIdentityEditor("A", draft.A)}
+            ${renderMatchIdentityDisplay(draft.A)}
             <span class="matchup-versus">VS</span>
-            ${renderMatchIdentityEditor("B", draft.B)}
+            ${renderMatchIdentityDisplay(draft.B)}
           </div>
           <div class="match-lineup-grid">
             ${renderMatchLineupCard("A", draft.A, presentPlayers, state.matchPersist.A, Boolean(presetA))}
@@ -6630,11 +6618,11 @@
     `).join("");
   }
 
-  function renderMatchIdentityEditor(teamKey, draft) {
+  function renderMatchIdentityDisplay(draft) {
     return `
-      <div class="matchup-team-identity" data-match-identity="${teamKey}" style="--team-color:${escapeHtml(draft.cor)}">
-        <input class="matchup-team-color" type="color" name="time${teamKey}Cor" value="${escapeHtml(draft.cor)}" aria-label="Cor do ${escapeHtml(draft.nome)}" title="Editar cor" />
-        <input class="matchup-team-name" type="text" name="time${teamKey}Nome" value="${escapeHtml(draft.nome)}" maxlength="28" aria-label="Nome do Time ${teamKey}" placeholder="Nome do time" />
+      <div class="matchup-team-identity" style="--team-color:${escapeHtml(draft.cor)}">
+        <i class="matchup-team-swatch" aria-hidden="true"></i>
+        <strong>${escapeHtml(draft.nome)}</strong>
       </div>
     `;
   }
@@ -6648,7 +6636,7 @@
 
     return `
       <article class="match-lineup-card is-${teamKey.toLowerCase()} ${complete ? "is-complete" : "is-incomplete"}" data-match-lineup-card="${teamKey}" style="--team-color:${escapeHtml(draft.cor)}">
-        <header><span>Time ${teamKey}</span><strong>${escapeHtml(draft.nome)}</strong><small>${complete ? "6 jogadores" : `${linePlayers.length + (goalkeeper ? 1 : 0)}/6 · incompleto`}</small></header>
+        <header><strong>${escapeHtml(draft.nome)}</strong><small>${complete ? "6 jogadores" : `${linePlayers.length + (goalkeeper ? 1 : 0)}/6 · incompleto`}</small></header>
         <div class="match-lineup-goalkeeper">
           <small>GK</small>
           ${goalkeeper ? renderPlayerAvatar(goalkeeper, "player-avatar match-lineup-avatar") : `<i>—</i>`}
@@ -6783,13 +6771,14 @@
   function getSelectionBlockReason(player, teamKey, selectionType) {
     const draft = state.gameDraft;
     const otherTeam = oppositeTeam(teamKey);
+    const otherTeamName = draft[otherTeam]?.nome || `Time ${otherTeam}`;
 
     if (draft[otherTeam].linha.includes(player.id)) {
-      return `Já está na escalação do Time ${otherTeam}.`;
+      return `Já está na escalação de ${otherTeamName}.`;
     }
 
     if (selectionType !== "goleiro" && draft[otherTeam].goleiro === player.id) {
-      return `Já é goleiro do Time ${otherTeam}.`;
+      return `Já é goleiro de ${otherTeamName}.`;
     }
 
     if (selectionType === "linha" && draft[teamKey].goleiro === player.id) {
@@ -6812,6 +6801,7 @@
 
   function renderTeamSelectionModal(teamKey, selectionType, jogadores) {
     const isGoalkeeperSelection = selectionType === "goleiro";
+    const teamDraft = state.gameDraft[teamKey] || createEmptyGameDraft()[teamKey];
     const candidates = jogadores.filter(
       isGoalkeeperSelection
         ? isGoalkeeperCandidate
@@ -6830,19 +6820,22 @@
     );
     const selectedCount = isGoalkeeperSelection ? (selectedGoalkeeper ? 1 : 0) : selectedLine.size;
     const selectionTitle = isGoalkeeperSelection ? "Escolha o goleiro" : "Monte a escalação";
-    const selectionDescription = isGoalkeeperSelection
-      ? "Mostrando atletas GK ou cadastrados como goleiros. Escolha apenas um para o time."
-      : "Mostrando jogadores de linha ativos ou convidados. Marque todos que vão jogar neste time.";
 
     return `
       <form class="team-selection-form team-selection-form-${escapeHtml(selectionType)}" id="team-selection-form" data-team="${escapeHtml(teamKey)}" data-selection-type="${escapeHtml(selectionType)}" novalidate>
-        <div class="selection-modal-intro">
-          <span class="selection-team-pill">Time ${escapeHtml(teamKey)}</span>
+        <div class="selection-modal-intro ${isGoalkeeperSelection ? "is-goalkeeper" : "is-lineup"}" style="--team-color:${escapeHtml(teamDraft.cor)}">
+          ${isGoalkeeperSelection ? `
+            <span class="selection-team-pill">${escapeHtml(teamDraft.nome)}</span>
+          ` : `
+            <div class="selection-team-identity-editor">
+              <input class="selection-team-color" type="color" name="teamColor" value="${escapeHtml(teamDraft.cor)}" aria-label="Cor do ${escapeHtml(teamDraft.nome)}" title="Editar cor" />
+              <input class="selection-team-name" type="text" name="teamName" value="${escapeHtml(teamDraft.nome)}" maxlength="28" aria-label="Nome do time" placeholder="Nome do time" />
+            </div>
+          `}
           <span class="selection-modal-copy">
             <strong>${escapeHtml(selectionTitle)}</strong>
-            <small>${escapeHtml(selectionDescription)}</small>
           </span>
-          <span class="selection-count-pill">${escapeHtml(selectedCount)} selecionado${selectedCount === 1 ? "" : "s"}</span>
+          <span class="selection-count-pill" data-selection-count>${escapeHtml(isGoalkeeperSelection ? selectedCount : `${selectedCount}/5`)} selecionado${selectedCount === 1 ? "" : "s"}</span>
         </div>
         <div class="selection-search">
           <label class="field-label">
@@ -6890,7 +6883,7 @@
                           name="${inputName}"
                           value="${escapeHtml(player.id)}"
                           ${checked ? "checked" : ""}
-                          ${blockReason ? "disabled" : ""}
+                          ${blockReason ? `disabled data-blocked="true"` : ""}
                         />
                         ${renderPlayerAvatar(player, "player-avatar small")}
                         <span>
@@ -6938,19 +6931,45 @@
     ]);
     const jogadores = getPresentPlayersForPelada(pelada, allPlayers);
     normalizeGameDraft(jogadores);
+    const teamName = state.gameDraft[teamKey]?.nome || `Time ${teamKey}`;
 
     const modal = openLiveModal(
-      selectionType === "goleiro" ? `Goleiro - Time ${teamKey}` : `Escalação - Time ${teamKey}`,
+      selectionType === "goleiro" ? `Goleiro - ${teamName}` : `Escalação - ${teamName}`,
       renderTeamSelectionModal(teamKey, selectionType, jogadores)
     );
     const form = modal.querySelector("#team-selection-form");
     const searchInput = form.elements.search;
     const reserveField = form.querySelector(".reserve-keeper-operator-field");
+    const intro = form.querySelector(".selection-modal-intro");
+    const teamColorInput = form.elements.teamColor;
+    const lineInputs = [...form.querySelectorAll('input[name="playerIds"]')];
+    const countLabel = form.querySelector("[data-selection-count]");
+
+    teamColorInput?.addEventListener("input", () => {
+      intro?.style.setProperty("--team-color", teamColorInput.value || state.gameDraft[teamKey].cor);
+    });
+
+    const refreshLineSelection = () => {
+      if (selectionType !== "linha") return;
+      const checkedCount = lineInputs.filter((input) => input.checked).length;
+      lineInputs.forEach((input) => {
+        const blocked = input.dataset.blocked === "true";
+        input.disabled = blocked || (!input.checked && checkedCount >= 5);
+        const option = input.closest(".player-selection-option");
+        option?.classList.toggle("is-selected", input.checked);
+        option?.classList.toggle("is-disabled", input.disabled);
+      });
+      if (countLabel) countLabel.textContent = `${checkedCount}/5 selecionado${checkedCount === 1 ? "" : "s"}`;
+    };
+
+    lineInputs.forEach((input) => input.addEventListener("change", refreshLineSelection));
+    refreshLineSelection();
 
     form.querySelectorAll('input[name="goalkeeperId"]').forEach((input) => {
       input.addEventListener("change", () => {
         const player = jogadores.find((item) => item.id === input.value);
         if (reserveField) reserveField.hidden = !isReserveGoalkeeperPlayer(player);
+        if (countLabel) countLabel.textContent = `${input.value ? 1 : 0} selecionado${input.value ? "" : "s"}`;
         form.querySelectorAll(".player-selection-option").forEach((option) => {
           option.classList.toggle("is-selected", Boolean(option.querySelector('input[name="goalkeeperId"]:checked')));
         });
@@ -6975,9 +6994,12 @@
           : "";
         setMatchGoalkeeper(teamKey, selectedGoalkeeperId, reserveOperatorId, jogadores);
       } else {
+        state.gameDraft[teamKey].nome = String(form.elements.teamName?.value || teamName).trim() || teamName;
+        state.gameDraft[teamKey].cor = form.elements.teamColor?.value || state.gameDraft[teamKey].cor;
         state.gameDraft[teamKey].linha = Array.from(form.querySelectorAll('input[name="playerIds"]:checked'))
           .filter((input) => !input.disabled)
-          .map((input) => input.value);
+          .map((input) => input.value)
+          .slice(0, 5);
       }
 
       normalizeGameDraft(jogadores);
@@ -7797,7 +7819,6 @@
 
     peladaForm?.addEventListener("submit", handlePeladaFormSubmit);
     gameForm?.addEventListener("submit", handleGameFormSubmit);
-    gameForm?.addEventListener("input", () => updateGameSetupIdentityPreview(gameForm));
     gameForm?.addEventListener("change", async (event) => {
       syncGameDraftFromForm(gameForm);
       const presetSelect = event.target.closest("[data-match-preset]");

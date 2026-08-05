@@ -5350,6 +5350,79 @@ body[data-section="peladas"] .selection-modal-intro {
     rgba(255, 255, 255, 0.04);
 }
 
+body[data-section="peladas"] .selection-modal-intro.is-lineup {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+body[data-section="peladas"] .selection-team-identity-editor {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--team-color) 45%, rgba(255, 255, 255, 0.12));
+  border-radius: 15px;
+  padding: 8px 10px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--team-color) 13%, transparent), transparent),
+    rgba(0, 0, 0, 0.18);
+}
+
+body[data-section="peladas"] .selection-team-color {
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  border: 2px solid var(--team-color);
+  border-radius: 50%;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+body[data-section="peladas"] .selection-team-color::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+body[data-section="peladas"] .selection-team-color::-webkit-color-swatch {
+  border: 4px solid #111;
+  border-radius: 50%;
+}
+
+body[data-section="peladas"] .selection-team-color::-moz-color-swatch {
+  border: 4px solid #111;
+  border-radius: 50%;
+}
+
+body[data-section="peladas"] .selection-team-name {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 0;
+  padding: 0 3px;
+  color: #fff;
+  background: transparent;
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 900;
+  outline: 0;
+}
+
+body[data-section="peladas"] .selection-team-name:focus {
+  border-bottom-color: var(--team-color);
+  box-shadow: none;
+}
+
+body[data-section="peladas"] .selection-modal-intro.is-lineup .selection-modal-copy {
+  grid-column: 1;
+}
+
+body[data-section="peladas"] .selection-modal-intro.is-lineup .selection-count-pill {
+  grid-column: 2;
+}
+
 body[data-section="peladas"] .selection-team-pill,
 body[data-section="peladas"] .selection-count-pill {
   display: inline-flex;
@@ -5566,6 +5639,16 @@ body[data-section="peladas"] .team-selection-form > .form-actions .big-touch {
   body[data-section="peladas"] .selection-modal-copy {
     grid-column: 1 / -1;
     order: 3;
+  }
+
+  body[data-section="peladas"] .selection-modal-intro.is-lineup .selection-modal-copy {
+    grid-column: 1;
+    order: initial;
+  }
+
+  body[data-section="peladas"] .selection-modal-intro.is-lineup .selection-count-pill {
+    grid-column: 2;
+    order: initial;
   }
 
   body[data-section="peladas"] .player-selection-list {
@@ -14334,7 +14417,7 @@ body[data-section="ranking"] .ranking-pelada-filter select {
   }
 }
 
-/* BagreScore 1.3.7 — identidade editável no confronto */
+/* BagreScore 1.3.8 — identidade limpa e edição dentro da escalação */
 .matchup-identity-editors {
   align-items: center;
 }
@@ -14354,50 +14437,25 @@ body[data-section="ranking"] .ranking-pelada-filter select {
     rgba(255, 255, 255, 0.025);
 }
 
-.matchup-team-color {
+.matchup-team-swatch {
+  display: block;
   width: 32px;
-  min-width: 32px;
   height: 32px;
-  min-height: 32px;
-  overflow: hidden;
   border: 2px solid var(--team-color);
   border-radius: 50%;
-  padding: 0;
-  background: transparent;
-  cursor: pointer;
+  background: var(--team-color);
+  box-shadow: inset 0 0 0 4px #101010;
 }
 
-.matchup-team-color::-webkit-color-swatch-wrapper {
-  padding: 0;
-}
-
-.matchup-team-color::-webkit-color-swatch {
-  border: 3px solid #111;
-  border-radius: 50%;
-}
-
-.matchup-team-color::-moz-color-swatch {
-  border: 3px solid #111;
-  border-radius: 50%;
-}
-
-.matchup-team-name {
-  width: 100%;
+.matchup-team-identity > strong {
   min-width: 0;
-  min-height: 34px;
-  border: 0;
-  padding: 0 3px;
+  overflow: hidden;
   color: #fff;
-  background: transparent;
-  font: inherit;
   font-size: 0.88rem;
   font-weight: 900;
-  outline: 0;
   text-align: center;
-}
-
-.matchup-team-name:focus {
-  box-shadow: inset 0 -2px 0 var(--team-color);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .matchup-identity-editors .matchup-versus {
@@ -18570,12 +18628,11 @@ body[data-section="ranking"] .ranking-rest-metric em {
 .match-lineup-card > header {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: baseline;
   gap: 8px;
 }
 
-.match-lineup-card > header span,
 .match-lineup-card > header small {
   color: #848484;
   font-size: 0.65rem;

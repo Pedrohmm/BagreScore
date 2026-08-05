@@ -234,6 +234,16 @@ Não é necessário atualizar o `Code.gs` para a versão 1.3.6. Publique os arqu
 
 Não é necessário atualizar o `Code.gs` para a versão 1.3.7. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.3.8 — limite da escalação e cabeçalho simplificado
+
+- cada time aceita no máximo 5 jogadores de linha;
+- ao atingir o limite, os demais jogadores ficam bloqueados até alguém ser desmarcado;
+- a edição do nome e da cor do time agora fica dentro do modal **Editar escalação**;
+- o texto explicativo “Mostrando jogadores...” foi removido;
+- o confronto e os cartões exibem somente os nomes escolhidos, sem os rótulos genéricos “Time A” e “Time B”.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.3.8. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.
