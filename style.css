@@ -21624,3 +21624,201 @@ body[data-section="peladas"] .start-next-game-button[aria-disabled="true"] small
     padding-bottom: 2px;
   }
 }
+
+/* Live timer dock and sticky scoreboard */
+body[data-section="ao-vivo"] .live-score-card {
+  position: sticky;
+  top: max(8px, env(safe-area-inset-top));
+  z-index: 75;
+  gap: 8px;
+  border-radius: 18px;
+  padding: 10px 12px;
+  backdrop-filter: blur(18px);
+}
+
+body[data-section="ao-vivo"] .live-score-meta {
+  display: none;
+}
+
+body[data-section="ao-vivo"] .live-score-board {
+  gap: 7px;
+}
+
+body[data-section="ao-vivo"] .live-team-badge {
+  gap: 4px;
+}
+
+body[data-section="ao-vivo"] .live-team-badge > span {
+  width: 52px;
+  height: 52px;
+  border-width: 2px;
+  font-size: 0.88rem;
+}
+
+body[data-section="ao-vivo"] .live-team-badge strong {
+  max-width: 76px;
+  font-size: 0.68rem;
+}
+
+body[data-section="ao-vivo"] .live-score-center {
+  gap: 4px;
+}
+
+body[data-section="ao-vivo"] .live-score-center > strong {
+  font-size: clamp(2.3rem, 11vw, 3.6rem);
+  letter-spacing: 0.02em;
+}
+
+body[data-section="ao-vivo"] .live-score-center .timer {
+  min-width: 88px;
+  border-radius: 10px;
+  padding: 4px 10px;
+  font-size: 1rem;
+}
+
+.live-mini-dock {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 10px);
+  left: 50%;
+  z-index: 90;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  width: min(94vw, 460px);
+  min-height: 62px;
+  border: 1px solid rgba(255, 90, 0, 0.28);
+  border-radius: 18px;
+  padding: 8px 10px;
+  color: #fff;
+  background:
+    radial-gradient(circle at 50% 110%, rgba(255, 90, 0, 0.16), transparent 12rem),
+    linear-gradient(145deg, rgba(18, 18, 18, 0.96), rgba(5, 5, 5, 0.96));
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transform: translateX(-50%);
+  backdrop-filter: blur(18px);
+}
+
+.live-mini-dock[hidden] {
+  display: none;
+}
+
+body.settings-open .live-mini-dock {
+  display: none;
+}
+
+body:not(.is-internal) .live-mini-dock {
+  top: calc(env(safe-area-inset-top) + 76px);
+}
+
+body.has-live-mini-dock.is-internal .workspace-panel {
+  padding-top: 86px;
+}
+
+body.has-live-mini-dock:not(.is-internal) main {
+  padding-top: 68px;
+}
+
+.live-mini-team,
+.live-mini-center {
+  display: grid;
+  justify-items: center;
+  min-width: 0;
+}
+
+.live-mini-team {
+  gap: 3px;
+}
+
+.live-mini-team i {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 2px solid var(--team-color);
+  border-radius: 50%;
+  color: #fff;
+  background: #101010;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--team-color), transparent 58%);
+  font-size: 0.7rem;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.live-mini-team strong {
+  max-width: 96px;
+  overflow: hidden;
+  color: #dcdcdc;
+  font-size: 0.56rem;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.live-mini-center {
+  gap: 1px;
+  min-width: 100px;
+}
+
+.live-mini-center small {
+  max-width: 128px;
+  overflow: hidden;
+  color: #8e8e8e;
+  font-size: 0.56rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.live-mini-center b {
+  color: #fff;
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.live-mini-center em {
+  min-width: 70px;
+  border-radius: 8px;
+  padding: 3px 9px;
+  color: #39ff39;
+  background: rgba(0, 0, 0, 0.54);
+  box-shadow: inset 0 0 0 1px rgba(57, 255, 57, 0.15);
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.live-mini-dock.is-paused .live-mini-center em {
+  color: #ffb56a;
+  box-shadow: inset 0 0 0 1px rgba(255, 181, 106, 0.2);
+}
+
+.presence-row-actions button.is-blocked,
+.team-preset-player-option.is-in-field {
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #8a8a8a;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.team-preset-player-option.is-in-field small {
+  color: #ffb56a;
+}
+
+@media (max-width: 430px) {
+  .live-mini-dock {
+    width: calc(100vw - 20px);
+    min-height: 58px;
+    border-radius: 16px;
+    padding: 7px 8px;
+  }
+
+  .live-mini-team strong {
+    max-width: 72px;
+    font-size: 0.5rem;
+  }
+
+  .live-mini-center b {
+    font-size: 1.28rem;
+  }
+}

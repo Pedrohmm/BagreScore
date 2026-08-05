@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.4";
+  const APP_VERSION = "1.3.5";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -4632,7 +4632,6 @@
 
   async function renderCurrentSection() {
     if (state.currentSection !== "ao-vivo") {
-      stopLiveTimer();
       closeLiveModal();
     }
 
@@ -4663,6 +4662,7 @@
 
     const renderer = renderers[state.currentSection] || renderHomeSection;
     await renderer(counts);
+    await refreshLiveMiniDock();
     runBackgroundTask(updatePendingCount, "Falha ao atualizar contador de sincronização");
   }
 
@@ -5886,6 +5886,9 @@
       ? state.peladaDetailView
       : "confrontos";
 
+    const activeGame = detailView === "presencas" ? await findActiveGame() : null;
+    const activePresenceBundle = activeGame?.peladaId === selectedPelada.id ? await readGameBundle(activeGame.id) : null;
+
     $("#section-content").innerHTML = `
       <div class="pelada-detail-flow">
         ${renderPeladaDetailNav(detailView, teamPresets, selectedPelada, jogadores)}
@@ -5893,7 +5896,7 @@
           ${detailView === "times"
             ? renderTeamPresetsPanel(selectedPelada, teamPresets, jogadores)
             : detailView === "presencas"
-              ? renderPeladaPresencePanel(selectedPelada, jogadores)
+              ? renderPeladaPresencePanel(selectedPelada, jogadores, activePresenceBundle)
               : `
                 ${renderGameSetup(selectedPelada, jogadores, teamPresets)}
                 ${renderGameHistory(selectedPelada, jogos, eventsByGameId, playerById, peladaSummary)}
@@ -5981,13 +5984,14 @@
     `;
   }
 
-  function renderPeladaPresencePanel(pelada, jogadores = []) {
+  function renderPeladaPresencePanel(pelada, jogadores = [], activeBundle = null) {
     const regularPlayers = jogadores.filter((player) => !isReserveGoalkeeperPlayer(player));
     const goalkeepers = regularPlayers.filter(isGoalkeeperCandidate);
     const linePlayers = regularPlayers.filter(isLineupPlayer);
     const reserve = jogadores.find(isReserveGoalkeeperPlayer) || null;
     const queue = normalizePeladaPlayerQueue(pelada, jogadores);
     const queuePosition = new Map(queue.map((playerId, index) => [playerId, index + 1]));
+    const fieldPlayerIds = getLiveFieldPlayerIds(activeBundle);
     const presentCount = regularPlayers.filter((player) => isPlayerPresentAtPelada(pelada, player.id)).length;
     const lateCount = regularPlayers.filter((player) => getPlayerPresenceStatus(pelada, player.id) === "atrasado").length;
     const absentCount = regularPlayers.filter((player) => getPlayerPresenceStatus(pelada, player.id) === "ausente").length;
@@ -6023,7 +6027,7 @@
         <section class="presence-group">
           <header><span>Jogadores de linha</span><strong>${escapeHtml(linePlayers.length)} cadastrados</strong></header>
           <div class="presence-player-list">
-            ${linePlayers.map((player) => renderPresencePlayerRow(pelada, player, queuePosition.get(player.id) || null)).join("")}
+            ${linePlayers.map((player) => renderPresencePlayerRow(pelada, player, queuePosition.get(player.id) || null, fieldPlayerIds)).join("")}
           </div>
         </section>
       </section>
@@ -6068,11 +6072,12 @@
     `;
   }
 
-  function renderPresencePlayerRow(pelada, player, queuePosition = null) {
+  function renderPresencePlayerRow(pelada, player, queuePosition = null, fieldPlayerIds = new Set()) {
     const status = getPlayerPresenceStatus(pelada, player.id);
     const present = status === "presente";
     const goalkeeper = isGoalkeeperCandidate(player);
     const canManage = hasPermission("times:montar");
+    const inLiveField = fieldPlayerIds.has(player.id);
 
     return `
       <article class="presence-player-row is-${escapeHtml(status)}">
@@ -6083,7 +6088,7 @@
         </span>
         <div class="presence-row-actions">
           ${canManage && present && !goalkeeper ? `
-            <button type="button" data-pelada-action="toggle-player-queue" data-player-id="${escapeHtml(player.id)}" class="${queuePosition ? "is-queued" : ""}">${queuePosition ? "No Time da vez" : "Time da vez"}</button>
+            <button type="button" data-pelada-action="toggle-player-queue" data-player-id="${escapeHtml(player.id)}" class="${queuePosition ? "is-queued" : ""} ${inLiveField ? "is-blocked" : ""}" ${inLiveField ? "disabled title=\"Jogador em campo agora\"" : ""}>${inLiveField ? "Em campo" : queuePosition ? "No Time da vez" : "Time da vez"}</button>
           ` : ""}
           ${canManage ? `
             <select class="presence-status-select is-${escapeHtml(status)}" data-player-presence-id="${escapeHtml(player.id)}" aria-label="Presença de ${escapeHtml(playerDisplayName(player))}">
@@ -7094,11 +7099,21 @@
     });
   }
 
-  function renderTimeDaVezEditor(pelada, players) {
+  function getLiveFieldPlayerIds(bundle) {
+    return new Set(
+      [...(bundle?.playersA || []), ...(bundle?.playersB || [])]
+        .map((player) => player?.id)
+        .filter(Boolean)
+    );
+  }
+
+  function renderTimeDaVezEditor(pelada, players, activeBundle = null) {
     const time = getPeladaTimeDaVez(pelada);
     const linePlayers = getPresentLinePlayers(pelada, players)
       .sort((a, b) => playerDisplayName(a).localeCompare(playerDisplayName(b), "pt-BR"));
     const selectedLine = new Set(time.linha);
+    const fieldPlayerIds = getLiveFieldPlayerIds(activeBundle);
+    const hasActiveGame = Boolean(activeBundle?.jogo?.status === "Em andamento");
 
     return `
       <form class="team-preset-form time-da-vez-form" id="time-da-vez-form" novalidate>
@@ -7122,18 +7137,22 @@
         <div class="team-preset-player-heading"><span>Jogadores presentes</span><strong data-line-count>0/5</strong></div>
         <div class="team-preset-player-list">
           ${linePlayers.length ? linePlayers.map((player) => {
-            const checked = selectedLine.has(player.id);
+            const blocked = hasActiveGame && fieldPlayerIds.has(player.id);
+            const checked = selectedLine.has(player.id) && !blocked;
             return `
-              <label class="team-preset-player-option ${checked ? "is-selected" : ""}" data-player-option data-player-name="${escapeHtml(normalizeToken(playerDisplayName(player)))}">
-                <input type="checkbox" name="linhaIds" value="${escapeHtml(player.id)}" ${checked ? "checked" : ""} />
+              <label class="team-preset-player-option ${checked ? "is-selected" : ""} ${blocked ? "is-disabled is-in-field" : ""}" data-player-option data-player-name="${escapeHtml(normalizeToken(playerDisplayName(player)))}">
+                <input type="checkbox" name="linhaIds" value="${escapeHtml(player.id)}" ${checked ? "checked" : ""} ${blocked ? "disabled data-locked=\"true\"" : ""} />
                 ${renderPlayerAvatar(player, "player-avatar small")}
-                <span><strong>${escapeHtml(playerDisplayName(player))}</strong><small>${escapeHtml(player.posicaoPrincipal || "-")} · ${escapeHtml(player.overall || "-")} OVR</small></span>
+                <span>
+                  <strong>${escapeHtml(playerDisplayName(player))}</strong>
+                  <small>${escapeHtml(player.posicaoPrincipal || "-")} · ${escapeHtml(player.overall || "-")} OVR${blocked ? " · Em campo agora" : ""}</small>
+                </span>
                 <i aria-hidden="true">✓</i>
               </label>
             `;
           }).join("") : `<p class="presence-empty">Marque jogadores como presentes para montar o Time da vez.</p>`}
         </div>
-        <div class="team-preset-form-note"><strong>Controle manual</strong><span>Se faltarem jogadores, salve incompleto e complete depois. Nada será puxado do time perdedor sem você escolher.</span></div>
+        <div class="team-preset-form-note"><strong>Controle manual</strong><span>${hasActiveGame ? "Quem está em campo fica bloqueado. Se precisar usar alguém do time perdedor, complete depois que o jogo acabar." : "Se faltarem jogadores, salve incompleto e complete depois. Nada será puxado do time perdedor sem você escolher."}</span></div>
         <div class="form-actions">
           <button class="primary-button big-touch" type="submit">Salvar Time da vez</button>
           <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
@@ -7144,13 +7163,15 @@
 
   async function openTimeDaVezEditor() {
     if (!state.selectedPeladaId || !requirePermission("times:montar")) return;
-    const [pelada, players] = await Promise.all([
+    const [pelada, players, activeGame] = await Promise.all([
       getRecord("peladas", state.selectedPeladaId),
       readActivePlayers(),
+      findActiveGame(),
     ]);
     if (!pelada) return;
+    const activeBundle = activeGame?.peladaId === pelada.id ? await readGameBundle(activeGame.id) : null;
 
-    const modal = openLiveModal("Editar Time da vez", renderTimeDaVezEditor(pelada, players));
+    const modal = openLiveModal("Editar Time da vez", renderTimeDaVezEditor(pelada, players, activeBundle));
     const form = modal.querySelector("#time-da-vez-form");
     const lineInputs = [...form.querySelectorAll('input[name="linhaIds"]')];
     const countLabel = form.querySelector("[data-line-count]");
@@ -7160,7 +7181,7 @@
       const checkedCount = lineInputs.filter((input) => input.checked).length;
       lineInputs.forEach((input) => {
         const option = input.closest("[data-player-option]");
-        input.disabled = !input.checked && checkedCount >= 5;
+        input.disabled = input.dataset.locked === "true" || (!input.checked && checkedCount >= 5);
         option?.classList.toggle("is-selected", input.checked);
         option?.classList.toggle("is-disabled", input.disabled);
       });
@@ -7181,7 +7202,7 @@
       event.preventDefault();
       const nome = String(form.elements.nome?.value || "").trim();
       const cor = form.elements.cor?.value || "#ff5a00";
-      const linha = lineInputs.filter((input) => input.checked).map((input) => input.value);
+      const linha = lineInputs.filter((input) => input.checked && !input.disabled).map((input) => input.value);
       const errors = [];
 
       if (!nome) errors.push("Informe o nome do Time da vez.");
@@ -7733,12 +7754,23 @@
 
   async function togglePeladaPlayerQueue(playerId) {
     if (!state.selectedPeladaId || !playerId || !requirePermission("times:montar")) return;
-    const [pelada, jogadores] = await Promise.all([
+    const [pelada, jogadores, activeGame] = await Promise.all([
       getRecord("peladas", state.selectedPeladaId),
       readActivePlayers(),
+      findActiveGame(),
     ]);
     const player = jogadores.find((item) => item.id === playerId);
     if (!pelada || !player || !isLineupPlayer(player) || !isPlayerPresentAtPelada(pelada, playerId)) return;
+
+    if (activeGame?.peladaId === pelada.id) {
+      const activeBundle = await readGameBundle(activeGame.id);
+      if (getLiveFieldPlayerIds(activeBundle).has(playerId)) {
+        window.alert("Esse jogador está em campo agora. Complete o Time da vez com quem está fora ou espere o jogo acabar.");
+        await renderCurrentSection();
+        return;
+      }
+    }
+
     const queue = normalizePeladaPlayerQueue(pelada, jogadores);
     const queued = queue.includes(playerId);
     const linha = queued
@@ -9167,6 +9199,99 @@
     `;
   }
 
+  function ensureLiveMiniDock() {
+    let dock = $("#live-mini-dock");
+
+    if (!dock) {
+      dock = document.createElement("button");
+      dock.id = "live-mini-dock";
+      dock.className = "live-mini-dock";
+      dock.type = "button";
+      dock.dataset.liveDockAction = "open-live";
+      dock.hidden = true;
+      document.body.appendChild(dock);
+    }
+
+    return dock;
+  }
+
+  function hideLiveMiniDock() {
+    const dock = $("#live-mini-dock");
+    if (dock) {
+      dock.hidden = true;
+      dock.removeAttribute("data-game-id");
+    }
+    document.body.classList.remove("has-live-mini-dock");
+  }
+
+  function renderLiveMiniDockContent(bundle, remaining) {
+    const { jogo, pelada } = bundle;
+
+    return `
+      <span class="live-mini-team is-a" style="--team-color:${escapeHtml(teamColorFromGame(jogo, "A"))}">
+        <i>${escapeHtml(getLiveTeamInitials(teamNameFromGame(jogo, "A"), "A"))}</i>
+        <strong>${escapeHtml(teamNameFromGame(jogo, "A"))}</strong>
+      </span>
+      <span class="live-mini-center">
+        <small>${escapeHtml(pelada?.local || "Partida ao vivo")}</small>
+        <b><span data-live-mini-score-a>${escapeHtml(jogo.placarA ?? 0)}</span> x <span data-live-mini-score-b>${escapeHtml(jogo.placarB ?? 0)}</span></b>
+        <em data-live-mini-timer>${escapeHtml(formatClock(remaining))}</em>
+      </span>
+      <span class="live-mini-team is-b" style="--team-color:${escapeHtml(teamColorFromGame(jogo, "B"))}">
+        <i>${escapeHtml(getLiveTeamInitials(teamNameFromGame(jogo, "B"), "B"))}</i>
+        <strong>${escapeHtml(teamNameFromGame(jogo, "B"))}</strong>
+      </span>
+    `;
+  }
+
+  function updateLiveMiniDockFromGame(jogo) {
+    const dock = $("#live-mini-dock");
+
+    if (!dock || dock.hidden || dock.dataset.gameId !== jogo?.id) {
+      return;
+    }
+
+    const timer = dock.querySelector("[data-live-mini-timer]");
+    const scoreA = dock.querySelector("[data-live-mini-score-a]");
+    const scoreB = dock.querySelector("[data-live-mini-score-b]");
+
+    if (timer) timer.textContent = formatClock(getRemainingGameSeconds(jogo));
+    if (scoreA) scoreA.textContent = jogo.placarA ?? 0;
+    if (scoreB) scoreB.textContent = jogo.placarB ?? 0;
+    dock.classList.toggle("is-paused", Boolean(jogo.pausadoEm));
+  }
+
+  async function refreshLiveMiniDock() {
+    if (state.currentSection === "ao-vivo") {
+      hideLiveMiniDock();
+      return;
+    }
+
+    const activeGame = await findActiveGame();
+
+    if (!activeGame || activeGame.status !== "Em andamento") {
+      hideLiveMiniDock();
+      return;
+    }
+
+    const bundle = await readGameBundle(activeGame.id);
+
+    if (!bundle) {
+      hideLiveMiniDock();
+      return;
+    }
+
+    const dock = ensureLiveMiniDock();
+    dock.dataset.gameId = activeGame.id;
+    dock.innerHTML = renderLiveMiniDockContent(bundle, getRemainingGameSeconds(activeGame));
+    dock.hidden = false;
+    document.body.classList.add("has-live-mini-dock");
+
+    if (!state.liveTimerId) {
+      startLiveTimer(activeGame.id);
+    }
+  }
+
   function renderLiveNextTeamCard(bundle) {
     const { pelada, playerById } = bundle;
     if (!pelada) return "";
@@ -10543,6 +10668,7 @@
 
     if (!jogo || jogo.status === "Finalizado") {
       stopLiveTimer();
+      hideLiveMiniDock();
       return;
     }
 
@@ -10559,6 +10685,8 @@
       statusElement.classList.toggle("offline", Boolean(jogo.pausadoEm));
       statusElement.classList.toggle("online", !jogo.pausadoEm);
     }
+
+    updateLiveMiniDockFromGame(jogo);
 
     if (remaining <= 0) {
       await finalizeGame(jogoId, "Tempo");
@@ -14416,8 +14544,16 @@
     });
 
     document.body.addEventListener("click", async (event) => {
+      const liveDockButton = event.target.closest("[data-live-dock-action='open-live']");
       const sectionButton = event.target.closest("[data-home-section], .drawer-button[data-section]");
       const actionButton = event.target.closest("[data-home-action]");
+
+      if (liveDockButton) {
+        const jogoId = liveDockButton.dataset.gameId || state.activeGameId || "";
+        if (jogoId) setActiveGameId(jogoId);
+        await switchSection("ao-vivo");
+        return;
+      }
 
       if (sectionButton) {
         const section = sectionButton.dataset.homeSection || sectionButton.dataset.section;
