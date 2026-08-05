@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.1";
+  const APP_VERSION = "1.3.2";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -2511,9 +2511,17 @@
     };
   }
 
+  function getSavedMatchupTeamName(savedMatchup, sideKey, presetId) {
+    if (!savedMatchup || !["A", "B"].includes(sideKey) || !presetId) return "";
+    const savedSideId = sideKey === "A" ? savedMatchup.timeAId : savedMatchup.timeBId;
+    if (savedSideId !== presetId) return "";
+    return sideKey === "A" ? savedMatchup.nomeA || "" : savedMatchup.nomeB || "";
+  }
+
   function teamPresetToDraft(preset, fallbackKey, savedMatchup = null, preservedDraft = null) {
     const savedLineup = getSavedMatchupLineup(savedMatchup, preset?.id);
     const savedGoalkeeper = getSavedMatchupGoalkeeper(savedMatchup, fallbackKey);
+    const savedName = getSavedMatchupTeamName(savedMatchup, fallbackKey, preset?.id);
     const presetLineup = uniqueIds(preset?.linha || []).slice(0, 5);
     const savedMode = normalizeToken(savedMatchup?.modo);
     const isSavedWinner = savedMatchup?.vencedorAnteriorId
@@ -2524,7 +2532,7 @@
       (savedMode === "fila" && isSavedWinner && savedLineup.length === 0 && presetLineup.length > 0)
     );
     return {
-      nome: preset?.nome || `Time ${fallbackKey}`,
+      nome: savedName || preset?.nome || `Time ${fallbackKey}`,
       cor: preset?.cor || (fallbackKey === "A" ? "#ff5a00" : "#4aa3df"),
       linha: savedLineup === null || savedLineupIsCorrupted ? presetLineup : savedLineup,
       goleiro: preservedDraft?.goleiro || savedGoalkeeper.goleiro || "",
@@ -2665,6 +2673,34 @@
 
     state.gameDraft = draft;
     return draft;
+  }
+
+  function getGameDraftReadiness(draft) {
+    const buildTeam = (team) => {
+      const lineCount = uniqueIds(team?.linha || []).length;
+      const hasGoalkeeper = Boolean(team?.goleiro);
+      return {
+        lineCount,
+        hasGoalkeeper,
+        complete: lineCount === 5 && hasGoalkeeper,
+      };
+    };
+    const A = buildTeam(draft?.A);
+    const B = buildTeam(draft?.B);
+    const missing = [];
+
+    if (A.lineCount !== 5) missing.push(`Time A: ${A.lineCount}/5 linha`);
+    if (!A.hasGoalkeeper) missing.push("Time A: sem goleiro");
+    if (B.lineCount !== 5) missing.push(`Time B: ${B.lineCount}/5 linha`);
+    if (!B.hasGoalkeeper) missing.push("Time B: sem goleiro");
+
+    return {
+      A,
+      B,
+      complete: A.complete && B.complete,
+      label: A.complete && B.complete ? "Pronto" : "Times incompletos",
+      detail: missing.join(" · "),
+    };
   }
 
   function syncGameDraftFromForm(form = $("#game-form")) {
@@ -5818,7 +5854,6 @@
 
     $("#section-content").innerHTML = `
       <div class="pelada-detail-flow">
-        ${renderPeladaOpenToolbar(selectedPelada, peladaSummary)}
         ${renderPeladaDetailNav(detailView, teamPresets, selectedPelada, jogadores)}
         <div class="pelada-detail-view" data-pelada-detail-view="${escapeHtml(detailView)}">
           ${detailView === "times"
@@ -6467,15 +6502,16 @@
     const playerById = new Map(presentPlayers.map((player) => [player.id, player]));
     const dynamicQueue = normalizePeladaPlayerQueue(pelada, presentPlayers, [...draft.A.linha, ...draft.B.linha]);
     const dynamicMode = normalizeToken(pelada?.proximoConfronto?.modo) === "fila";
+    const readiness = getGameDraftReadiness(draft);
 
     return `
-      <section class="data-card game-setup-card next-match-card">
+      <section class="data-card game-setup-card next-match-card ${readiness.complete ? "is-ready" : "is-incomplete"}">
         <div class="next-match-heading">
           <div>
             <span class="panel-kicker">Próximo confronto</span>
             <h3>${escapeHtml(draft.A.nome)} <i>×</i> ${escapeHtml(draft.B.nome)}</h3>
           </div>
-          <span class="next-match-ready"><i></i>Pronto</span>
+          <span class="next-match-ready ${readiness.complete ? "is-ready" : "is-incomplete"}" title="${escapeHtml(readiness.detail || "Times completos")}"><i></i>${escapeHtml(readiness.label)}</span>
         </div>
         <form class="game-form" id="game-form" novalidate>
           <div class="form-errors" id="game-form-errors" hidden></div>
@@ -6507,8 +6543,8 @@
             </div>
           ` : `<div class="waiting-queue is-empty"><span>Sem time na espera</span></div>`}
           <div class="form-actions">
-            <button class="primary-button big-touch start-next-game-button" type="submit">
-              <span>Iniciar próximo jogo</span><small>${escapeHtml(draft.A.nome)} × ${escapeHtml(draft.B.nome)}</small>
+            <button class="primary-button big-touch start-next-game-button" type="submit" ${readiness.complete ? "" : "disabled"} aria-disabled="${readiness.complete ? "false" : "true"}">
+              <span>${readiness.complete ? "Iniciar próximo jogo" : "Complete os times para iniciar"}</span><small>${escapeHtml(readiness.complete ? `${draft.A.nome} × ${draft.B.nome}` : readiness.detail)}</small>
             </button>
           </div>
         </form>
@@ -8550,14 +8586,12 @@
     if (!selectedPelada) errors.push("Selecione ou crie uma pelada.");
     if (activeGame) errors.push("Finalize o jogo em andamento antes de iniciar outro.");
     if (data.presetAId && data.presetAId === data.presetBId) errors.push("Escolha dois times diferentes.");
-    if (!data.timeA.jogadores.length) errors.push("Escolha pelo menos um jogador para o Time A.");
-    if (!data.timeB.jogadores.length) errors.push("Escolha pelo menos um jogador para o Time B.");
+    if (!data.timeA.jogadores.length) errors.push("Escolha os jogadores do Time A.");
+    if (!data.timeB.jogadores.length) errors.push("Escolha os jogadores do Time B.");
     if (!data.timeA.goleiroId) errors.push("Defina o goleiro do Time A.");
     if (!data.timeB.goleiroId) errors.push("Defina o goleiro do Time B.");
-    if (selectedPelada && !isTestPelada(selectedPelada)) {
-      if (data.timeA.linha.length !== 5) errors.push("Complete os 5 jogadores de linha do Time A.");
-      if (data.timeB.linha.length !== 5) errors.push("Complete os 5 jogadores de linha do Time B.");
-    }
+    if (data.timeA.linha.length !== 5) errors.push("Complete os 5 jogadores de linha do Time A.");
+    if (data.timeB.linha.length !== 5) errors.push("Complete os 5 jogadores de linha do Time B.");
 
     const duplicates = data.timeA.jogadores.filter((playerId) => data.timeB.jogadores.includes(playerId));
 
@@ -11003,13 +11037,20 @@
     );
     const waitingBefore = uniqueIds([...savedWaiting, ...allOutside])
       .filter((playerId) => !loserLine.includes(playerId));
+    const nextOpponentPreset = presets.find((preset) => preset.id === nextOpponentId) || null;
     const buildSideAwareMatchup = (modo, challengerLine, extra = {}) => {
       const winnerStaysOnA = winningTeamKey === "A";
+      const winnerName = teamNameFromGame(jogo, winningTeamKey);
+      const challengerName = modo === "fila"
+        ? "Time da fila"
+        : nextOpponentPreset?.nome || "Desafiante";
 
       return {
         modo,
         timeAId: winnerStaysOnA ? winnerId : nextOpponentId,
         timeBId: winnerStaysOnA ? nextOpponentId : winnerId,
+        nomeA: winnerStaysOnA ? winnerName : challengerName,
+        nomeB: winnerStaysOnA ? challengerName : winnerName,
         linhaA: winnerStaysOnA ? winnerLine : challengerLine,
         linhaB: winnerStaysOnA ? challengerLine : winnerLine,
         goleiroAId: sideGoalkeepers.A.goleiroId,
@@ -11041,7 +11082,6 @@
       });
     }
 
-    const nextOpponentPreset = presets.find((preset) => preset.id === nextOpponentId) || null;
     const nextOpponentLine = uniqueIds(nextOpponentPreset?.linha || [])
       .filter((playerId) => presentIds.has(playerId))
       .slice(0, 5);

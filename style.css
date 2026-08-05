@@ -21330,3 +21330,82 @@ body[data-section="ranking"] .ranking-rest-metric {
     height: 40px;
   }
 }
+
+/* BagreScore 1.3.2 — pelada aberta mais limpa e confronto com prontidão real */
+body[data-section="peladas"] .pelada-detail-flow {
+  gap: 13px;
+}
+
+body[data-section="peladas"] .next-match-card {
+  gap: 13px;
+  border-color: rgba(255, 90, 0, 0.2);
+  border-radius: 20px;
+  padding: 16px;
+}
+
+body[data-section="peladas"] .next-match-card.is-incomplete {
+  border-color: rgba(255, 119, 45, 0.26);
+}
+
+body[data-section="peladas"] .next-match-heading {
+  align-items: center;
+  gap: 12px;
+}
+
+body[data-section="peladas"] .next-match-heading h3 {
+  margin-top: 3px;
+  font-size: clamp(1.08rem, 4.5vw, 1.5rem);
+  line-height: 1.13;
+}
+
+body[data-section="peladas"] .next-match-ready {
+  flex: 0 0 auto;
+  min-height: 31px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+body[data-section="peladas"] .next-match-ready.is-incomplete {
+  border-color: rgba(255, 119, 45, 0.34);
+  color: #ffb184;
+  background: rgba(255, 90, 0, 0.09);
+}
+
+body[data-section="peladas"] .next-match-ready.is-incomplete i {
+  background: #ff5a00;
+  box-shadow: 0 0 10px rgba(255, 90, 0, 0.55);
+}
+
+body[data-section="peladas"] .start-next-game-button:disabled,
+body[data-section="peladas"] .start-next-game-button[aria-disabled="true"] {
+  border-color: rgba(255, 255, 255, 0.11);
+  color: rgba(255, 255, 255, 0.56);
+  background: linear-gradient(135deg, rgba(48, 48, 48, 0.7), rgba(18, 18, 18, 0.92));
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+body[data-section="peladas"] .start-next-game-button:disabled small,
+body[data-section="peladas"] .start-next-game-button[aria-disabled="true"] small {
+  color: rgba(255, 255, 255, 0.46);
+}
+
+@media (max-width: 520px) {
+  body[data-section="peladas"] .next-match-card {
+    padding: 14px;
+  }
+
+  body[data-section="peladas"] .next-match-heading {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  body[data-section="peladas"] .next-match-heading h3 {
+    font-size: clamp(1.02rem, 5.5vw, 1.35rem);
+  }
+
+  body[data-section="peladas"] .next-match-ready {
+    align-self: flex-start;
+    font-size: 0.6rem;
+  }
+}
