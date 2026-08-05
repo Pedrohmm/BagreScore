@@ -13950,6 +13950,108 @@ body[data-section="peladas"] .pelada-detail-tabs button > span {
   font-weight: 800;
 }
 
+.time-da-vez-card {
+  display: grid;
+  gap: 14px;
+  border: 1px solid color-mix(in srgb, var(--team-color, #ff5a00) 34%, rgba(255, 255, 255, 0.08));
+  border-radius: 22px;
+  padding: 16px;
+  background:
+    radial-gradient(circle at 100% 0, color-mix(in srgb, var(--team-color, #ff5a00) 20%, transparent), transparent 15rem),
+    linear-gradient(145deg, rgba(18, 18, 18, 0.98), rgba(7, 7, 7, 0.98));
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.time-da-vez-card header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.time-da-vez-card h3 {
+  margin: 4px 0 2px;
+  color: #fff;
+  font-size: 1.2rem;
+}
+
+.time-da-vez-card header small,
+.time-da-vez-card p {
+  margin: 0;
+  color: #8d8d8d;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.time-da-vez-card header button {
+  min-height: 38px;
+  border: 1px solid color-mix(in srgb, var(--team-color, #ff5a00) 42%, rgba(255, 255, 255, 0.1));
+  border-radius: 999px;
+  padding: 7px 13px;
+  color: color-mix(in srgb, var(--team-color, #ff5a00) 82%, #fff);
+  background: color-mix(in srgb, var(--team-color, #ff5a00) 10%, rgba(255, 255, 255, 0.035));
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.time-da-vez-roster {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.time-da-vez-roster span {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  justify-items: center;
+  gap: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 15px;
+  padding: 10px 5px 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.time-da-vez-roster span > i {
+  position: absolute;
+  top: 6px;
+  left: 7px;
+  color: color-mix(in srgb, var(--team-color, #ff5a00) 86%, #fff);
+  font-size: 0.58rem;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.time-da-vez-roster strong {
+  max-width: 100%;
+  overflow: hidden;
+  color: #dedede;
+  font-size: 0.58rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time-da-vez-roster .is-empty {
+  border-style: dashed;
+  opacity: 0.72;
+}
+
+.time-da-vez-roster .is-empty em {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid color-mix(in srgb, var(--team-color, #ff5a00) 34%, rgba(255, 255, 255, 0.11));
+  border-radius: 50%;
+  color: color-mix(in srgb, var(--team-color, #ff5a00) 82%, #fff);
+  background: color-mix(in srgb, var(--team-color, #ff5a00) 9%, rgba(255, 255, 255, 0.04));
+  font-style: normal;
+  font-weight: 900;
+}
+
 .presence-group {
   overflow: hidden;
   padding: 14px;
@@ -14215,6 +14317,20 @@ body[data-section="ranking"] .ranking-pelada-filter select {
 
   .presence-status-select {
     flex: 1;
+  }
+
+  .time-da-vez-card header {
+    display: grid;
+  }
+
+  .time-da-vez-card header button {
+    width: 100%;
+  }
+
+  .time-da-vez-roster {
+    grid-template-columns: repeat(5, minmax(54px, 1fr));
+    overflow-x: auto;
+    padding-bottom: 2px;
   }
 }
 
@@ -21413,11 +21529,11 @@ body[data-section="peladas"] .start-next-game-button[aria-disabled="true"] small
 .live-next-team-card {
   display: grid;
   gap: 12px;
-  border: 1px solid rgba(255, 90, 0, 0.18);
+  border: 1px solid color-mix(in srgb, var(--team-color, #ff5a00) 32%, rgba(255, 255, 255, 0.08));
   border-radius: 20px;
   padding: 14px;
   background:
-    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.11), transparent 13rem),
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--team-color, #ff5a00) 18%, transparent), transparent 13rem),
     linear-gradient(145deg, rgba(21, 21, 21, 0.94), rgba(7, 7, 7, 0.97));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
 }
@@ -21437,11 +21553,11 @@ body[data-section="peladas"] .start-next-game-button[aria-disabled="true"] small
 
 .live-next-team-card header button {
   min-height: 34px;
-  border: 1px solid rgba(255, 90, 0, 0.32);
+  border: 1px solid color-mix(in srgb, var(--team-color, #ff5a00) 38%, rgba(255, 255, 255, 0.1));
   border-radius: 999px;
   padding: 6px 12px;
-  color: #ff9a55;
-  background: rgba(255, 90, 0, 0.08);
+  color: color-mix(in srgb, var(--team-color, #ff5a00) 82%, #fff);
+  background: color-mix(in srgb, var(--team-color, #ff5a00) 10%, rgba(255, 255, 255, 0.035));
   font: inherit;
   font-size: 0.7rem;
   font-weight: 900;

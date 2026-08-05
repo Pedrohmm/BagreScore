@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.3";
+  const APP_VERSION = "1.3.4";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -242,6 +242,7 @@
       "tipoRegistro",
       "proximoConfronto",
       "presencas",
+      "timeDaVez",
       "filaJogadores",
       "goleirosPresentes",
       "goleiroReservaAtualId",
@@ -2464,11 +2465,36 @@
     return regular;
   }
 
+  function getPeladaTimeDaVez(pelada) {
+    const source = pelada?.timeDaVez || {};
+    const linha = uniqueIds(source.linha || pelada?.filaJogadores || []).slice(0, 5);
+
+    return {
+      nome: String(source.nome || "").trim() || "Time da vez",
+      cor: source.cor || "#ff5a00",
+      linha,
+    };
+  }
+
+  function buildPeladaTimeDaVezPatch(pelada, patch = {}) {
+    const current = getPeladaTimeDaVez(pelada);
+    const next = {
+      nome: String(patch.nome ?? current.nome ?? "").trim() || "Time da vez",
+      cor: patch.cor || current.cor || "#ff5a00",
+      linha: uniqueIds(patch.linha ?? current.linha).slice(0, 5),
+    };
+
+    return {
+      timeDaVez: next,
+      filaJogadores: [...next.linha],
+    };
+  }
+
   function normalizePeladaPlayerQueue(pelada, players = [], occupiedIds = []) {
     const presentLineIds = getPresentLinePlayers(pelada, players).map((player) => player.id);
     const presentSet = new Set(presentLineIds);
     const occupied = new Set(uniqueIds(occupiedIds));
-    return uniqueIds(pelada?.filaJogadores || []).filter(
+    return uniqueIds(getPeladaTimeDaVez(pelada).linha).filter(
       (playerId) => presentSet.has(playerId) && !occupied.has(playerId)
     );
   }
@@ -2518,10 +2544,18 @@
     return sideKey === "A" ? savedMatchup.nomeA || "" : savedMatchup.nomeB || "";
   }
 
+  function getSavedMatchupTeamColor(savedMatchup, sideKey, presetId) {
+    if (!savedMatchup || !["A", "B"].includes(sideKey) || !presetId) return "";
+    const savedSideId = sideKey === "A" ? savedMatchup.timeAId : savedMatchup.timeBId;
+    if (savedSideId !== presetId) return "";
+    return sideKey === "A" ? savedMatchup.corA || "" : savedMatchup.corB || "";
+  }
+
   function teamPresetToDraft(preset, fallbackKey, savedMatchup = null, preservedDraft = null) {
     const savedLineup = getSavedMatchupLineup(savedMatchup, preset?.id);
     const savedGoalkeeper = getSavedMatchupGoalkeeper(savedMatchup, fallbackKey);
     const savedName = getSavedMatchupTeamName(savedMatchup, fallbackKey, preset?.id);
+    const savedColor = getSavedMatchupTeamColor(savedMatchup, fallbackKey, preset?.id);
     const presetLineup = uniqueIds(preset?.linha || []).slice(0, 5);
     const savedMode = normalizeToken(savedMatchup?.modo);
     const isSavedWinner = savedMatchup?.vencedorAnteriorId
@@ -2533,7 +2567,7 @@
     );
     return {
       nome: savedName || preset?.nome || `Time ${fallbackKey}`,
-      cor: preset?.cor || (fallbackKey === "A" ? "#ff5a00" : "#4aa3df"),
+      cor: savedColor || preset?.cor || (fallbackKey === "A" ? "#ff5a00" : "#4aa3df"),
       linha: savedLineup === null || savedLineupIsCorrupted ? presetLineup : savedLineup,
       goleiro: preservedDraft?.goleiro || savedGoalkeeper.goleiro || "",
       goleiroReservaOperadorId: preservedDraft?.goleiroReservaOperadorId || savedGoalkeeper.goleiroReservaOperadorId || "",
@@ -5970,6 +6004,8 @@
           </div>
         </header>
 
+        ${renderTimeDaVezCard(pelada, jogadores)}
+
         <section class="presence-group is-goalkeepers">
           <header><span>Goleiros da rodada</span><strong>${escapeHtml(goalkeepers.filter((player) => isPlayerPresentAtPelada(pelada, player.id)).length)} disponíveis</strong></header>
           <div class="presence-player-list">
@@ -5990,6 +6026,44 @@
             ${linePlayers.map((player) => renderPresencePlayerRow(pelada, player, queuePosition.get(player.id) || null)).join("")}
           </div>
         </section>
+      </section>
+    `;
+  }
+
+  function renderTimeDaVezCard(pelada, jogadores = []) {
+    const time = getPeladaTimeDaVez(pelada);
+    const playerById = new Map(jogadores.map((player) => [player.id, player]));
+    const players = uniqueIds(time.linha).map((id) => playerById.get(id)).filter(Boolean);
+    const complete = players.length === 5;
+    const canManage = hasPermission("times:montar");
+
+    return `
+      <section class="time-da-vez-card ${complete ? "is-complete" : "is-incomplete"}" style="--team-color:${escapeHtml(time.cor)}">
+        <header>
+          <div>
+            <span class="panel-kicker">Próximo desafiante</span>
+            <h3>${escapeHtml(time.nome)}</h3>
+            <small>${escapeHtml(players.length)}/5 jogadores de linha</small>
+          </div>
+          ${canManage ? `<button type="button" data-pelada-action="edit-time-da-vez">Editar Time da vez</button>` : ""}
+        </header>
+        <div class="time-da-vez-roster">
+          ${players.map((player, index) => `
+            <span>
+              <i>${escapeHtml(index + 1)}</i>
+              ${renderPlayerAvatar(player, "player-avatar small")}
+              <strong>${escapeHtml(shortPlayerName(player))}</strong>
+            </span>
+          `).join("")}
+          ${Array.from({ length: Math.max(0, 5 - players.length) }, (_, index) => `
+            <span class="is-empty">
+              <i>${escapeHtml(players.length + index + 1)}</i>
+              <em>+</em>
+              <strong>Vaga</strong>
+            </span>
+          `).join("")}
+        </div>
+        <p>${complete ? "Pronto para enfrentar o vencedor quando este time for chamado." : "Monte manualmente. O app não completa este time automaticamente."}</p>
       </section>
     `;
   }
@@ -6534,7 +6608,7 @@
               ${dynamicQueue.length
                 ? dynamicQueue.map((id, index) => `<strong><i>${index + 1}</i>${escapeHtml(shortPlayerName(playerById.get(id) || {}))}</strong>`).join("")
                 : `<small>Monte o Time da vez em Presenças enquanto o jogo atual acontece.</small>`}
-              ${Number(pelada?.proximoConfronto?.vagasDesafiante || 0) > 0 ? `<em>Faltam ${escapeHtml(pelada.proximoConfronto.vagasDesafiante)} jogadores. O app pode aproveitar até 2 atletas do time perdedor.</em>` : ""}
+              ${Number(pelada?.proximoConfronto?.vagasDesafiante || 0) > 0 ? `<em>Faltam ${escapeHtml(pelada.proximoConfronto.vagasDesafiante)} jogadores no desafiante. Complete manualmente antes de iniciar.</em>` : ""}
             </div>
           ` : queueIds.length ? `
             <div class="waiting-queue">
@@ -7017,6 +7091,113 @@
       state.matchPresetIds = { A: "", B: "" };
       await renderCurrentSection();
       runBackgroundTask(syncNow, "Falha ao sincronizar time da pelada");
+    });
+  }
+
+  function renderTimeDaVezEditor(pelada, players) {
+    const time = getPeladaTimeDaVez(pelada);
+    const linePlayers = getPresentLinePlayers(pelada, players)
+      .sort((a, b) => playerDisplayName(a).localeCompare(playerDisplayName(b), "pt-BR"));
+    const selectedLine = new Set(time.linha);
+
+    return `
+      <form class="team-preset-form time-da-vez-form" id="time-da-vez-form" novalidate>
+        <div class="form-errors" id="time-da-vez-errors" hidden></div>
+        <section class="team-preset-form-hero" style="--team-color:${escapeHtml(time.cor)}">
+          <span class="team-preset-form-icon">${escapeHtml(getLiveTeamInitials(time.nome, "TV"))}</span>
+          <div>
+            <span>Time manual</span>
+            <h3>${escapeHtml(time.nome)}</h3>
+            <p>Escolha até 5 jogadores de linha. O app não completa esse time automaticamente.</p>
+          </div>
+        </section>
+        <div class="team-preset-basics">
+          <label class="field-label"><span>Nome do time</span><input name="nome" value="${escapeHtml(time.nome)}" maxlength="28" placeholder="Ex.: Time da vez" required /></label>
+          <label class="field-label team-color-field"><span>Cor</span><input type="color" name="cor" value="${escapeHtml(time.cor)}" /></label>
+        </div>
+        <label class="field-label time-da-vez-search">
+          <span>Pesquisar jogador</span>
+          <input name="search" type="search" placeholder="Digite nome ou apelido" autocomplete="off" />
+        </label>
+        <div class="team-preset-player-heading"><span>Jogadores presentes</span><strong data-line-count>0/5</strong></div>
+        <div class="team-preset-player-list">
+          ${linePlayers.length ? linePlayers.map((player) => {
+            const checked = selectedLine.has(player.id);
+            return `
+              <label class="team-preset-player-option ${checked ? "is-selected" : ""}" data-player-option data-player-name="${escapeHtml(normalizeToken(playerDisplayName(player)))}">
+                <input type="checkbox" name="linhaIds" value="${escapeHtml(player.id)}" ${checked ? "checked" : ""} />
+                ${renderPlayerAvatar(player, "player-avatar small")}
+                <span><strong>${escapeHtml(playerDisplayName(player))}</strong><small>${escapeHtml(player.posicaoPrincipal || "-")} · ${escapeHtml(player.overall || "-")} OVR</small></span>
+                <i aria-hidden="true">✓</i>
+              </label>
+            `;
+          }).join("") : `<p class="presence-empty">Marque jogadores como presentes para montar o Time da vez.</p>`}
+        </div>
+        <div class="team-preset-form-note"><strong>Controle manual</strong><span>Se faltarem jogadores, salve incompleto e complete depois. Nada será puxado do time perdedor sem você escolher.</span></div>
+        <div class="form-actions">
+          <button class="primary-button big-touch" type="submit">Salvar Time da vez</button>
+          <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
+        </div>
+      </form>
+    `;
+  }
+
+  async function openTimeDaVezEditor() {
+    if (!state.selectedPeladaId || !requirePermission("times:montar")) return;
+    const [pelada, players] = await Promise.all([
+      getRecord("peladas", state.selectedPeladaId),
+      readActivePlayers(),
+    ]);
+    if (!pelada) return;
+
+    const modal = openLiveModal("Editar Time da vez", renderTimeDaVezEditor(pelada, players));
+    const form = modal.querySelector("#time-da-vez-form");
+    const lineInputs = [...form.querySelectorAll('input[name="linhaIds"]')];
+    const countLabel = form.querySelector("[data-line-count]");
+    const searchInput = form.elements.search;
+
+    const refreshOptions = () => {
+      const checkedCount = lineInputs.filter((input) => input.checked).length;
+      lineInputs.forEach((input) => {
+        const option = input.closest("[data-player-option]");
+        input.disabled = !input.checked && checkedCount >= 5;
+        option?.classList.toggle("is-selected", input.checked);
+        option?.classList.toggle("is-disabled", input.disabled);
+      });
+      if (countLabel) countLabel.textContent = `${checkedCount}/5`;
+    };
+
+    lineInputs.forEach((input) => input.addEventListener("change", refreshOptions));
+    refreshOptions();
+
+    searchInput?.addEventListener("input", () => {
+      const token = normalizeToken(searchInput.value);
+      form.querySelectorAll("[data-player-option][data-player-name]").forEach((option) => {
+        option.hidden = token ? !option.dataset.playerName.includes(token) : false;
+      });
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const nome = String(form.elements.nome?.value || "").trim();
+      const cor = form.elements.cor?.value || "#ff5a00";
+      const linha = lineInputs.filter((input) => input.checked).map((input) => input.value);
+      const errors = [];
+
+      if (!nome) errors.push("Informe o nome do Time da vez.");
+      if (linha.length > 5) errors.push("Escolha no máximo 5 jogadores de linha.");
+      showFormErrors("time-da-vez-errors", errors);
+      if (errors.length) return;
+
+      const currentPelada = await getRecord("peladas", state.selectedPeladaId);
+      if (!currentPelada) return;
+      await savePeladaOperationalState(
+        currentPelada,
+        buildPeladaTimeDaVezPatch(currentPelada, { nome, cor, linha }),
+        "editar-time-da-vez"
+      );
+      closeLiveModal();
+      await renderCurrentSection();
     });
   }
 
@@ -7532,18 +7713,15 @@
     const status = ["presente", "atrasado", "ausente"].includes(normalizeToken(requestedStatus))
       ? normalizeToken(requestedStatus)
       : "presente";
-    const currentlyPresent = isPlayerPresentAtPelada(pelada, playerId);
     const willBePresent = status === "presente";
     const presencas = { ...(pelada.presencas || {}), [playerId]: status };
     const currentQueue = normalizePeladaPlayerQueue(pelada, jogadores);
-    const filaJogadores = !willBePresent
+    const nextLine = !willBePresent
       ? currentQueue.filter((id) => id !== playerId)
-      : !currentlyPresent && isLineupPlayer(player)
-        ? [...currentQueue.filter((id) => id !== playerId), playerId]
-        : currentQueue;
+      : currentQueue;
     const changes = {
       presencas,
-      filaJogadores,
+      ...buildPeladaTimeDaVezPatch(pelada, { linha: nextLine }),
       goleiroReservaAtualId: !willBePresent && pelada.goleiroReservaAtualId === playerId
         ? ""
         : pelada.goleiroReservaAtualId || "",
@@ -7563,10 +7741,14 @@
     if (!pelada || !player || !isLineupPlayer(player) || !isPlayerPresentAtPelada(pelada, playerId)) return;
     const queue = normalizePeladaPlayerQueue(pelada, jogadores);
     const queued = queue.includes(playerId);
-    const filaJogadores = queued
+    const linha = queued
       ? queue.filter((id) => id !== playerId)
       : [...queue, playerId];
-    await savePeladaOperationalState(pelada, { filaJogadores }, queued ? "remover-da-fila" : "adicionar-a-fila");
+    await savePeladaOperationalState(
+      pelada,
+      buildPeladaTimeDaVezPatch(pelada, { linha }),
+      queued ? "remover-do-time-da-vez" : "adicionar-ao-time-da-vez"
+    );
     await renderCurrentSection();
   }
 
@@ -7698,6 +7880,11 @@
 
       if (action === "toggle-player-queue") {
         await togglePeladaPlayerQueue(actionButton.dataset.playerId || "");
+        return;
+      }
+
+      if (action === "edit-time-da-vez") {
+        await openTimeDaVezEditor();
         return;
       }
 
@@ -8441,6 +8628,7 @@
       status: "Aberta",
       proximoConfronto: null,
       presencas: {},
+      timeDaVez: { nome: "Time da vez", cor: "#ff5a00", linha: [] },
       filaJogadores: [],
       goleirosPresentes: [],
       goleiroReservaAtualId: "",
@@ -8518,17 +8706,12 @@
       data.timeA.goleiroReservaOperadorId,
       data.timeB.goleiroReservaOperadorId,
     ]);
-    const occupiedSet = new Set(occupied);
-    const presentLineIds = getPresentLinePlayers(pelada, jogadores).map((player) => player.id);
-    const previousQueue = normalizePeladaPlayerQueue(pelada, jogadores, occupied);
-    const remaining = presentLineIds.filter(
-      (playerId) => !occupiedSet.has(playerId) && !previousQueue.includes(playerId)
-    );
+    const nextTimeDaVez = normalizePeladaPlayerQueue(pelada, jogadores, occupied);
     const reserveOperatorId = data.timeA.goleiroReservaOperadorId || data.timeB.goleiroReservaOperadorId || "";
 
     return {
       ...pelada,
-      filaJogadores: [...previousQueue, ...remaining],
+      ...buildPeladaTimeDaVezPatch(pelada, { linha: nextTimeDaVez }),
       goleiroReservaAtualId: reserveOperatorId,
       updatedAt: savedAt,
       revision: (pelada.revision || 0) + 1,
@@ -8985,25 +9168,20 @@
   }
 
   function renderLiveNextTeamCard(bundle) {
-    const { pelada, playerById, playersA, playersB } = bundle;
+    const { pelada, playerById } = bundle;
     if (!pelada) return "";
 
-    const occupied = new Set(
-      [...(playersA || []), ...(playersB || [])]
-        .filter((player) => player?.id && isLineupPlayer(player))
-        .map((player) => player.id)
-    );
-    const availablePlayers = Array.from(playerById.values());
-    const nextTeamIds = normalizePeladaPlayerQueue(pelada, availablePlayers, [...occupied]).slice(0, 5);
+    const time = getPeladaTimeDaVez(pelada);
+    const nextTeamIds = uniqueIds(time.linha).filter((id) => playerById.has(id)).slice(0, 5);
     const nextPlayers = nextTeamIds.map((id) => playerById.get(id)).filter(Boolean);
     const missing = Math.max(0, 5 - nextPlayers.length);
 
     return `
-      <section class="live-next-team-card ${nextPlayers.length ? "" : "is-empty"}">
+      <section class="live-next-team-card ${nextPlayers.length ? "" : "is-empty"}" style="--team-color:${escapeHtml(time.cor)}">
         <header>
           <div>
             <span class="panel-kicker">Próximo desafiante</span>
-            <h3>Time da vez</h3>
+            <h3>${escapeHtml(time.nome)}</h3>
           </div>
           <button type="button" data-live-action="edit-next-team" data-pelada-id="${escapeHtml(pelada.id)}">Editar</button>
         </header>
@@ -9018,7 +9196,7 @@
             `).join("")
             : `<p>Monte o Time da vez em Presenças enquanto a partida acontece.</p>`}
         </div>
-        ${missing ? `<small>Faltam ${escapeHtml(missing)}. Se precisar, ao finalizar o jogo o app aproveita até 2 jogadores do time perdedor.</small>` : `<small>Pronto para enfrentar o vencedor do jogo atual.</small>`}
+        ${missing ? `<small>Faltam ${escapeHtml(missing)} jogadores. Complete manualmente quando quiser.</small>` : `<small>Pronto para enfrentar o vencedor do jogo atual.</small>`}
       </section>
     `;
   }
@@ -10043,11 +10221,11 @@
       if (action === "edit-next-team") {
         const peladaId = actionButton.dataset.peladaId || "";
         state.selectedGameSummaryId = null;
-        state.peladaDetailView = "presencas";
 
         if (peladaId) {
-          await switchSection("peladas", { peladaId });
+          state.selectedPeladaId = peladaId;
         }
+        await openTimeDaVezEditor();
         return;
       }
 
@@ -11006,6 +11184,7 @@
     const presets = context.presets || [];
     const players = context.players || [];
     const gameTeams = context.gameTeams || [];
+    const timeDaVez = getPeladaTimeDaVez(pelada);
     const reserveOperatorIds = uniqueIds([
       pelada?.goleiroReservaAtualId,
       ...gameTeams.map((team) => team.goleiroReservaOperadorId),
@@ -11081,20 +11260,20 @@
     });
     const hasThreeCompleteTeams = disjointCompleteTeams >= 3;
     const winnerLine = resolveRotationLineup(winningTeamKey, jogo, context, presentIds);
-    const loserLine = resolveRotationLineup(oppositeTeam(winningTeamKey), jogo, context, presentIds);
-    const savedWaiting = normalizePeladaPlayerQueue(pelada, players, [...winnerLine, ...reserveOperatorIds]);
-    const allOutside = [...presentIds].filter(
-      (playerId) => !winnerLine.includes(playerId) && !loserLine.includes(playerId)
-    );
-    const waitingBefore = uniqueIds([...savedWaiting, ...allOutside])
-      .filter((playerId) => !loserLine.includes(playerId));
+    const manualNextTeamLine = uniqueIds(timeDaVez.linha)
+      .filter((playerId) => presentIds.has(playerId))
+      .slice(0, 5);
     const nextOpponentPreset = presets.find((preset) => preset.id === nextOpponentId) || null;
     const buildSideAwareMatchup = (modo, challengerLine, extra = {}) => {
       const winnerStaysOnA = winningTeamKey === "A";
       const winnerName = teamNameFromGame(jogo, winningTeamKey);
+      const winnerColor = teamColorFromGame(jogo, winningTeamKey);
       const challengerName = modo === "fila"
-        ? "Time da vez"
+        ? timeDaVez.nome
         : nextOpponentPreset?.nome || "Desafiante";
+      const challengerColor = modo === "fila"
+        ? timeDaVez.cor
+        : nextOpponentPreset?.cor || (winnerStaysOnA ? "#4aa3df" : "#ff5a00");
 
       return {
         modo,
@@ -11102,6 +11281,8 @@
         timeBId: winnerStaysOnA ? nextOpponentId : winnerId,
         nomeA: winnerStaysOnA ? winnerName : challengerName,
         nomeB: winnerStaysOnA ? challengerName : winnerName,
+        corA: winnerStaysOnA ? winnerColor : challengerColor,
+        corB: winnerStaysOnA ? challengerColor : winnerColor,
         linhaA: winnerStaysOnA ? winnerLine : challengerLine,
         linhaB: winnerStaysOnA ? challengerLine : winnerLine,
         goleiroAId: sideGoalkeepers.A.goleiroId,
@@ -11120,19 +11301,13 @@
     };
 
     if (!hasThreeCompleteTeams) {
-      const outsideChallenger = waitingBefore.slice(0, 5);
-      const missingFromOutside = Math.max(0, 5 - outsideChallenger.length);
-      const loserFill = loserLine.slice(0, Math.min(2, missingFromOutside));
-      const challengerLine = uniqueIds([...outsideChallenger, ...loserFill]).slice(0, 5);
-      const nextPlayerQueue = uniqueIds([
-        ...waitingBefore.filter((playerId) => !challengerLine.includes(playerId)),
-        ...loserLine.filter((playerId) => !loserFill.includes(playerId)),
-      ]);
+      const challengerLine = [...manualNextTeamLine];
+      const nextPlayerQueue = uniqueIds(timeDaVez.linha)
+        .filter((playerId) => presentIds.has(playerId) && !challengerLine.includes(playerId));
 
       return buildSideAwareMatchup("fila", challengerLine, {
         filaJogadores: nextPlayerQueue,
         vagasDesafiante: Math.max(0, 5 - challengerLine.length),
-        jogadoresAproveitadosDoPerdedor: loserFill,
       });
     }
 
@@ -11206,10 +11381,13 @@
       escalacoes,
       rotateBothAfterDraw,
     });
+    const nextTimeDaVezPatch = nextRotation
+      ? buildPeladaTimeDaVezPatch(pelada, { linha: nextRotation.filaJogadores || [] })
+      : null;
     const updatedPelada = nextRotation ? {
       ...pelada,
+      ...nextTimeDaVezPatch,
       proximoConfronto: nextRotation,
-      filaJogadores: [...(nextRotation.filaJogadores || pelada.filaJogadores || [])],
       updatedAt: savedAt,
       revision: (pelada.revision || 0) + 1,
     } : null;
