@@ -305,6 +305,15 @@ Não é necessário atualizar o `Code.gs` para a versão 1.3.13. Publique os arq
 
 Não é necessário atualizar o `Code.gs` para a versão 1.3.14. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.3.15 — ações de exclusão no Gerenciar
+
+- O cartão oficial agora mostra **Próxima pelada oficial** e o status ao lado do título.
+- O selo **Oficial** e o texto **Abrir pelada** foram removidos.
+- A ação **Excluir pelada** voltou a ficar visível diretamente no rodapé do cartão oficial e usa a confirmação segura já existente.
+- A ação **Limpar testes** foi movida para o rodapé do ambiente de testes.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.3.15. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.

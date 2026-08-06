@@ -23257,3 +23257,141 @@ body[data-section="peladas"] .test-records-panel .pelada-card-info .pelada-meta-
     display: inline;
   }
 }
+
+/* Ações de gerenciamento visíveis nos rodapés v1.3.15 */
+body[data-section="peladas"] .peladas-featured-card {
+  gap: 0;
+  overflow: hidden;
+  padding: 0;
+  cursor: default;
+}
+
+body[data-section="peladas"] .peladas-featured-open {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  border: 0;
+  padding: 15px;
+  color: inherit;
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+body[data-section="peladas"] .peladas-featured-open:is(:hover, :focus-visible) {
+  background: rgba(255, 90, 0, 0.025);
+  transform: none;
+}
+
+body[data-section="peladas"] .peladas-featured-top {
+  align-items: center;
+}
+
+body[data-section="peladas"] .peladas-featured-top .peladas-featured-kicker {
+  min-width: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.075em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+body[data-section="peladas"] .peladas-featured-top .pelada-status-badge {
+  min-height: 24px;
+  flex: 0 0 auto;
+  margin: 0;
+  border-radius: 999px;
+  padding: 5px 8px;
+  font-size: 0.58rem;
+  line-height: 1;
+}
+
+body[data-section="peladas"] .peladas-featured-actions {
+  display: flex;
+  border-top: 1px solid rgba(255, 255, 255, 0.075);
+  padding: 10px 15px 13px;
+}
+
+body[data-section="peladas"] .peladas-featured-delete {
+  display: inline-flex;
+  width: 100%;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid rgba(230, 92, 92, 0.3);
+  border-radius: 11px;
+  padding: 8px 12px;
+  color: #e89a9a;
+  background: linear-gradient(145deg, rgba(61, 18, 18, 0.3), rgba(17, 8, 8, 0.76));
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+body[data-section="peladas"] .peladas-featured-delete:is(:hover, :focus-visible) {
+  border-color: rgba(239, 105, 105, 0.58);
+  color: #ffc0c0;
+  background: linear-gradient(145deg, rgba(86, 24, 24, 0.42), rgba(24, 10, 10, 0.84));
+}
+
+body[data-section="peladas"] .peladas-featured-delete svg,
+body[data-section="peladas"] .test-records-actions .test-records-clear svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+body[data-section="peladas"] .test-records-actions {
+  display: flex;
+  justify-content: center;
+  border-top: 1px solid rgba(246, 190, 74, 0.16);
+  padding-top: 10px;
+}
+
+body[data-section="peladas"] .test-records-actions .test-records-clear {
+  display: inline-flex;
+  width: 100%;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid rgba(246, 190, 74, 0.38);
+  border-radius: 11px;
+  padding: 8px 12px;
+  color: #f1c85f;
+  background: rgba(246, 190, 74, 0.075);
+  font: inherit;
+  font-size: 0.65rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+body[data-section="peladas"] .test-records-actions .test-records-clear:is(:hover, :focus-visible) {
+  border-color: rgba(246, 190, 74, 0.65);
+  color: #ffe39a;
+  background: rgba(246, 190, 74, 0.12);
+}
+
+@media (max-width: 520px) {
+  body[data-section="peladas"] .peladas-featured-open {
+    gap: 10px;
+    padding: 14px 13px 12px;
+  }
+
+  body[data-section="peladas"] .peladas-featured-actions {
+    padding: 9px 13px 12px;
+  }
+
+  body[data-section="peladas"] .peladas-featured-top .peladas-featured-kicker {
+    font-size: 0.66rem;
+  }
+}

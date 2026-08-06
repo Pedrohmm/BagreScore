@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.14";
+  const APP_VERSION = "1.3.15";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -6152,7 +6152,7 @@
 
     return `
       <section class="peladas-featured-empty" aria-labelledby="no-open-pelada-title">
-        <span class="peladas-featured-kicker">Próxima pelada</span>
+        <span class="peladas-featured-kicker">Próxima pelada oficial</span>
         <span class="peladas-empty-calendar" aria-hidden="true">
           <svg viewBox="0 0 24 24"><path d="M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/><path d="M12 12v5M9.5 14.5h5"/></svg>
         </span>
@@ -6183,12 +6183,6 @@
           <section class="test-records-panel">
             <header>
               <span class="test-records-title">Ambiente de testes</span>
-              ${hasPermission("eventos:excluir") ? `
-                <button class="test-records-clear" type="button" data-pelada-action="delete-all-tests" aria-label="Apagar todas as peladas de teste">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 10v7M14 10v7"/></svg>
-                  <span>Limpar testes</span>
-                </button>
-              ` : ""}
             </header>
             <div class="pelada-card-grid">
               ${testPeladas.map((pelada) =>
@@ -6199,6 +6193,14 @@
                 )
               ).join("")}
             </div>
+            ${hasPermission("eventos:excluir") ? `
+              <footer class="test-records-actions">
+                <button class="test-records-clear" type="button" data-pelada-action="delete-all-tests" aria-label="Apagar todas as peladas de teste">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 10v7M14 10v7"/></svg>
+                  <span>Limpar testes</span>
+                </button>
+              </footer>
+            ` : ""}
           </section>
         ` : ""}
       </section>
@@ -6356,23 +6358,30 @@
     const status = getPeladaStatusLabel(pelada, jogos);
 
     return `
-      <button class="peladas-featured-card" type="button" data-pelada-action="open-pelada" data-pelada-id="${escapeHtml(pelada.id)}">
-        <span class="peladas-featured-top">
-          <span class="peladas-featured-kicker">Próxima pelada</span>
-        </span>
-        <span class="peladas-featured-main">
-          ${renderPeladaDateTile(pelada, "is-featured")}
-          <span class="pelada-card-info">
-            <strong>${escapeHtml(pelada.local || "Pelada")}</strong>
-            ${pelada.endereco ? `<small>${escapeHtml(pelada.endereco)}</small>` : `<small>Local não informado</small>`}
+      <article class="peladas-featured-card">
+        <button class="peladas-featured-open" type="button" data-pelada-action="open-pelada" data-pelada-id="${escapeHtml(pelada.id)}">
+          <span class="peladas-featured-top">
+            <span class="peladas-featured-kicker">Próxima pelada oficial</span>
+            ${renderPeladaStatusBadge(status)}
           </span>
-        </span>
-        ${renderPeladaMetaRow(pelada, gameCount)}
-        <span class="peladas-featured-footer">
-          <span class="pelada-badge-stack">${renderPeladaTypeBadge(pelada)}${renderPeladaStatusBadge(status)}</span>
-          <span class="peladas-featured-cta">Abrir pelada <b aria-hidden="true">&rsaquo;</b></span>
-        </span>
-      </button>
+          <span class="peladas-featured-main">
+            ${renderPeladaDateTile(pelada, "is-featured")}
+            <span class="pelada-card-info">
+              <strong>${escapeHtml(pelada.local || "Pelada")}</strong>
+              ${pelada.endereco ? `<small>${escapeHtml(pelada.endereco)}</small>` : `<small>Local não informado</small>`}
+            </span>
+          </span>
+          ${renderPeladaMetaRow(pelada, gameCount)}
+        </button>
+        ${hasPermission("eventos:excluir") ? `
+          <footer class="peladas-featured-actions">
+            <button class="peladas-featured-delete" type="button" data-pelada-action="delete-pelada" data-pelada-id="${escapeHtml(pelada.id)}">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 10v7M14 10v7"/></svg>
+              <span>Excluir pelada</span>
+            </button>
+          </footer>
+        ` : ""}
+      </article>
     `;
   }
 
