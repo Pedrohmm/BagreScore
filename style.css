@@ -23570,3 +23570,57 @@ body[data-section="ranking"] .ranking-leaderboard-top h2::before {
     margin: -9px -9px 0;
   }
 }
+
+/* Estado vazio compacto da tela inicial v1.3.20 */
+body[data-section="inicio"] .featured-match-card.is-empty {
+  gap: 10px;
+  justify-items: stretch;
+  padding: 15px 16px 16px;
+  text-align: left;
+}
+
+body[data-section="inicio"] .featured-match-card.is-empty .feature-badge,
+body[data-section="inicio"] .featured-match-card.is-empty h2,
+body[data-section="inicio"] .featured-match-card.is-empty .home-primary-action {
+  justify-self: stretch;
+}
+
+body[data-section="inicio"] .featured-match-card.is-empty h2 {
+  margin: 0;
+  color: #f4f4f4;
+  font-size: clamp(1.18rem, 5.5vw, 1.55rem);
+  letter-spacing: -0.015em;
+  line-height: 1.12;
+  text-align: left;
+}
+
+body[data-section="inicio"] .featured-match-card.is-empty .home-primary-action {
+  display: inline-flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 12px;
+  margin-top: 1px;
+  font-size: 0.78rem;
+  font-weight: 950;
+  letter-spacing: 0.035em;
+  line-height: 1;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+body[data-section="inicio"] .home-primary-action-icon {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 7px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.14);
+  font-size: 1.05rem;
+  font-weight: 650;
+  line-height: 1;
+}

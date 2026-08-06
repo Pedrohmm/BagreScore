@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.19";
+  const APP_VERSION = "1.3.20";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -4446,10 +4446,10 @@
       return `
         <section class="featured-match-card is-empty" aria-labelledby="home-title">
           <span class="feature-badge">Pelada em destaque</span>
-          <span class="featured-empty-icon" aria-hidden="true">+</span>
-          <h2 id="home-title">Nenhuma pelada marcada ainda</h2>
-          <p>${canCreatePelada ? "Crie a próxima rodada e comece a resenha." : "Quando a próxima rodada for criada, ela aparecerá aqui."}</p>
-          <button class="primary-button home-primary-action" type="button" data-home-section="peladas">${canCreatePelada ? "Criar pelada" : "Ver peladas"}</button>
+          <h2 id="home-title">Nenhuma pelada marcada</h2>
+          <button class="primary-button home-primary-action" type="button" data-home-section="peladas">
+            ${canCreatePelada ? '<span class="home-primary-action-icon" aria-hidden="true">+</span><span>Criar pelada</span>' : "Ver peladas"}
+          </button>
         </section>
       `;
     }

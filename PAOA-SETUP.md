@@ -345,6 +345,15 @@ Não é necessário atualizar o `Code.gs` para a versão 1.3.18. Publique os arq
 
 Não é necessário atualizar o `Code.gs` para a versão 1.3.19. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.3.20 — início mais compacto
+
+- O estado vazio agora informa apenas **Nenhuma pelada marcada**.
+- A frase auxiliar foi removida para reduzir a altura do primeiro bloco.
+- O símbolo **+** foi incorporado ao botão **Criar pelada**.
+- Espaçamentos, título e botão foram compactados para ampliar a área útil da tela inicial.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.3.20. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.
