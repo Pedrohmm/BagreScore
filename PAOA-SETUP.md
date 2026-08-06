@@ -330,6 +330,14 @@ Não é necessário atualizar o `Code.gs` para a versão 1.3.16. Publique os arq
 
 Não é necessário atualizar o `Code.gs` para a versão 1.3.17. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.3.18 — contador e cadastro do elenco
+
+- Removido o subtítulo **Elenco cadastrado**.
+- A quantidade de jogadores ganhou o mesmo destaque laranja dos títulos do aplicativo.
+- **Cadastrar jogador** agora ocupa toda a largura abaixo do contador, com o texto centralizado.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.3.18. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.

@@ -23441,66 +23441,66 @@ body[data-section="jogadores"] .players-catalog-header h2::before {
 
 body[data-section="jogadores"] .players-list-panel .players-roster-toolbar {
   display: grid;
+  width: 100%;
   align-items: stretch;
-  gap: 10px;
+  justify-content: stretch;
   border-bottom: 0;
+  margin-bottom: 0;
   padding: 14px 16px 12px;
-}
-
-body[data-section="jogadores"] .players-roster-toolbar h3 {
-  margin: 0;
-  color: #e9e9e9;
-  font-size: 1.05rem;
-  font-weight: 900;
-  letter-spacing: 0.01em;
-  line-height: 1.1;
+  box-sizing: border-box;
 }
 
 body[data-section="jogadores"] .players-roster-summary {
-  display: flex;
+  display: grid;
+  width: 100%;
   min-width: 0;
-  align-items: center;
-  justify-content: space-between;
   gap: 10px;
+  justify-items: stretch;
 }
 
 body[data-section="jogadores"] .players-roster-count {
+  display: block;
   min-width: 0;
-  color: #9f9f9f;
-  font-size: 0.78rem;
-  font-weight: 750;
+  color: #ff7424;
+  font-size: 0.82rem;
+  font-weight: 950;
+  letter-spacing: 0.075em;
+  line-height: 1.1;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
 body[data-section="jogadores"] .players-roster-create {
   display: inline-flex;
-  min-height: 38px;
+  width: 100%;
+  min-height: 42px;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  border: 1px solid rgba(255, 105, 26, 0.34);
+  border: 1px solid rgba(255, 126, 45, 0.72);
   border-radius: 11px;
   padding: 8px 12px;
-  color: #ff9457;
-  background: linear-gradient(145deg, rgba(255, 90, 0, 0.105), rgba(255, 90, 0, 0.045));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  color: #fff;
+  background: linear-gradient(135deg, #ff7418, #f04a00);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 8px 20px rgba(255, 74, 0, 0.18);
   font: inherit;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 950;
+  letter-spacing: 0.025em;
   line-height: 1;
+  text-align: center;
+  text-transform: uppercase;
   white-space: nowrap;
   cursor: pointer;
-}
-
-body[data-section="jogadores"] .players-roster-create > span {
-  font-size: 1rem;
-  line-height: 0.7;
+  justify-self: stretch;
+  box-sizing: border-box;
 }
 
 body[data-section="jogadores"] .players-roster-create:is(:hover, :focus-visible) {
-  border-color: rgba(255, 135, 64, 0.62);
-  color: #ffc09b;
-  background: rgba(255, 90, 0, 0.14);
+  border-color: rgba(255, 166, 105, 0.9);
+  color: #fff;
+  background: linear-gradient(135deg, #ff842c, #fa5507);
 }
 
 body[data-section="jogadores"] .players-list-panel > .player-card-grid {
@@ -23517,8 +23517,7 @@ body[data-section="ranking"] .ranking-leaderboard-top h2 {
 
 @media (max-width: 380px) {
   body[data-section="jogadores"] .players-roster-create {
-    gap: 5px;
     padding-inline: 9px;
-    font-size: 0.66rem;
+    font-size: 0.7rem;
   }
 }

@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.17";
+  const APP_VERSION = "1.3.18";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -4991,14 +4991,12 @@
       <section class="players-list-panel">
         ${renderPlayersCatalogHeader()}
         <div class="players-toolbar players-roster-toolbar">
-          <h3>Elenco cadastrado</h3>
           <div class="players-roster-summary">
             <span class="players-roster-count">${escapeHtml(jogadores.length)} jogador${jogadores.length === 1 ? "" : "es"}</span>
             ${
               hasPermission("jogadores:criar")
                 ? `
                   <button class="players-roster-create" type="button" data-player-action="start-create">
-                    <span aria-hidden="true">+</span>
                     Cadastrar jogador
                   </button>
                 `
