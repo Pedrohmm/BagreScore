@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.11";
+  const APP_VERSION = "1.3.12";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -9237,11 +9237,9 @@
   function renderLiveTeamBadge(bundle, teamKey) {
     const jogo = bundle.jogo;
     const name = teamNameFromGame(jogo, teamKey);
-    const initials = getLiveTeamInitials(name, teamKey);
 
     return `
       <div class="live-team-badge" style="--team-color: ${escapeHtml(teamColorFromGame(jogo, teamKey))};">
-        <span>${escapeHtml(initials)}</span>
         <strong>${escapeHtml(name)}</strong>
       </div>
     `;
@@ -9347,29 +9345,28 @@
     const time = getPeladaTimeDaVez(pelada);
     const nextTeamIds = uniqueIds(time.linha).filter((id) => playerById.has(id)).slice(0, 5);
     const nextPlayers = nextTeamIds.map((id) => playerById.get(id)).filter(Boolean);
-    const missing = Math.max(0, 5 - nextPlayers.length);
+    const slots = Array.from({ length: 5 }, (_, index) => nextPlayers[index] || null);
 
     return `
       <section class="live-next-team-card ${nextPlayers.length ? "" : "is-empty"}" style="--team-color:${escapeHtml(time.cor)}">
         <header>
-          <div>
-            <span class="panel-kicker">Próximo desafiante</span>
-            <h3>${escapeHtml(time.nome)}</h3>
-          </div>
-          <button type="button" data-live-action="edit-next-team" data-pelada-id="${escapeHtml(pelada.id)}">Editar</button>
+          <span class="panel-kicker">Próximo desafiante</span>
         </header>
-        <div class="live-next-team-list">
-          ${nextPlayers.length
-            ? nextPlayers.map((player, index) => `
-              <span>
-                <i>${escapeHtml(index + 1)}</i>
-                ${renderPlayerAvatar(player, "player-avatar small")}
-                <strong>${escapeHtml(shortPlayerName(player))}</strong>
-              </span>
-            `).join("")
-            : `<p>Monte o Time da vez em Presenças enquanto a partida acontece.</p>`}
+        <div class="live-next-team-list" aria-label="Escalação do próximo desafiante">
+          ${slots.map((player) => `
+            <button
+              class="live-next-team-slot ${player ? "has-player" : "is-empty"}"
+              type="button"
+              data-live-action="edit-next-team"
+              data-pelada-id="${escapeHtml(pelada.id)}"
+              aria-label="${escapeHtml(player ? `Editar escalação com ${playerDisplayName(player)}` : "Adicionar jogador ao próximo desafiante")}"
+            >
+              ${player
+                ? `${renderPlayerAvatar(player, "player-avatar small")}<strong>${escapeHtml(shortPlayerName(player))}</strong>`
+                : `<span aria-hidden="true">+</span>`}
+            </button>
+          `).join("")}
         </div>
-        ${missing ? `<small>Faltam ${escapeHtml(missing)} jogadores. Complete manualmente quando quiser.</small>` : `<small>Pronto para enfrentar o vencedor do jogo atual.</small>`}
       </section>
     `;
   }
@@ -9623,8 +9620,8 @@
           <path d="M1 10 7 1h92v89l-7 9H1Z"/>
         </svg>
         <div class="live-card-heading">
-          <h3>Eventos da partida</h3>
-          <span><i></i>Tempo real</span>
+          <span class="panel-kicker">Eventos da partida</span>
+          <span class="live-realtime-badge"><i></i>Tempo real</span>
         </div>
         ${renderEventTimeline(bundle)}
       </section>

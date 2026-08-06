@@ -22532,3 +22532,221 @@ body[data-section="peladas"] .game-history-goals.is-empty em {
     font-size: 1.15rem;
   }
 }
+
+/* Ao Vivo compacto e objetivo v1.3.12 */
+body[data-section="ao-vivo"] .live-score-card {
+  padding: 8px 10px;
+}
+
+body[data-section="ao-vivo"] .live-score-board {
+  min-height: 116px;
+  grid-template-columns: minmax(0, 1fr) minmax(92px, 0.78fr) minmax(0, 1fr);
+  gap: 8px;
+  padding: 2px 0;
+}
+
+body[data-section="ao-vivo"] .live-team-badge {
+  width: 100%;
+  gap: 0;
+}
+
+body[data-section="ao-vivo"] .live-team-badge > span {
+  display: none;
+}
+
+body[data-section="ao-vivo"] .live-team-badge strong {
+  display: flex;
+  width: min(100%, 118px);
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 2px solid var(--team-color);
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: #fff;
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--team-color) 22%, transparent), transparent 70%),
+    rgba(8, 9, 8, 0.92);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--team-color) 10%, transparent),
+    0 0 18px color-mix(in srgb, var(--team-color) 35%, transparent);
+  font-size: clamp(0.64rem, 3.2vw, 0.78rem);
+  line-height: 1.15;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: normal;
+}
+
+body[data-section="ao-vivo"] .live-score-center {
+  gap: 5px;
+}
+
+body[data-section="ao-vivo"] .live-score-center .live-score-status {
+  min-height: 21px;
+  margin-bottom: 1px;
+  transform: translateY(-3px);
+}
+
+body[data-section="ao-vivo"] .live-score-center .live-status-dot {
+  min-height: 21px;
+  padding: 4px 8px;
+  font-size: 0.52rem;
+}
+
+body[data-section="ao-vivo"] .live-score-center > strong {
+  gap: 6px;
+  font-size: clamp(1.95rem, 9.5vw, 2.8rem);
+  line-height: 0.9;
+}
+
+body[data-section="ao-vivo"] .live-score-center .timer {
+  min-width: 82px;
+  border-radius: 9px;
+  padding: 4px 8px;
+  font-size: 0.9rem;
+}
+
+body[data-section="ao-vivo"] .live-next-team-card {
+  gap: 11px;
+  border-radius: 18px;
+  padding: 13px 14px 14px;
+}
+
+body[data-section="ao-vivo"] .live-next-team-card header {
+  min-height: 20px;
+}
+
+body[data-section="ao-vivo"] .live-next-team-card .panel-kicker,
+body[data-section="ao-vivo"] .live-card-heading .panel-kicker {
+  display: inline-flex;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  color: var(--orange);
+  background: transparent;
+  font-size: 0.7rem;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+body[data-section="ao-vivo"] .live-next-team-list {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: start;
+  gap: 8px;
+  overflow: visible;
+  padding: 0;
+}
+
+body[data-section="ao-vivo"] .live-next-team-slot {
+  display: grid;
+  min-width: 0;
+  min-height: 58px;
+  align-content: start;
+  justify-items: center;
+  gap: 5px;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+body[data-section="ao-vivo"] .live-next-team-slot > span,
+body[data-section="ao-vivo"] .live-next-team-slot .player-avatar {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.018);
+  box-shadow: none;
+  font-size: 1.22rem;
+  line-height: 1;
+}
+
+body[data-section="ao-vivo"] .live-next-team-slot.has-player .player-avatar {
+  border: 2px solid var(--team-color);
+  box-shadow: 0 0 15px color-mix(in srgb, var(--team-color) 34%, transparent);
+}
+
+body[data-section="ao-vivo"] .live-next-team-slot strong {
+  width: 100%;
+  overflow: hidden;
+  color: #d6d8d7;
+  font-size: 0.58rem;
+  line-height: 1.1;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-section="ao-vivo"] .live-next-team-slot:focus-visible > span,
+body[data-section="ao-vivo"] .live-next-team-slot:focus-visible .player-avatar {
+  outline: 2px solid var(--orange);
+  outline-offset: 3px;
+}
+
+body[data-section="ao-vivo"] .live-events-card {
+  border-radius: 18px;
+  padding: 13px 14px 10px;
+}
+
+body[data-section="ao-vivo"] .live-card-heading {
+  min-height: 24px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 0 9px;
+}
+
+body[data-section="ao-vivo"] .live-card-heading .live-realtime-badge {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid rgba(255, 90, 0, 0.3);
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: #ff8b48;
+  background: rgba(255, 90, 0, 0.055);
+  font-size: 0.56rem;
+  font-weight: 950;
+  letter-spacing: 0.035em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+body[data-section="ao-vivo"] .live-card-heading .live-realtime-badge i {
+  width: 5px;
+  height: 5px;
+}
+
+@media (max-width: 360px) {
+  body[data-section="ao-vivo"] .live-score-board {
+    grid-template-columns: minmax(0, 1fr) 88px minmax(0, 1fr);
+    gap: 5px;
+  }
+
+  body[data-section="ao-vivo"] .live-team-badge strong {
+    min-height: 44px;
+    padding-inline: 7px;
+    font-size: 0.62rem;
+  }
+
+  body[data-section="ao-vivo"] .live-next-team-list {
+    gap: 5px;
+  }
+
+  body[data-section="ao-vivo"] .live-next-team-slot > span,
+  body[data-section="ao-vivo"] .live-next-team-slot .player-avatar {
+    width: 44px;
+    height: 44px;
+  }
+}

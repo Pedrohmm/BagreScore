@@ -279,6 +279,15 @@ Não é necessário atualizar o `Code.gs` para a versão 1.3.10. Publique os arq
 
 Não é necessário atualizar o `Code.gs` para a versão 1.3.11. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.3.12 — tela Ao Vivo compacta
+
+- O placar ao vivo ficou menor e passou a exibir os nomes dos times em caixas arredondadas com as cores escolhidas.
+- O próximo desafiante mostra cinco posições clicáveis; qualquer posição abre a seleção manual dos jogadores.
+- Os textos auxiliares e o botão **Editar** foram removidos do próximo desafiante.
+- O cabeçalho de eventos e o indicador **Tempo real** foram alinhados e compactados.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.3.12. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.
