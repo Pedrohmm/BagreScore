@@ -256,6 +256,17 @@ Não é necessário atualizar o `Code.gs` para a versão 1.3.8. Publique os arqu
 
 Não é necessário atualizar o `Code.gs` para a versão 1.3.9. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.3.10 — modais de escalação compactos
+
+- o botão verde agora exibe **INICIAR PELADA DOS BAGRES** em letras maiúsculas e centralizadas;
+- **Monte a escalação** e **Escolha o goleiro** passaram para o cabeçalho do modal;
+- o contador `0/5` ou `0/1` aparece ao lado do título no cabeçalho;
+- a identidade do time ficou mais compacta;
+- o campo de busca agora aparece na mesma linha de **Buscar jogador**;
+- os botões de salvar e cancelar ficam lado a lado também no celular.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.3.10. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.

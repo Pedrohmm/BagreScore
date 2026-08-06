@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.9";
+  const APP_VERSION = "1.3.10";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -6600,7 +6600,7 @@
           </div>
           <div class="form-actions">
             <button class="primary-button big-touch start-next-game-button" type="submit" ${readiness.complete ? "" : "disabled"} aria-disabled="${readiness.complete ? "false" : "true"}">
-              <span>${readiness.complete ? "Iniciar pelada dos bagres" : "Complete os times"}</span>
+              <span>${readiness.complete ? "INICIAR PELADA DOS BAGRES" : "Complete os times"}</span>
             </button>
           </div>
         </form>
@@ -6818,7 +6818,7 @@
         (!occupiedLineIds.has(player.id) || player.id === selectedReserveOperator)
     );
     const selectedCount = isGoalkeeperSelection ? (selectedGoalkeeper ? 1 : 0) : selectedLine.size;
-    const selectionTitle = isGoalkeeperSelection ? "Escolha o goleiro" : "Monte a escalação";
+    const selectedLimit = isGoalkeeperSelection ? 1 : 5;
 
     return `
       <form class="team-selection-form team-selection-form-${escapeHtml(selectionType)}" id="team-selection-form" data-team="${escapeHtml(teamKey)}" data-selection-type="${escapeHtml(selectionType)}" novalidate>
@@ -6831,15 +6831,12 @@
               <input class="selection-team-name" type="text" name="teamName" value="${escapeHtml(teamDraft.nome)}" maxlength="28" aria-label="Nome do time" placeholder="Nome do time" />
             </div>
           `}
-          <span class="selection-modal-copy">
-            <strong>${escapeHtml(selectionTitle)}</strong>
-          </span>
-          <span class="selection-count-pill" data-selection-count>${escapeHtml(isGoalkeeperSelection ? selectedCount : `${selectedCount}/5`)} selecionado${selectedCount === 1 ? "" : "s"}</span>
+          <span class="selection-count-pill" data-selection-count>${escapeHtml(`${selectedCount}/${selectedLimit}`)} selecionado${selectedCount === 1 ? "" : "s"}</span>
         </div>
         <div class="selection-search">
           <label class="field-label">
             <span>Buscar jogador</span>
-            <input type="search" name="search" placeholder="Digite nome ou apelido..." autocomplete="off" />
+            <input type="search" name="search" placeholder="Nome ou apelido..." autocomplete="off" />
           </label>
         </div>
         <div class="player-selection-list">
@@ -6932,7 +6929,7 @@
     const teamName = state.gameDraft[teamKey]?.nome || `Time ${teamKey}`;
 
     const modal = openLiveModal(
-      selectionType === "goleiro" ? `Goleiro - ${teamName}` : `Escalação - ${teamName}`,
+      selectionType === "goleiro" ? "Escolha o goleiro" : "Monte a escalação",
       renderTeamSelectionModal(teamKey, selectionType, jogadores)
     );
     const form = modal.querySelector("#team-selection-form");
@@ -6942,6 +6939,12 @@
     const teamColorInput = form.elements.teamColor;
     const lineInputs = [...form.querySelectorAll('input[name="playerIds"]')];
     const countLabel = form.querySelector("[data-selection-count]");
+    const modalHeader = modal.querySelector(".modal-header");
+    const closeButton = modalHeader?.querySelector(".live-modal-close");
+
+    if (countLabel && modalHeader) {
+      modalHeader.insertBefore(countLabel, closeButton || null);
+    }
 
     teamColorInput?.addEventListener("input", () => {
       intro?.style.setProperty("--team-color", teamColorInput.value || state.gameDraft[teamKey].cor);
@@ -6967,7 +6970,7 @@
       input.addEventListener("change", () => {
         const player = jogadores.find((item) => item.id === input.value);
         if (reserveField) reserveField.hidden = !isReserveGoalkeeperPlayer(player);
-        if (countLabel) countLabel.textContent = `${input.value ? 1 : 0} selecionado${input.value ? "" : "s"}`;
+        if (countLabel) countLabel.textContent = `${input.value ? 1 : 0}/1 selecionado${input.value ? "" : "s"}`;
         form.querySelectorAll(".player-selection-option").forEach((option) => {
           option.classList.toggle("is-selected", Boolean(option.querySelector('input[name="goalkeeperId"]:checked')));
         });
