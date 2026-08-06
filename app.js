@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.12";
+  const APP_VERSION = "1.3.13";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -7145,47 +7145,48 @@
     const selectedLine = new Set(time.linha);
     const fieldPlayerIds = getLiveFieldPlayerIds(activeBundle);
     const hasActiveGame = Boolean(activeBundle?.jogo?.status === "Em andamento");
+    const selectedCount = linePlayers.filter(
+      (player) => selectedLine.has(player.id) && !(hasActiveGame && fieldPlayerIds.has(player.id))
+    ).length;
 
     return `
-      <form class="team-preset-form time-da-vez-form" id="time-da-vez-form" novalidate>
+      <form class="team-selection-form team-selection-form-linha time-da-vez-form" id="time-da-vez-form" novalidate>
         <div class="form-errors" id="time-da-vez-errors" hidden></div>
-        <section class="team-preset-form-hero" style="--team-color:${escapeHtml(time.cor)}">
-          <span class="team-preset-form-icon">${escapeHtml(getLiveTeamInitials(time.nome, "TV"))}</span>
-          <div>
-            <span>Time manual</span>
-            <h3>${escapeHtml(time.nome)}</h3>
-            <p>Escolha manualmente até 5 jogadores que estão fora para enfrentar o vencedor.</p>
+        <div class="selection-modal-intro is-lineup" style="--team-color:${escapeHtml(time.cor)}">
+          <div class="selection-team-identity-editor">
+            <input class="selection-team-color" type="color" name="cor" value="${escapeHtml(time.cor)}" aria-label="Cor do próximo desafiante" title="Editar cor" />
+            <input class="selection-team-name" name="nome" value="${escapeHtml(time.nome)}" maxlength="28" aria-label="Nome do time" placeholder="Nome do time" required />
           </div>
-        </section>
-        <div class="team-preset-basics">
-          <label class="field-label"><span>Nome do time</span><input name="nome" value="${escapeHtml(time.nome)}" maxlength="28" placeholder="Ex.: Time da vez" required /></label>
-          <label class="field-label team-color-field"><span>Cor</span><input type="color" name="cor" value="${escapeHtml(time.cor)}" /></label>
+          <span class="selection-count-pill" data-line-count>${escapeHtml(`${selectedCount}/5`)} selecionado${selectedCount === 1 ? "" : "s"}</span>
         </div>
-        <label class="field-label time-da-vez-search">
-          <span>Pesquisar jogador</span>
-          <input name="search" type="search" placeholder="Digite nome ou apelido" autocomplete="off" />
-        </label>
-        <div class="team-preset-player-heading"><span>Jogadores presentes</span><strong data-line-count>0/5</strong></div>
-        <div class="team-preset-player-list">
+        <div class="selection-search">
+          <label class="field-label">
+            <span>Buscar jogador</span>
+            <input name="search" type="search" placeholder="Nome ou apelido..." autocomplete="off" />
+          </label>
+        </div>
+        <div class="player-selection-list">
           ${linePlayers.length ? linePlayers.map((player) => {
             const blocked = hasActiveGame && fieldPlayerIds.has(player.id);
             const checked = selectedLine.has(player.id) && !blocked;
             return `
-              <label class="team-preset-player-option ${checked ? "is-selected" : ""} ${blocked ? "is-disabled is-in-field" : ""}" data-player-option data-player-name="${escapeHtml(normalizeToken(playerDisplayName(player)))}">
+              <label class="player-selection-option ${checked ? "is-selected" : ""} ${blocked ? "is-disabled is-in-field" : ""}" data-player-option data-player-name="${escapeHtml(normalizeToken(playerDisplayName(player)))}">
                 <input type="checkbox" name="linhaIds" value="${escapeHtml(player.id)}" ${checked ? "checked" : ""} ${blocked ? "disabled data-locked=\"true\"" : ""} />
                 ${renderPlayerAvatar(player, "player-avatar small")}
                 <span>
                   <strong>${escapeHtml(playerDisplayName(player))}</strong>
-                  <small>${escapeHtml(player.posicaoPrincipal || "-")} · ${escapeHtml(player.overall || "-")} OVR${blocked ? " · Em campo agora" : ""}</small>
+                  <small>
+                    <b>${escapeHtml(player.posicaoPrincipal || "-")}</b>
+                    <em>${escapeHtml(player.overall || "-")} OVR</em>
+                    <i>${escapeHtml(blocked ? "Em campo" : player.peForte || "Pé não informado")}</i>
+                  </small>
                 </span>
-                <i aria-hidden="true">✓</i>
               </label>
             `;
-          }).join("") : `<p class="presence-empty">Marque jogadores como presentes para montar o Time da vez.</p>`}
+          }).join("") : `<div class="empty-state compact-empty"><p>Marque jogadores como presentes para montar o próximo desafiante.</p></div>`}
         </div>
-        <div class="team-preset-form-note"><strong>Montagem manual</strong><span>${hasActiveGame ? "Quem está em campo fica bloqueado. Selecione somente quem está esperando." : "Se faltarem jogadores, salve incompleto e complete quando eles estiverem presentes."}</span></div>
         <div class="form-actions">
-          <button class="primary-button big-touch" type="submit">Salvar Time da vez</button>
+          <button class="primary-button big-touch" type="submit">Salvar seleção</button>
           <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
         </div>
       </form>
@@ -7202,11 +7203,23 @@
     if (!pelada) return;
     const activeBundle = activeGame?.peladaId === pelada.id ? await readGameBundle(activeGame.id) : null;
 
-    const modal = openLiveModal("Editar Time da vez", renderTimeDaVezEditor(pelada, players, activeBundle));
+    const modal = openLiveModal("Monte a escalação", renderTimeDaVezEditor(pelada, players, activeBundle));
     const form = modal.querySelector("#time-da-vez-form");
     const lineInputs = [...form.querySelectorAll('input[name="linhaIds"]')];
     const countLabel = form.querySelector("[data-line-count]");
     const searchInput = form.elements.search;
+    const intro = form.querySelector(".selection-modal-intro");
+    const colorInput = form.elements.cor;
+    const modalHeader = modal.querySelector(".modal-header");
+    const closeButton = modalHeader?.querySelector(".live-modal-close");
+
+    if (countLabel && modalHeader) {
+      modalHeader.insertBefore(countLabel, closeButton || null);
+    }
+
+    colorInput?.addEventListener("input", () => {
+      intro?.style.setProperty("--team-color", colorInput.value || "#ff5a00");
+    });
 
     const refreshOptions = () => {
       const checkedCount = lineInputs.filter((input) => input.checked).length;
@@ -7216,7 +7229,7 @@
         option?.classList.toggle("is-selected", input.checked);
         option?.classList.toggle("is-disabled", input.disabled);
       });
-      if (countLabel) countLabel.textContent = `${checkedCount}/5`;
+      if (countLabel) countLabel.textContent = `${checkedCount}/5 selecionado${checkedCount === 1 ? "" : "s"}`;
     };
 
     lineInputs.forEach((input) => input.addEventListener("change", refreshOptions));

@@ -288,6 +288,14 @@ Não é necessário atualizar o `Code.gs` para a versão 1.3.11. Publique os arq
 
 Não é necessário atualizar o `Code.gs` para a versão 1.3.12. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.3.13 — seleção do próximo desafiante padronizada
+
+- A tela de seleção do próximo desafiante agora usa o mesmo desenho compacto das demais escalações.
+- Nome, cor e contador ficam no cabeçalho do formulário, e a busca ocupa uma única linha.
+- Jogadores em campo continuam bloqueados e identificados sem alterar a montagem manual do time seguinte.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.3.13. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.
