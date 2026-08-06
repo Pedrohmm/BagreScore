@@ -23067,3 +23067,193 @@ body[data-section="ao-vivo"] .time-da-vez-form > .form-actions .big-touch {
     font-size: 0.62rem;
   }
 }
+
+/* Gerenciar peladas mais compacto e ambiente de testes dourado v1.3.14 */
+body[data-section="peladas"] .peladas-featured-empty {
+  gap: 10px 12px;
+  padding: 14px;
+}
+
+body[data-section="peladas"] .peladas-featured-empty > div {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+}
+
+body[data-section="peladas"] .peladas-featured-empty h3 {
+  font-size: 1rem;
+}
+
+body[data-section="peladas"] .peladas-empty-calendar {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+}
+
+body[data-section="peladas"] .peladas-empty-calendar svg {
+  width: 24px;
+  height: 24px;
+}
+
+body[data-section="peladas"] .peladas-empty-cta {
+  min-height: 42px;
+  border-radius: 12px;
+}
+
+body[data-section="peladas"] .test-records-panel {
+  gap: 10px;
+  border-color: rgba(246, 190, 74, 0.34);
+  border-radius: 19px;
+  padding: 13px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(246, 190, 74, 0.105), transparent 15rem),
+    linear-gradient(145deg, rgba(20, 18, 11, 0.97), rgba(7, 7, 5, 0.99));
+  box-shadow:
+    0 16px 34px rgba(0, 0, 0, 0.3),
+    inset 0 0 24px rgba(246, 190, 74, 0.025);
+}
+
+body[data-section="peladas"] .test-records-panel > header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+body[data-section="peladas"] .test-records-panel > header .test-records-title {
+  color: #f1c85f;
+  font-size: 0.72rem;
+  font-weight: 950;
+  letter-spacing: 0.13em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+body[data-section="peladas"] .test-records-panel > header .test-records-clear {
+  display: inline-flex;
+  width: auto;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid rgba(246, 190, 74, 0.38);
+  border-radius: 11px;
+  padding: 7px 11px;
+  color: #f1c85f;
+  background: rgba(246, 190, 74, 0.075);
+  box-shadow: inset 0 0 14px rgba(246, 190, 74, 0.025);
+  font-size: 0.64rem;
+  white-space: nowrap;
+}
+
+body[data-section="peladas"] .test-records-panel > header .test-records-clear:is(:hover, :focus-visible) {
+  border-color: rgba(246, 190, 74, 0.65);
+  color: #ffe39a;
+  background: rgba(246, 190, 74, 0.12);
+}
+
+body[data-section="peladas"] .test-records-panel .pelada-card,
+body[data-section="peladas"] .test-records-panel .pelada-card:is(:hover, :focus-within) {
+  border-color: rgba(246, 190, 74, 0.3);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(246, 190, 74, 0.095), transparent 12rem),
+    linear-gradient(145deg, rgba(22, 20, 13, 0.98), rgba(7, 7, 5, 0.99));
+  box-shadow: inset 0 1px 0 rgba(246, 190, 74, 0.045);
+}
+
+body[data-section="peladas"] .test-records-panel .pelada-card-main,
+body[data-section="peladas"] .test-records-panel .pelada-card-main:is(:hover, :focus-visible) {
+  grid-template-areas: "body";
+  gap: 0;
+  min-height: 0;
+  padding: 11px 12px;
+}
+
+body[data-section="peladas"] .test-records-panel .pelada-card-accent {
+  top: 12px;
+  bottom: 12px;
+  background: linear-gradient(180deg, #ffe07b, #c99122);
+  box-shadow: 0 0 13px rgba(246, 190, 74, 0.34);
+}
+
+body[data-section="peladas"] .test-records-panel .pelada-card-body {
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 10px;
+}
+
+body[data-section="peladas"] .test-records-panel .pelada-card-main .pelada-date {
+  width: 58px;
+  height: 62px;
+  border-color: rgba(246, 190, 74, 0.48);
+  border-radius: 14px;
+  color: #f3c85e;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(246, 190, 74, 0.15), transparent 4.5rem),
+    rgba(12, 10, 5, 0.82);
+}
+
+body[data-section="peladas"] .test-records-panel .pelada-card-main .pelada-date strong {
+  color: #f3c85e;
+  font-size: 1.55rem;
+}
+
+body[data-section="peladas"] .test-records-panel .pelada-card-main .pelada-date small {
+  margin-top: 5px;
+  color: #f7dda0;
+}
+
+body[data-section="peladas"] .test-records-panel .pelada-card-info {
+  gap: 3px;
+}
+
+body[data-section="peladas"] .test-records-panel .pelada-card-info strong {
+  color: #f6d47d;
+  font-size: 1rem;
+}
+
+body[data-section="peladas"] .test-records-panel .pelada-card-info > small {
+  color: #cdb879;
+  font-size: 0.68rem;
+}
+
+body[data-section="peladas"] .test-records-panel .pelada-card-info .pelada-meta-row {
+  gap: 4px;
+  margin-top: 4px;
+}
+
+body[data-section="peladas"] .test-records-panel .pelada-card-info .pelada-meta-row small {
+  min-height: 22px;
+  border-color: rgba(246, 190, 74, 0.2) !important;
+  border-radius: 7px;
+  padding: 4px 6px !important;
+  color: #d8bd76;
+  background: rgba(246, 190, 74, 0.045);
+  font-size: 0.6rem;
+}
+
+@media (max-width: 520px) {
+  body[data-section="peladas"] .peladas-featured-empty {
+    grid-template-columns: 48px minmax(0, 1fr);
+    grid-template-areas:
+      "kicker kicker"
+      "icon copy"
+      "action action";
+    gap: 9px 11px;
+    padding: 13px;
+  }
+
+  body[data-section="peladas"] .test-records-panel {
+    padding: 12px;
+  }
+
+  body[data-section="peladas"] .test-records-panel > header .test-records-clear {
+    width: auto;
+    padding-inline: 11px;
+  }
+
+  body[data-section="peladas"] .test-records-panel > header .test-records-clear span {
+    display: inline;
+  }
+}

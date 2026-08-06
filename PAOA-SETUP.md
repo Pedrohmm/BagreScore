@@ -296,6 +296,15 @@ Não é necessário atualizar o `Code.gs` para a versão 1.3.12. Publique os arq
 
 Não é necessário atualizar o `Code.gs` para a versão 1.3.13. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.3.14 — gerenciamento de peladas mais objetivo
+
+- O cartão sem pelada aberta ficou menor e não exibe mais a frase auxiliar.
+- O painel foi renomeado para **Ambiente de testes** e recebeu um visual inteiramente dourado.
+- O botão **Limpar testes** foi centralizado com o título.
+- Os cartões de teste não mostram mais os selos inferiores de tipo/status nem a seta, mas continuam abrindo normalmente ao toque.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.3.14. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.

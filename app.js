@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.13";
+  const APP_VERSION = "1.3.14";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -6158,7 +6158,6 @@
         </span>
         <div>
           <h3 id="no-open-pelada-title">Nenhuma pelada aberta</h3>
-          <p>${canCreate ? "Marque a próxima rodada e deixe tudo pronto para os jogos." : "A próxima rodada ainda não foi marcada."}</p>
         </div>
         ${canCreate ? `<button class="primary-button peladas-empty-cta" type="button" data-pelada-action="show-create">Marcar pelada</button>` : ""}
       </section>
@@ -6183,10 +6182,7 @@
         ${testPeladas.length ? `
           <section class="test-records-panel">
             <header>
-              <div>
-                <span>Ambiente seguro</span>
-                <h3>Peladas de teste</h3>
-              </div>
+              <span class="test-records-title">Ambiente de testes</span>
               ${hasPermission("eventos:excluir") ? `
                 <button class="test-records-clear" type="button" data-pelada-action="delete-all-tests" aria-label="Apagar todas as peladas de teste">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 10v7M14 10v7"/></svg>
@@ -6397,15 +6393,17 @@
               ${renderPeladaMetaRow(pelada, gameCount, false)}
             </span>
           </span>
-          <span class="pelada-card-footer">
-            <span class="pelada-card-badges">
-              ${renderPeladaTypeBadge(pelada)}
-              ${renderPeladaStatusBadge(status)}
+          ${recordType === "teste" ? "" : `
+            <span class="pelada-card-footer">
+              <span class="pelada-card-badges">
+                ${renderPeladaTypeBadge(pelada)}
+                ${renderPeladaStatusBadge(status)}
+              </span>
+              <span class="pelada-open-cta" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
+              </span>
             </span>
-            <span class="pelada-open-cta" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
-            </span>
-          </span>
+          `}
         </button>
       </article>
     `;
