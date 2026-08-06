@@ -267,6 +267,18 @@ Não é necessário atualizar o `Code.gs` para a versão 1.3.9. Publique os arqu
 
 Não é necessário atualizar o `Code.gs` para a versão 1.3.10. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.3.11 — histórico em formato de relatório
+
+- o botão bloqueado agora exibe **COMPLETE OS TIMES** em letras maiúsculas e centralizadas;
+- cada jogo do histórico ganhou uma coluna com número e ícone de relatório;
+- o placar passou a destacar os nomes e as cores dos dois times;
+- decisões por pênaltis aparecem abaixo do placar;
+- cada gol exibe ícone de bola, autor e horário no padrão `5'30''`;
+- os novos gols guardam também o tempo exato em segundos, mantendo compatibilidade com registros antigos;
+- o cartão inteiro continua abrindo o relatório detalhado da partida.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.3.11. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.

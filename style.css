@@ -22299,3 +22299,236 @@ body[data-section="peladas"] .team-selection-form > .form-actions .big-touch {
     font-size: 0.62rem;
   }
 }
+
+/* BagreScore 1.3.11 — histórico de jogos em formato de relatório */
+body[data-section="peladas"] .start-next-game-button {
+  place-items: center;
+  text-align: center;
+}
+
+body[data-section="peladas"] .start-next-game-button span {
+  width: 100%;
+  text-align: center;
+  letter-spacing: 0.045em;
+}
+
+body[data-section="peladas"] .game-history-card .game-history-grid {
+  gap: 9px;
+}
+
+body[data-section="peladas"] .game-history-card-item {
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 0.13);
+  border-radius: 17px;
+  background:
+    radial-gradient(circle at 78% 20%, rgba(255, 90, 0, 0.045), transparent 13rem),
+    linear-gradient(150deg, rgba(15, 15, 15, 0.99), rgba(5, 5, 5, 0.99));
+}
+
+body[data-section="peladas"] .game-history-card-item button {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  grid-template-areas: "index content";
+  align-items: stretch;
+  gap: 0;
+  min-height: 132px;
+  padding: 0;
+  text-align: left;
+}
+
+body[data-section="peladas"] .game-history-index {
+  grid-area: index;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 4px;
+  border-right: 1px solid rgba(255, 255, 255, 0.09);
+  padding: 11px 7px;
+}
+
+body[data-section="peladas"] .game-history-index > small {
+  color: var(--orange);
+  font-size: 0.61rem;
+  font-weight: 950;
+  letter-spacing: 0.05em;
+}
+
+body[data-section="peladas"] .game-history-index > strong {
+  color: var(--orange);
+  font-size: 2.7rem;
+  line-height: 0.9;
+}
+
+body[data-section="peladas"] .game-history-report-icon {
+  display: grid;
+  place-items: center;
+  width: 37px;
+  height: 37px;
+  margin-top: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 10px;
+  color: var(--orange);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+body[data-section="peladas"] .game-history-report-icon svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+body[data-section="peladas"] .game-history-content {
+  grid-area: content;
+  display: grid;
+  align-content: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 10px 11px;
+}
+
+body[data-section="peladas"] .game-history-status {
+  justify-self: center;
+  border-radius: 999px;
+  padding: 4px 12px;
+  color: #bcbcbc;
+  background: rgba(255, 255, 255, 0.065);
+  font-size: 0.63rem;
+  font-weight: 900;
+}
+
+body[data-section="peladas"] .game-history-scoreboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+body[data-section="peladas"] .game-history-team {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--team-color);
+  border-radius: 8px;
+  padding: 6px 5px;
+  color: var(--team-color);
+  background: color-mix(in srgb, var(--team-color) 7%, transparent);
+  font-size: 0.64rem;
+  font-weight: 900;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-section="peladas"] .game-history-scoreboard > strong {
+  color: var(--team-color);
+  font-size: 1.28rem;
+  line-height: 1;
+}
+
+body[data-section="peladas"] .game-history-scoreboard > i {
+  color: #a0a0a0;
+  font-size: 0.74rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
+body[data-section="peladas"] .game-history-decision {
+  justify-self: center;
+  color: #929292;
+  font-size: 0.63rem;
+  line-height: 1.25;
+  text-align: center;
+}
+
+body[data-section="peladas"] .game-history-decision i {
+  margin-right: 4px;
+  color: #aaa;
+  font-style: normal;
+}
+
+body[data-section="peladas"] .game-history-goals {
+  display: grid;
+  gap: 5px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 7px;
+}
+
+body[data-section="peladas"] .game-history-goal-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+body[data-section="peladas"] .game-history-goal-icon {
+  display: grid;
+  place-items: center;
+  color: #56dc7e;
+}
+
+body[data-section="peladas"] .game-history-goal-icon svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.55;
+}
+
+body[data-section="peladas"] .game-history-goal-row strong {
+  overflow: hidden;
+  color: #c8c8c8;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-section="peladas"] .game-history-goal-row time {
+  color: #56dc7e;
+  font-size: 0.67rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+body[data-section="peladas"] .game-history-goals.is-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: #858585;
+}
+
+body[data-section="peladas"] .game-history-goals.is-empty em {
+  font-size: 0.68rem;
+  font-style: italic;
+}
+
+@media (max-width: 380px) {
+  body[data-section="peladas"] .game-history-card-item button {
+    grid-template-columns: 58px minmax(0, 1fr);
+  }
+
+  body[data-section="peladas"] .game-history-index > strong {
+    font-size: 2.35rem;
+  }
+
+  body[data-section="peladas"] .game-history-content {
+    padding-inline: 9px;
+  }
+
+  body[data-section="peladas"] .game-history-team {
+    padding-inline: 4px;
+    font-size: 0.59rem;
+  }
+
+  body[data-section="peladas"] .game-history-scoreboard > strong {
+    font-size: 1.15rem;
+  }
+}

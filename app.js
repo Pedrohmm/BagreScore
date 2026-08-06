@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.10";
+  const APP_VERSION = "1.3.11";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -294,6 +294,7 @@
       "jogadorSofreuId",
       "timeId",
       "minuto",
+      "tempoSegundos",
       "tipoGol",
       "cartao",
       "tipoAcaoDefensiva",
@@ -412,6 +413,7 @@
     assistenteId: "Assistente",
     jogadorSofreuId: "Jogador que sofreu",
     minuto: "Minuto",
+    tempoSegundos: "Tempo em segundos",
     tipoGol: "Tipo do gol",
     cartao: "Cartão",
     tipoAcaoDefensiva: "Tipo da ação defensiva",
@@ -2324,6 +2326,10 @@
 
   function getEventMinute(jogo) {
     return clamp(Math.floor(getElapsedGameSeconds(jogo) / 60) + 1, 1, DEFAULT_RULES.duracaoJogoMinutos);
+  }
+
+  function getEventElapsedSeconds(jogo) {
+    return Math.max(0, Math.floor(getElapsedGameSeconds(jogo)));
   }
 
   function getGoalTypeLabel(value) {
@@ -6600,7 +6606,7 @@
           </div>
           <div class="form-actions">
             <button class="primary-button big-touch start-next-game-button" type="submit" ${readiness.complete ? "" : "disabled"} aria-disabled="${readiness.complete ? "false" : "true"}">
-              <span>${readiness.complete ? "INICIAR PELADA DOS BAGRES" : "Complete os times"}</span>
+              <span>${readiness.complete ? "INICIAR PELADA DOS BAGRES" : "COMPLETE OS TIMES"}</span>
             </button>
           </div>
         </form>
@@ -7303,17 +7309,6 @@
     return "";
   }
 
-  function formatGameEnding(jogo) {
-    if (!jogo.formaEncerramento) {
-      return "";
-    }
-
-    const penalties = jogo.decididoNosPenaltis
-      ? ` (${jogo.penaltisA || 0} x ${jogo.penaltisB || 0} nos pênaltis)`
-      : "";
-    return ` - encerramento por ${jogo.formaEncerramento}${penalties}`;
-  }
-
   function formatGoalSummaryItem(evento, jogo, playerById) {
     const author = playerNameFromMap(playerById, evento.jogadorId);
     const teamKey = getEventTeamKey(evento, jogo);
@@ -7326,40 +7321,63 @@
     return author;
   }
 
-  function renderGameGoalsSummary(jogo, events = [], playerById = new Map()) {
-    const goals = events.filter((evento) => normalizeEventType(evento.tipo) === "gol");
+  function formatGoalEventTime(evento) {
+    const hasElapsedSeconds = evento?.tempoSegundos !== "" && evento?.tempoSegundos !== null && evento?.tempoSegundos !== undefined;
+    const elapsedSeconds = Number(evento?.tempoSegundos);
 
-    if (!goals.length) {
-      return `<p class="game-goals-summary"><strong>Gols:</strong> nenhum</p>`;
+    if (hasElapsedSeconds && Number.isFinite(elapsedSeconds) && elapsedSeconds >= 0) {
+      const minutes = Math.floor(elapsedSeconds / 60);
+      const seconds = Math.floor(elapsedSeconds % 60);
+      return `${minutes}'${String(seconds).padStart(2, "0")}''`;
     }
 
-    const teamKeys = ["A", "B"].filter((teamKey) =>
-      goals.some((evento) => getEventTeamKey(evento, jogo) === teamKey)
-    );
+    const minute = Math.max(0, Number.parseInt(evento?.minuto, 10) || 0);
+    return `${minute}'00''`;
+  }
 
-    if (teamKeys.length <= 1) {
-      return `
-        <p class="game-goals-summary">
-          <strong>Gols:</strong>
-          ${goals.map((evento) => escapeHtml(formatGoalSummaryItem(evento, jogo, playerById))).join(", ")}
-        </p>
-      `;
+  function renderHistoryBallIcon() {
+    return `
+      <span class="game-history-goal-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m9.5 9 2.5-2 2.5 2-.9 3h-3.2ZM10.4 12l-3 2.2M13.6 12l3 2.2M9.5 9 7 7.5M14.5 9 17 7.5M9.4 17.6 10.4 12M14.6 17.6 13.6 12"/></svg>
+      </span>
+    `;
+  }
+
+  function renderGameGoalsSummary(jogo, events = [], playerById = new Map()) {
+    const goals = events.filter((evento) => normalizeEventType(evento.tipo) === "gol" && !evento.cancelado);
+
+    if (!goals.length) {
+      return `<span class="game-history-goals is-empty">${renderHistoryBallIcon()}<em>nenhum</em></span>`;
     }
 
     return `
-      <div class="game-goals-summary">
-        <strong>Gols:</strong>
-        ${teamKeys
-          .map((teamKey) => {
-            const teamGoals = goals
-              .filter((evento) => getEventTeamKey(evento, jogo) === teamKey)
-              .map((evento) => formatGoalSummaryItem(evento, jogo, playerById));
-
-            return `<span>${escapeHtml(teamNameFromGame(jogo, teamKey))}: ${escapeHtml(teamGoals.join(", ") || "nenhum")}</span>`;
-          })
-          .join("")}
-      </div>
+      <span class="game-history-goals">
+        ${goals.map((evento) => `
+          <span class="game-history-goal-row">
+            ${renderHistoryBallIcon()}
+            <strong>${escapeHtml(formatGoalSummaryItem(evento, jogo, playerById))}</strong>
+            <time>${escapeHtml(formatGoalEventTime(evento))}</time>
+          </span>
+        `).join("")}
+      </span>
     `;
+  }
+
+  function renderGameHistoryDecision(jogo) {
+    if (jogo.decididoNosPenaltis) {
+      return `
+        <span class="game-history-decision is-penalty">
+          <i aria-hidden="true">⚖</i>
+          Decidido nos pênaltis: ${escapeHtml(jogo.penaltisA || 0)} x ${escapeHtml(jogo.penaltisB || 0)}
+        </span>
+      `;
+    }
+
+    if (jogo.formaEncerramento) {
+      return `<span class="game-history-decision">Encerrado por ${escapeHtml(jogo.formaEncerramento)}</span>`;
+    }
+
+    return "";
   }
 
   function renderGameSummaryScreen(pelada, bundle, gameNumber) {
@@ -7597,19 +7615,34 @@
   }
 
   function renderGameHistoryCard(jogo, gameNumber, events = [], playerById = new Map()) {
+    const teamAName = teamNameFromGame(jogo, "A");
+    const teamBName = teamNameFromGame(jogo, "B");
+    const scoreA = jogo.placarA ?? 0;
+    const scoreB = jogo.placarB ?? 0;
+    const reportLabel = `Abrir relatório do jogo ${gameNumber}: ${teamAName} ${scoreA} x ${scoreB} ${teamBName}`;
+
     return `
       <article class="game-history-card-item">
-        <button type="button" data-pelada-action="view-game" data-game-id="${escapeHtml(jogo.id)}">
-          <span class="game-score-small">
-            <small>Jogo</small>
+        <button type="button" data-pelada-action="view-game" data-game-id="${escapeHtml(jogo.id)}" aria-label="${escapeHtml(reportLabel)}">
+          <span class="game-history-index">
+            <small>JOGO</small>
             <strong>${escapeHtml(gameNumber)}</strong>
+            <i class="game-history-report-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7Z"/><path d="M14 3v5h5M10 12h5M10 16h5"/></svg>
+            </i>
           </span>
-          <span class="game-history-main">
-            <strong>${escapeHtml(teamNameFromGame(jogo, "A"))} <em>${escapeHtml(jogo.placarA ?? 0)} x ${escapeHtml(jogo.placarB ?? 0)}</em> ${escapeHtml(teamNameFromGame(jogo, "B"))}</strong>
-            <small>${escapeHtml(getGameStatusLabel(jogo))}${escapeHtml(formatGameEnding(jogo))}</small>
+          <span class="game-history-content">
+            <span class="game-history-status">${escapeHtml(getGameStatusLabel(jogo))}</span>
+            <span class="game-history-scoreboard">
+              <span class="game-history-team" style="--team-color:${escapeHtml(teamColorFromGame(jogo, "A"))}">${escapeHtml(teamAName)}</span>
+              <strong style="--team-color:${escapeHtml(teamColorFromGame(jogo, "A"))}">${escapeHtml(scoreA)}</strong>
+              <i>x</i>
+              <strong style="--team-color:${escapeHtml(teamColorFromGame(jogo, "B"))}">${escapeHtml(scoreB)}</strong>
+              <span class="game-history-team" style="--team-color:${escapeHtml(teamColorFromGame(jogo, "B"))}">${escapeHtml(teamBName)}</span>
+            </span>
+            ${renderGameHistoryDecision(jogo)}
             ${renderGameGoalsSummary(jogo, events, playerById)}
           </span>
-          <span class="game-history-cta">Ver resumo</span>
         </button>
       </article>
     `;
@@ -10798,6 +10831,7 @@
         assistenteId,
         jogadorSofreuId: "",
         minuto: getEventMinute(jogo),
+        tempoSegundos: getEventElapsedSeconds(jogo),
         tipoGol,
         cartao: "",
         golContra,
