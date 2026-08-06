@@ -5585,12 +5585,6 @@ body[data-section="peladas"] .player-selection-option small em {
   background: rgba(255, 90, 0, 0.09);
 }
 
-body[data-section="peladas"] .selection-block-reason {
-  display: block;
-  color: #ffb27a;
-  line-height: 1.35;
-}
-
 body[data-section="peladas"] .player-selection-option.is-disabled {
   opacity: 0.58;
   cursor: not-allowed;
@@ -21951,5 +21945,179 @@ body.has-live-mini-dock:not(.is-internal) main {
 
   .live-mini-center b {
     font-size: 1.28rem;
+  }
+}
+
+/* BagreScore 1.3.9 — prontidão luminosa e confronto mais compacto */
+body[data-section="peladas"] .next-match-card {
+  position: relative;
+  gap: 11px;
+  overflow: hidden;
+  transition: border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
+}
+
+body[data-section="peladas"] .next-match-card.is-incomplete {
+  border-color: rgba(239, 68, 68, 0.68);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(239, 68, 68, 0.075), transparent 20rem),
+    linear-gradient(155deg, rgba(18, 16, 16, 0.98), rgba(7, 7, 7, 0.98));
+  box-shadow:
+    0 0 24px rgba(239, 68, 68, 0.2),
+    inset 0 0 28px rgba(239, 68, 68, 0.035),
+    0 18px 42px rgba(0, 0, 0, 0.34);
+}
+
+body[data-section="peladas"] .next-match-card.is-ready {
+  border-color: rgba(34, 197, 94, 0.72);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(34, 197, 94, 0.09), transparent 20rem),
+    linear-gradient(155deg, rgba(15, 19, 16, 0.98), rgba(7, 7, 7, 0.98));
+  box-shadow:
+    0 0 26px rgba(34, 197, 94, 0.22),
+    inset 0 0 30px rgba(34, 197, 94, 0.04),
+    0 18px 42px rgba(0, 0, 0, 0.34);
+}
+
+body[data-section="peladas"] .next-match-heading {
+  align-items: center;
+  flex-direction: row;
+  gap: 10px;
+}
+
+body[data-section="peladas"] .next-match-heading .panel-kicker,
+body[data-section="peladas"] .game-history-heading .panel-kicker {
+  margin: 0;
+}
+
+body[data-section="peladas"] .next-match-state-text {
+  margin-left: auto;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+body[data-section="peladas"] .next-match-state-text.is-incomplete {
+  color: #ff7777;
+  text-shadow: 0 0 10px rgba(239, 68, 68, 0.48);
+}
+
+body[data-section="peladas"] .next-match-state-text.is-ready {
+  color: #62df89;
+  text-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+}
+
+body[data-section="peladas"] .game-form {
+  gap: 11px;
+}
+
+body[data-section="peladas"] .matchup-identity-editors {
+  align-items: center;
+}
+
+body[data-section="peladas"] .matchup-identity-editors .matchup-versus {
+  align-self: center;
+  margin: 0;
+  transform: translateY(-2px);
+}
+
+body[data-section="peladas"] .match-lineup-grid {
+  gap: 9px;
+}
+
+body[data-section="peladas"] .game-form > .form-actions .start-next-game-button {
+  min-height: 46px;
+  border-radius: 13px;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+}
+
+body[data-section="peladas"] .start-next-game-button:disabled,
+body[data-section="peladas"] .start-next-game-button[aria-disabled="true"] {
+  border-color: rgba(239, 68, 68, 0.2);
+  color: rgba(255, 255, 255, 0.48);
+  background: linear-gradient(135deg, rgba(76, 24, 24, 0.42), rgba(18, 18, 18, 0.9));
+  box-shadow: none;
+}
+
+body[data-section="peladas"] .next-match-card.is-ready .start-next-game-button {
+  border-color: rgba(74, 222, 128, 0.82);
+  color: #07130b;
+  background: linear-gradient(135deg, #4ade80, #22c55e);
+  box-shadow: 0 0 18px rgba(34, 197, 94, 0.3);
+  font-weight: 950;
+}
+
+body[data-section="peladas"] .game-history-card {
+  gap: 10px;
+  padding: 14px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+}
+
+body[data-section="peladas"] .game-history-heading {
+  display: flex;
+  align-items: center;
+  min-height: 22px;
+}
+
+body[data-section="peladas"] .game-history-card .game-history-grid {
+  gap: 8px;
+}
+
+body[data-section="peladas"] .game-history-card-item button {
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 11px;
+}
+
+body[data-section="peladas"] .game-score-small {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+}
+
+body[data-section="peladas"] .game-score-small strong {
+  font-size: 1.25rem;
+}
+
+body[data-section="peladas"] .game-history-main {
+  gap: 4px;
+}
+
+body[data-section="peladas"] .game-history-main > strong {
+  font-size: 0.86rem;
+}
+
+body[data-section="peladas"] .game-history-cta {
+  padding: 6px 9px;
+  font-size: 0.72rem;
+}
+
+@media (max-width: 620px) {
+  body[data-section="peladas"] .game-history-card {
+    padding: 13px;
+  }
+
+  body[data-section="peladas"] .game-history-card-item button {
+    grid-template-columns: 46px minmax(0, 1fr) auto;
+    grid-template-areas: "score main cta";
+    gap: 9px;
+    padding: 10px;
+  }
+
+  body[data-section="peladas"] .game-history-cta {
+    align-self: center;
+    justify-self: end;
+  }
+}
+
+@media (max-width: 390px) {
+  body[data-section="peladas"] .next-match-state-text {
+    font-size: 0.62rem;
+  }
+
+  body[data-section="peladas"] .game-history-cta {
+    padding-inline: 7px;
+    font-size: 0.66rem;
   }
 }

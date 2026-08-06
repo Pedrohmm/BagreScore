@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.8";
+  const APP_VERSION = "1.3.9";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -2729,7 +2729,7 @@
       A,
       B,
       complete: A.complete && B.complete,
-      label: A.complete && B.complete ? "Pronto" : "Times incompletos",
+      label: A.complete && B.complete ? "Bagres prontos" : "Times incompletos",
       detail: missing.join(" · "),
     };
   }
@@ -6578,7 +6578,7 @@
       <section class="data-card game-setup-card next-match-card ${readiness.complete ? "is-ready" : "is-incomplete"}">
         <div class="next-match-heading">
           <span class="panel-kicker">Próximo confronto</span>
-          <span class="next-match-ready ${readiness.complete ? "is-ready" : "is-incomplete"}" title="${escapeHtml(readiness.detail || "Times completos")}"><i></i>${escapeHtml(readiness.label)}</span>
+          <span class="next-match-state-text ${readiness.complete ? "is-ready" : "is-incomplete"}">${escapeHtml(readiness.label)}</span>
         </div>
         <form class="game-form" id="game-form" novalidate>
           <div class="form-errors" id="game-form-errors" hidden></div>
@@ -6600,7 +6600,7 @@
           </div>
           <div class="form-actions">
             <button class="primary-button big-touch start-next-game-button" type="submit" ${readiness.complete ? "" : "disabled"} aria-disabled="${readiness.complete ? "false" : "true"}">
-              <span>${readiness.complete ? "Iniciar próximo jogo" : "Complete os times para iniciar"}</span><small ${readiness.complete ? "data-start-matchup-summary" : ""}>${escapeHtml(readiness.complete ? `${draft.A.nome} × ${draft.B.nome}` : readiness.detail)}</small>
+              <span>${readiness.complete ? "Iniciar pelada dos bagres" : "Complete os times"}</span>
             </button>
           </div>
         </form>
@@ -6768,35 +6768,34 @@
     `;
   }
 
-  function getSelectionBlockReason(player, teamKey, selectionType) {
+  function isSelectionBlocked(player, teamKey, selectionType) {
     const draft = state.gameDraft;
     const otherTeam = oppositeTeam(teamKey);
-    const otherTeamName = draft[otherTeam]?.nome || `Time ${otherTeam}`;
 
     if (draft[otherTeam].linha.includes(player.id)) {
-      return `Já está na escalação de ${otherTeamName}.`;
+      return true;
     }
 
     if (selectionType !== "goleiro" && draft[otherTeam].goleiro === player.id) {
-      return `Já é goleiro de ${otherTeamName}.`;
+      return true;
     }
 
     if (selectionType === "linha" && draft[teamKey].goleiro === player.id) {
-      return "Já foi escolhido como goleiro deste time.";
+      return true;
     }
 
     if (
       selectionType === "linha" &&
       [draft.A.goleiroReservaOperadorId, draft.B.goleiroReservaOperadorId].includes(player.id)
     ) {
-      return "Está usando a carta Goleiro Reserva neste confronto.";
+      return true;
     }
 
     if (selectionType === "goleiro" && draft[teamKey].linha.includes(player.id)) {
-      return "Já está na linha deste time.";
+      return true;
     }
 
-    return "";
+    return false;
   }
 
   function renderTeamSelectionModal(teamKey, selectionType, jogadores) {
@@ -6862,7 +6861,7 @@
             candidates.length
               ? candidates
                   .map((player) => {
-                    const blockReason = getSelectionBlockReason(player, teamKey, selectionType);
+                    const blocked = isSelectionBlocked(player, teamKey, selectionType);
                     const checked = isGoalkeeperSelection
                       ? selectedGoalkeeper === player.id
                       : selectedLine.has(player.id);
@@ -6871,7 +6870,7 @@
                     const optionClass = [
                       "player-selection-option",
                       checked ? "is-selected" : "",
-                      blockReason ? "is-disabled" : "",
+                      blocked ? "is-disabled" : "",
                     ]
                       .filter(Boolean)
                       .join(" ");
@@ -6883,7 +6882,7 @@
                           name="${inputName}"
                           value="${escapeHtml(player.id)}"
                           ${checked ? "checked" : ""}
-                          ${blockReason ? `disabled data-blocked="true"` : ""}
+                          ${blocked ? `disabled data-blocked="true"` : ""}
                         />
                         ${renderPlayerAvatar(player, "player-avatar small")}
                         <span>
@@ -6893,7 +6892,6 @@
                             <em>${escapeHtml(player.overall || "-")} OVR</em>
                             <i>${escapeHtml(player.peForte || "Pé não informado")}</i>
                           </small>
-                          ${blockReason ? `<small class="selection-block-reason">${escapeHtml(blockReason)}</small>` : ""}
                         </span>
                       </label>
                     `;
@@ -7579,10 +7577,8 @@
   function renderGameHistory(pelada, jogos, eventsByGameId = new Map(), playerById = new Map(), peladaSummary = null) {
     return `
       <section class="data-card game-history-card">
-        <div class="players-toolbar">
-          <div>
-            <h3>Histórico de Jogos</h3>
-          </div>
+        <div class="game-history-heading">
+          <span class="panel-kicker">Histórico de jogos</span>
         </div>
         ${
           jogos.length
@@ -7591,12 +7587,7 @@
                   renderGameHistoryCard(jogo, getGameNumber(jogos, jogo.id), eventsByGameId.get(jogo.id) || [], playerById)
                 )
                 .join("")}</div>`
-            : `
-              <div class="empty-state">
-                <h3>Nenhum jogo criado</h3>
-                <p>Monte Time A e Time B para iniciar o primeiro jogo desta pelada.</p>
-              </div>
-            `
+            : ""
         }
       </section>
     `;

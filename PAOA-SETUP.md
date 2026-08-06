@@ -244,6 +244,18 @@ Não é necessário atualizar o `Code.gs` para a versão 1.3.7. Publique os arqu
 
 Não é necessário atualizar o `Code.gs` para a versão 1.3.8. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.3.9 — prontidão visual do confronto
+
+- os avisos individuais de jogador ocupado não aparecem mais dentro da lista de escalação;
+- o confronto incompleto recebe borda e brilho vermelhos; quando pronto, o efeito muda para verde;
+- o selo superior foi substituído pelos textos simples **Times incompletos** e **Bagres prontos**;
+- o botão liberado passa a se chamar **Iniciar pelada dos bagres** e usa o mesmo verde do estado pronto;
+- o detalhamento “0/5” e os textos vazios do histórico foram removidos;
+- o título do histórico usa o mesmo estilo de **Próximo confronto**, com caixa e jogos mais compactos;
+- o marcador **VS** foi centralizado verticalmente entre as caixas dos times.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.3.9. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.
