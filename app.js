@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.16";
+  const APP_VERSION = "1.3.17";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -4978,21 +4978,20 @@
     `;
   }
 
-  function renderPlayersHero() {
+  function renderPlayersCatalogHeader() {
     return `
-      <section class="players-hero">
-        <div class="players-hero-copy">
-          <h2>Elenco BagreScore</h2>
-        </div>
-      </section>
+      <header class="players-catalog-header">
+        <h2>Elenco BagreScore</h2>
+      </header>
     `;
   }
 
   function renderPlayersRosterPanel(jogadores) {
     return `
       <section class="players-list-panel">
+        ${renderPlayersCatalogHeader()}
         <div class="players-toolbar players-roster-toolbar">
-          <h3>Elenco cadastro</h3>
+          <h3>Elenco cadastrado</h3>
           <div class="players-roster-summary">
             <span class="players-roster-count">${escapeHtml(jogadores.length)} jogador${jogadores.length === 1 ? "" : "es"}</span>
             ${
@@ -5040,11 +5039,11 @@
 
     $("#section-content").innerHTML = `
       <div class="players-screen">
-        ${renderPlayersHero()}
         ${
           shouldShowForm
             ? `
               <section class="data-card player-form-card">
+                ${renderPlayersCatalogHeader()}
                 <div class="players-toolbar">
                   <div>
                     <span class="panel-kicker">${editingPlayer ? "Edição da carta" : "Nova carta"}</span>

@@ -23396,35 +23396,64 @@ body[data-section="peladas"] .test-records-actions .test-records-clear:is(:hover
   }
 }
 
-/* Cabeçalhos objetivos de Jogadores e Ranking v1.3.16 */
-body[data-section="jogadores"] .players-hero {
-  border-color: rgba(255, 90, 0, 0.24);
-  padding: 16px 18px;
+/* Cabeçalho integrado e elegante de Jogadores v1.3.17 */
+body[data-section="jogadores"] .players-list-panel {
+  overflow: hidden;
+  padding: 0;
 }
 
-body[data-section="jogadores"] .players-hero h2 {
-  color: var(--orange);
-  font-size: clamp(1.45rem, 6.8vw, 2.15rem);
+body[data-section="jogadores"] .players-catalog-header {
+  display: flex;
+  align-items: center;
+  min-height: 58px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.085);
+  padding: 15px 17px;
+  background:
+    radial-gradient(circle at 0% 50%, rgba(255, 90, 0, 0.11), transparent 13rem),
+    rgba(255, 255, 255, 0.018);
+}
+
+body[data-section="jogadores"] .player-form-card > .players-catalog-header {
+  margin: -16px -16px 14px;
+}
+
+body[data-section="jogadores"] .players-catalog-header h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: #f4f4f4;
+  font-size: 1.28rem;
   font-weight: 950;
   letter-spacing: 0.035em;
   line-height: 1.05;
   text-transform: uppercase;
 }
 
+body[data-section="jogadores"] .players-catalog-header h2::before {
+  content: "";
+  width: 3px;
+  height: 21px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ff7a18, #ff4d00);
+  box-shadow: 0 0 12px rgba(255, 90, 0, 0.34);
+}
+
 body[data-section="jogadores"] .players-list-panel .players-roster-toolbar {
   display: grid;
   align-items: stretch;
-  gap: 9px;
+  gap: 10px;
+  border-bottom: 0;
+  padding: 14px 16px 12px;
 }
 
 body[data-section="jogadores"] .players-roster-toolbar h3 {
   margin: 0;
-  color: #fff;
-  font-size: 1.12rem;
-  font-weight: 950;
-  letter-spacing: 0.045em;
+  color: #e9e9e9;
+  font-size: 1.05rem;
+  font-weight: 900;
+  letter-spacing: 0.01em;
   line-height: 1.1;
-  text-transform: uppercase;
 }
 
 body[data-section="jogadores"] .players-roster-summary {
@@ -23437,9 +23466,9 @@ body[data-section="jogadores"] .players-roster-summary {
 
 body[data-section="jogadores"] .players-roster-count {
   min-width: 0;
-  color: #b7b7b7;
-  font-size: 0.82rem;
-  font-weight: 800;
+  color: #9f9f9f;
+  font-size: 0.78rem;
+  font-weight: 750;
   white-space: nowrap;
 }
 
@@ -23449,12 +23478,12 @@ body[data-section="jogadores"] .players-roster-create {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  border: 1px solid rgba(255, 90, 0, 0.48);
+  border: 1px solid rgba(255, 105, 26, 0.34);
   border-radius: 11px;
   padding: 8px 12px;
-  color: #fff;
-  background: linear-gradient(135deg, #ff6a00, #e94500);
-  box-shadow: 0 8px 22px rgba(255, 74, 0, 0.2);
+  color: #ff9457;
+  background: linear-gradient(145deg, rgba(255, 90, 0, 0.105), rgba(255, 90, 0, 0.045));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
   font: inherit;
   font-size: 0.72rem;
   font-weight: 950;
@@ -23469,8 +23498,17 @@ body[data-section="jogadores"] .players-roster-create > span {
 }
 
 body[data-section="jogadores"] .players-roster-create:is(:hover, :focus-visible) {
-  border-color: rgba(255, 151, 77, 0.8);
-  background: linear-gradient(135deg, #ff7a12, #f04c00);
+  border-color: rgba(255, 135, 64, 0.62);
+  color: #ffc09b;
+  background: rgba(255, 90, 0, 0.14);
+}
+
+body[data-section="jogadores"] .players-list-panel > .player-card-grid {
+  padding: 2px 14px 16px;
+}
+
+body[data-section="jogadores"] .players-list-panel > .empty-state {
+  margin: 2px 14px 16px;
 }
 
 body[data-section="ranking"] .ranking-leaderboard-top h2 {
@@ -23478,10 +23516,6 @@ body[data-section="ranking"] .ranking-leaderboard-top h2 {
 }
 
 @media (max-width: 380px) {
-  body[data-section="jogadores"] .players-list-panel {
-    padding: 14px;
-  }
-
   body[data-section="jogadores"] .players-roster-create {
     gap: 5px;
     padding-inline: 9px;
