@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.15";
+  const APP_VERSION = "1.3.16";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -4982,35 +4982,29 @@
     return `
       <section class="players-hero">
         <div class="players-hero-copy">
-          <span>Elenco BagreScore</span>
-          <h2>Jogadores</h2>
+          <h2>Elenco BagreScore</h2>
         </div>
       </section>
-    `;
-  }
-
-  function renderPlayersActionCards() {
-    if (!hasPermission("jogadores:criar")) {
-      return "";
-    }
-
-    return `
-      <div class="players-action-grid is-create-only">
-        <button class="players-action-card is-primary" type="button" data-player-action="start-create">
-          <span>+</span>
-          <strong>Cadastrar jogador</strong>
-        </button>
-      </div>
     `;
   }
 
   function renderPlayersRosterPanel(jogadores) {
     return `
       <section class="players-list-panel">
-        <div class="players-toolbar">
-          <div>
-            <span class="panel-kicker">${escapeHtml(jogadores.length)} jogador${jogadores.length === 1 ? "" : "es"}</span>
-            <h3>Elenco cadastrado</h3>
+        <div class="players-toolbar players-roster-toolbar">
+          <h3>Elenco cadastro</h3>
+          <div class="players-roster-summary">
+            <span class="players-roster-count">${escapeHtml(jogadores.length)} jogador${jogadores.length === 1 ? "" : "es"}</span>
+            ${
+              hasPermission("jogadores:criar")
+                ? `
+                  <button class="players-roster-create" type="button" data-player-action="start-create">
+                    <span aria-hidden="true">+</span>
+                    Cadastrar jogador
+                  </button>
+                `
+                : ""
+            }
           </div>
         </div>
         ${
@@ -5061,7 +5055,6 @@
               </section>
             `
             : `
-              ${renderPlayersActionCards()}
               ${renderPlayersRosterPanel(jogadores)}
             `
         }
@@ -11987,10 +11980,7 @@
       <div class="ranking-premium-page ranking-leaderboard-page">
         <section class="ranking-leaderboard-screen">
           <div class="ranking-leaderboard-top">
-            <div>
-              <span class="panel-kicker">Leaderboard</span>
-              <h2>Ranking</h2>
-            </div>
+            <h2>Ranking</h2>
           </div>
           <label class="ranking-pelada-filter">
             <select data-ranking-pelada-filter aria-label="Selecionar período do ranking">

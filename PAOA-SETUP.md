@@ -314,6 +314,14 @@ Não é necessário atualizar o `Code.gs` para a versão 1.3.14. Publique os arq
 
 Não é necessário atualizar o `Code.gs` para a versão 1.3.15. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.3.16 — cabeçalhos de Jogadores e Ranking
+
+- A aba **Jogadores** agora usa **Elenco BagreScore** como título principal.
+- O bloco do elenco reúne **Elenco cadastro**, quantidade de jogadores e **Cadastrar jogador** em um cabeçalho compacto.
+- A aba **Ranking** exibe somente o título **Ranking**, sem o texto “Leaderboard”.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.3.16. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.

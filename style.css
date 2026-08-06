@@ -23395,3 +23395,96 @@ body[data-section="peladas"] .test-records-actions .test-records-clear:is(:hover
     font-size: 0.66rem;
   }
 }
+
+/* Cabeçalhos objetivos de Jogadores e Ranking v1.3.16 */
+body[data-section="jogadores"] .players-hero {
+  border-color: rgba(255, 90, 0, 0.24);
+  padding: 16px 18px;
+}
+
+body[data-section="jogadores"] .players-hero h2 {
+  color: var(--orange);
+  font-size: clamp(1.45rem, 6.8vw, 2.15rem);
+  font-weight: 950;
+  letter-spacing: 0.035em;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+body[data-section="jogadores"] .players-list-panel .players-roster-toolbar {
+  display: grid;
+  align-items: stretch;
+  gap: 9px;
+}
+
+body[data-section="jogadores"] .players-roster-toolbar h3 {
+  margin: 0;
+  color: #fff;
+  font-size: 1.12rem;
+  font-weight: 950;
+  letter-spacing: 0.045em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+body[data-section="jogadores"] .players-roster-summary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+body[data-section="jogadores"] .players-roster-count {
+  min-width: 0;
+  color: #b7b7b7;
+  font-size: 0.82rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+body[data-section="jogadores"] .players-roster-create {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid rgba(255, 90, 0, 0.48);
+  border-radius: 11px;
+  padding: 8px 12px;
+  color: #fff;
+  background: linear-gradient(135deg, #ff6a00, #e94500);
+  box-shadow: 0 8px 22px rgba(255, 74, 0, 0.2);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 950;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+body[data-section="jogadores"] .players-roster-create > span {
+  font-size: 1rem;
+  line-height: 0.7;
+}
+
+body[data-section="jogadores"] .players-roster-create:is(:hover, :focus-visible) {
+  border-color: rgba(255, 151, 77, 0.8);
+  background: linear-gradient(135deg, #ff7a12, #f04c00);
+}
+
+body[data-section="ranking"] .ranking-leaderboard-top h2 {
+  margin-top: 0;
+}
+
+@media (max-width: 380px) {
+  body[data-section="jogadores"] .players-list-panel {
+    padding: 14px;
+  }
+
+  body[data-section="jogadores"] .players-roster-create {
+    gap: 5px;
+    padding-inline: 9px;
+    font-size: 0.66rem;
+  }
+}
