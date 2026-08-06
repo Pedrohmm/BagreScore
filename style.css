@@ -23521,3 +23521,52 @@ body[data-section="ranking"] .ranking-leaderboard-top h2 {
     font-size: 0.7rem;
   }
 }
+
+/* Título do Ranking alinhado ao Elenco BagreScore v1.3.19 */
+body[data-section="ranking"] .ranking-leaderboard-top {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: flex-start;
+  margin: -16px -16px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.085);
+  padding: 15px 17px;
+  background:
+    radial-gradient(circle at 0% 50%, rgba(255, 90, 0, 0.11), transparent 13rem),
+    rgba(255, 255, 255, 0.018);
+  box-sizing: border-box;
+}
+
+body[data-section="ranking"] .ranking-leaderboard-top h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: #f4f4f4;
+  font-size: 1.28rem;
+  font-weight: 950;
+  letter-spacing: 0.035em;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+body[data-section="ranking"] .ranking-leaderboard-top h2::before {
+  content: "";
+  width: 3px;
+  height: 21px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ff7a18, #ff4d00);
+  box-shadow: 0 0 12px rgba(255, 90, 0, 0.34);
+}
+
+@media (max-width: 620px) {
+  body[data-section="ranking"] .ranking-leaderboard-top {
+    margin: -11px -11px 0;
+  }
+}
+
+@media (max-width: 360px) {
+  body[data-section="ranking"] .ranking-leaderboard-top {
+    margin: -9px -9px 0;
+  }
+}

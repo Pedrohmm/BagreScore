@@ -338,6 +338,13 @@ Não é necessário atualizar o `Code.gs` para a versão 1.3.17. Publique os arq
 
 Não é necessário atualizar o `Code.gs` para a versão 1.3.18. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.3.19 — título do Ranking
+
+- O título **Ranking** agora segue o mesmo acabamento visual de **Elenco BagreScore**.
+- A caixa integrada ganhou barra lateral laranja, tipografia branca e separador discreto.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.3.19. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.
