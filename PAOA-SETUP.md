@@ -354,6 +354,15 @@ Não é necessário atualizar o `Code.gs` para a versão 1.3.19. Publique os arq
 
 Não é necessário atualizar o `Code.gs` para a versão 1.3.20. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.3.21 — limpeza e otimização interna
+
+- Funções antigas e fluxos de interface que não eram mais utilizados foram removidos do JavaScript.
+- O funcionamento e o visual atuais foram preservados.
+- Arquivos temporários de desenvolvimento deixaram de ser incluídos na publicação.
+- A versão do aplicativo e do cache foi atualizada para evitar que o celular mantenha arquivos antigos.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.3.21. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.

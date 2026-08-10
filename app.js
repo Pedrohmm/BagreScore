@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.20";
+  const APP_VERSION = "1.3.21";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -819,14 +819,6 @@
     return Number.isFinite(timestamp) && timestamp >= EVOLUTION_RULES_1_3_0_FROM;
   }
 
-  function defaultAttributeXp(tipoJogador = "Linha", posicaoPrincipal = "ST") {
-    const activeKeys = getActiveAttributeKeys(tipoJogador, posicaoPrincipal);
-    return ALL_ATTRIBUTE_KEYS.reduce((xp, key) => {
-      xp[key] = activeKeys.includes(key) ? 0 : "";
-      return xp;
-    }, {});
-  }
-
   function sanitizeAttributeXp(xp = {}, tipoJogador = "Linha", posicaoPrincipal = "ST") {
     const activeKeys = getActiveAttributeKeys(tipoJogador, posicaoPrincipal);
     return ALL_ATTRIBUTE_KEYS.reduce((result, key) => {
@@ -1339,28 +1331,6 @@
     return coreByPosition[jogador?.posicaoPrincipal] || getPrimaryAttributeKey(jogador);
   }
 
-  function getUsefulAttributeKeys(jogador) {
-    const activeKeys = getActiveAttributeKeys(jogador?.tipoJogador, jogador?.posicaoPrincipal);
-    const weights = getOverallWeights(jogador?.tipoJogador, jogador?.posicaoPrincipal);
-    const usefulKeys = activeKeys.filter((key) => Number(weights[key] || 0) >= 0.8);
-
-    return usefulKeys.length ? usefulKeys : activeKeys;
-  }
-
-  function getHighestAttributeKey(jogador, attributes) {
-    const activeKeys = getActiveAttributeKeys(jogador?.tipoJogador, jogador?.posicaoPrincipal);
-
-    return activeKeys
-      .slice()
-      .sort((a, b) => normalizeAttributeValue(attributes[b]) - normalizeAttributeValue(attributes[a]))[0] || getPrimaryAttributeKey(jogador);
-  }
-
-  function getLowestUsefulAttributeKey(jogador, attributes) {
-    return getUsefulAttributeKeys(jogador)
-      .slice()
-      .sort((a, b) => normalizeAttributeValue(attributes[a]) - normalizeAttributeValue(attributes[b]))[0] || getPrimaryAttributeKey(jogador);
-  }
-
   function resolveEvolutionAttribute(jogador, attributeKey) {
     const activeKeys = getActiveAttributeKeys(jogador?.tipoJogador, jogador?.posicaoPrincipal);
 
@@ -1417,244 +1387,6 @@
     }
 
     changes.push(change);
-  }
-
-  function buildEventEvolutionChangesLegacy(jogadorId, jogador, attributes, eventos) {
-    const changes = [];
-    const goalsByGame = new Map();
-    const assistsByGame = new Map();
-    const foulsByGame = new Map();
-
-    eventos
-      .filter((evento) => !evento.cancelado)
-      .forEach((evento) => {
-        const eventType = normalizeEventType(evento.tipo);
-        const typeToken = normalizeToken(evento.tipo);
-        const jogoId = evento.jogoId || "";
-
-        if (eventType === "gol") {
-          if (evento.jogadorId === jogadorId) {
-            if (evento.golContra) {
-              addEvolutionChange(changes, createEventEvolutionChange({
-                sourceKey: `evento:${evento.id}:gol-contra-def`,
-                evento,
-                atributo: "DEF",
-                variacao: -1,
-                motivo: "Gol contra registrado.",
-              }));
-            } else {
-              goalsByGame.set(jogoId, (goalsByGame.get(jogoId) || 0) + 1);
-              addEvolutionChange(changes, createEventEvolutionChange({
-                sourceKey: `evento:${evento.id}:gol-tir`,
-                evento,
-                atributo: "TIR",
-                variacao: 1,
-                motivo: "Gol registrado.",
-              }));
-
-              if (evento.tipoGol === "penalti") {
-                addEvolutionChange(changes, createEventEvolutionChange({
-                  sourceKey: `evento:${evento.id}:gol-penalti-tir`,
-                  evento,
-                  atributo: "TIR",
-                  variacao: 1,
-                  motivo: "Gol de pênalti.",
-                }));
-              }
-
-              if (evento.tipoGol === "falta") {
-                addEvolutionChange(changes, createEventEvolutionChange({
-                  sourceKey: `evento:${evento.id}:gol-falta-tir`,
-                  evento,
-                  atributo: "TIR",
-                  variacao: 1,
-                  motivo: "Gol de falta.",
-                }));
-                addEvolutionChange(changes, createEventEvolutionChange({
-                  sourceKey: `evento:${evento.id}:gol-falta-pas`,
-                  evento,
-                  atributo: "PAS",
-                  variacao: 1,
-                  motivo: "Gol de falta.",
-                }));
-              }
-
-              if (evento.tipoGol === "cabeca") {
-                addEvolutionChange(changes, createEventEvolutionChange({
-                  sourceKey: `evento:${evento.id}:gol-cabeca-fis`,
-                  evento,
-                  atributo: "FIS",
-                  variacao: 1,
-                  motivo: "Gol de cabeça.",
-                }));
-              }
-            }
-          }
-
-          if (evento.assistenteId === jogadorId) {
-            assistsByGame.set(jogoId, (assistsByGame.get(jogoId) || 0) + 1);
-            addEvolutionChange(changes, createEventEvolutionChange({
-              sourceKey: `evento:${evento.id}:assistencia-pas`,
-              evento,
-              atributo: "PAS",
-              variacao: 1,
-              motivo: "Assistência registrada.",
-            }));
-          }
-        }
-
-        if (eventType === "falta" && evento.jogadorId === jogadorId) {
-          foulsByGame.set(jogoId, (foulsByGame.get(jogoId) || 0) + 1);
-
-          if (evento.cartao === "amarelo") {
-            addEvolutionChange(changes, createEventEvolutionChange({
-              sourceKey: `evento:${evento.id}:cartao-amarelo-def`,
-              evento,
-              atributo: "DEF",
-              variacao: -1,
-              motivo: "Cartão amarelo.",
-            }));
-          }
-
-          if (evento.cartao === "vermelho") {
-            addEvolutionChange(changes, createEventEvolutionChange({
-              sourceKey: `evento:${evento.id}:cartao-vermelho-def`,
-              evento,
-              atributo: "DEF",
-              variacao: -2,
-              motivo: "Cartão vermelho.",
-            }));
-          }
-        }
-
-        if (eventType === "cartao" && evento.jogadorId === jogadorId) {
-          if (evento.cartao === "amarelo") {
-            addEvolutionChange(changes, createEventEvolutionChange({
-              sourceKey: `evento:${evento.id}:cartao-amarelo-def`,
-              evento,
-              atributo: "DEF",
-              variacao: -1,
-              motivo: "Cartão amarelo.",
-            }));
-          }
-
-          if (evento.cartao === "vermelho") {
-            addEvolutionChange(changes, createEventEvolutionChange({
-              sourceKey: `evento:${evento.id}:cartao-vermelho-def`,
-              evento,
-              atributo: "DEF",
-              variacao: -2,
-              motivo: "Cartão vermelho.",
-            }));
-          }
-        }
-
-        if (typeToken === "acao_defensiva" && evento.jogadorId === jogadorId) {
-          addEvolutionChange(changes, createEventEvolutionChange({
-            sourceKey: `evento:${evento.id}:acao-defensiva-def`,
-            evento,
-            atributo: "DEF",
-            variacao: 1,
-            motivo: "Ação defensiva registrada.",
-          }));
-        }
-
-        if (typeToken === "defesa_goleiro" && evento.jogadorId === jogadorId) {
-          const tipoDefesa = normalizeToken(evento.tipoDefesaGoleiro);
-
-          if (["dificil", "cara_a_cara", "reflexo"].includes(tipoDefesa)) {
-            addEvolutionChange(changes, createEventEvolutionChange({
-              sourceKey: `evento:${evento.id}:defesa-goleiro-ref`,
-              evento,
-              atributo: "REF",
-              variacao: 1,
-              motivo: "Defesa difícil registrada.",
-            }));
-          }
-
-          if (tipoDefesa === "penalti") {
-            addEvolutionChange(changes, createEventEvolutionChange({
-              sourceKey: `evento:${evento.id}:defesa-penalti-ref`,
-              evento,
-              atributo: "REF",
-              variacao: 1,
-              motivo: "Defesa de pênalti registrada.",
-            }));
-          }
-        }
-
-        if ((eventType === "mvp" || typeToken === "mvp" || typeToken === "mvp_pelada") && evento.jogadorId === jogadorId) {
-          const atributo = isGoalkeeper(jogador.tipoJogador, jogador.posicaoPrincipal)
-            ? "REF"
-            : getHighestAttributeKey(jogador, attributes);
-
-          addEvolutionChange(changes, createEventEvolutionChange({
-            sourceKey: `evento:${evento.id}:mvp-${atributo}`,
-            evento,
-            atributo,
-            variacao: 1,
-            motivo: typeToken === "mvp_pelada" ? "MVP da pelada." : "MVP da partida.",
-          }));
-        }
-
-        if (evento.jogadorId === jogadorId && (eventIncludes(evento, "defesa_dificil") || eventIncludes(evento, "defesa_importante"))) {
-          addEvolutionChange(changes, createEventEvolutionChange({
-            sourceKey: `evento:${evento.id}:defesa-dificil-ref`,
-            evento,
-            atributo: "REF",
-            variacao: 1,
-            motivo: "Defesa difícil.",
-          }));
-        }
-
-        if (evento.jogadorId === jogadorId && (eventIncludes(evento, "falha_goleiro") || eventIncludes(evento, "gol_sofrido_por_falha"))) {
-          addEvolutionChange(changes, createEventEvolutionChange({
-            sourceKey: `evento:${evento.id}:falha-goleiro-pos`,
-            evento,
-            atributo: "POS",
-            variacao: -1,
-            motivo: "Gol sofrido por falha.",
-          }));
-        }
-      });
-
-    goalsByGame.forEach((total, jogoId) => {
-      if (total >= 3) {
-        addEvolutionChange(changes, createEventEvolutionChange({
-          sourceKey: `jogo:${jogoId}:${jogadorId}:3-gols-tir`,
-          jogoId,
-          atributo: "TIR",
-          variacao: 1,
-          motivo: "Três gols no mesmo jogo.",
-        }));
-      }
-    });
-
-    assistsByGame.forEach((total, jogoId) => {
-      if (total >= 3) {
-        addEvolutionChange(changes, createEventEvolutionChange({
-          sourceKey: `jogo:${jogoId}:${jogadorId}:3-assistencias-pas`,
-          jogoId,
-          atributo: "PAS",
-          variacao: 1,
-          motivo: "Três assistências no mesmo jogo.",
-        }));
-      }
-    });
-
-    foulsByGame.forEach((total, jogoId) => {
-      if (total >= 3) {
-        addEvolutionChange(changes, createEventEvolutionChange({
-          sourceKey: `jogo:${jogoId}:${jogadorId}:faltas-excesso-def`,
-          jogoId,
-          atributo: "DEF",
-          variacao: -1,
-          motivo: "Faltas cometidas em excesso.",
-        }));
-      }
-    });
-
-    return changes;
   }
 
   function isDecisiveGoalEvent(evento, jogo, eventsForGame = []) {
@@ -2459,20 +2191,6 @@
     );
   }
 
-  function getPresentGoalkeepers(pelada, players = [], options = {}) {
-    const includeReserve = options.includeReserve !== false;
-    const regular = getPresentPlayersForPelada(pelada, players).filter(
-      (player) => isGoalkeeperCandidate(player) && !isReserveGoalkeeperPlayer(player)
-    );
-    const reserve = players.find(isReserveGoalkeeperPlayer) || null;
-
-    if (includeReserve && regular.length < 2 && reserve) {
-      return [...regular, reserve];
-    }
-
-    return regular;
-  }
-
   function getPeladaTimeDaVez(pelada) {
     const source = pelada?.timeDaVez || {};
     const linha = uniqueIds(source.linha || pelada?.filaJogadores || []).slice(0, 5);
@@ -2623,25 +2341,6 @@
     state.matchPersist[teamKey] = false;
   }
 
-  function getSuggestedMatchup(pelada, presets = []) {
-    const presetById = new Map(presets.map((preset) => [preset.id, preset]));
-    const saved = pelada?.proximoConfronto || {};
-    const presetA = presetById.get(saved.timeAId) || presets[0] || null;
-    const presetB = presetById.get(saved.timeBId) || presets.find((preset) => preset.id !== presetA?.id) || null;
-    const savedQueue = uniqueIds(saved.fila || []).filter(
-      (id) => presetById.has(id) && id !== presetA?.id && id !== presetB?.id
-    );
-    const remaining = presets
-      .map((preset) => preset.id)
-      .filter((id) => id !== presetA?.id && id !== presetB?.id && !savedQueue.includes(id));
-
-    return {
-      presetA,
-      presetB,
-      fila: [...savedQueue, ...remaining],
-    };
-  }
-
   function getPresetCompleteness(preset) {
     const lineCount = uniqueIds(preset?.linha || []).length;
     return {
@@ -2753,23 +2452,6 @@
       state.gameDraft.B.nome = String(form.elements.timeBNome.value || "Time B").trim() || "Time B";
     }
     if (form.elements.timeBCor) state.gameDraft.B.cor = form.elements.timeBCor.value || "#4aa3df";
-  }
-
-  function getDraftPlayers(teamKey, players, type = "all") {
-    const playerById = new Map(players.map((player) => [player.id, player]));
-    const draft = state.gameDraft[teamKey] || createEmptyGameDraft()[teamKey];
-    const linePlayers = draft.linha.map((id) => playerById.get(id)).filter(Boolean);
-    const goalkeeper = draft.goleiro ? playerById.get(draft.goleiro) : null;
-
-    if (type === "linha") {
-      return linePlayers;
-    }
-
-    if (type === "goleiro") {
-      return goalkeeper ? [goalkeeper] : [];
-    }
-
-    return uniqueIds([draft.goleiro, ...draft.linha]).map((id) => playerById.get(id)).filter(Boolean);
   }
 
   function renderEventTimeline(bundle) {
@@ -6408,67 +6090,6 @@
     `;
   }
 
-  function renderPeladaOpenToolbar(pelada, peladaSummary = null) {
-    const horario = [pelada.horarioInicio, pelada.horarioFim].filter(Boolean).join(" - ") || "Horário aberto";
-    const status = getPeladaStatusLabel(pelada, peladaSummary?.jogos || []);
-    const canFinalize = Boolean(peladaSummary?.canFinalize);
-    const finishTitle = peladaSummary?.finishDisabledReason || "Encerrar a pelada e escolher MVP/Bagre.";
-    const statusClass = normalizeToken(status);
-    const recordType = getPeladaRecordType(pelada);
-
-    return `
-      <section class="pelada-open-toolbar pelada-open-hero is-record-${escapeHtml(recordType)}">
-        <span class="pelada-open-accent" aria-hidden="true"></span>
-        <header class="pelada-open-header">
-          <div class="pelada-open-title">
-            <h3>${escapeHtml(pelada.local || "Pelada")}</h3>
-          </div>
-        </header>
-        <div class="pelada-open-meta">
-          <span>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"/><path d="M8 3v5M16 3v5M4 10h16"/></svg>
-            <strong>${escapeHtml(formatDateLabel(pelada.data))}</strong>
-          </span>
-          <span>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
-            <strong>${escapeHtml(horario)}</strong>
-          </span>
-          <span>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5h16v10H4zM7 12h.01M17 12h.01M12 9.5c1.4 0 2.5 1.1 2.5 2.5s-1.1 2.5-2.5 2.5-2.5-1.1-2.5-2.5 1.1-2.5 2.5-2.5Z"/></svg>
-            <strong>${escapeHtml(formatCurrency(pelada.valor))}</strong>
-          </span>
-        </div>
-        <div class="pelada-open-badges">
-          ${renderPeladaTypeBadge(pelada)}
-          <span class="pelada-open-status status-${escapeHtml(statusClass)}"><i></i>${escapeHtml(status)}</span>
-        </div>
-        <div class="pelada-open-actions">
-          ${hasPermission("jogos:finalizar") ? `<button
-            class="primary-button compact-button"
-            type="button"
-            data-pelada-action="finish-pelada"
-            ${canFinalize ? "" : "disabled"}
-            title="${escapeHtml(finishTitle)}"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4v16M7 5h10l-2 3 2 3H7"/></svg>
-            <span>Finalizar Pelada</span>
-          </button>` : ""}
-          ${hasPermission("eventos:excluir") ? `
-            <button
-              class="pelada-delete-button"
-              type="button"
-              data-pelada-action="delete-pelada"
-              data-pelada-id="${escapeHtml(pelada.id)}"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 10v7M14 10v7"/></svg>
-              <span>Excluir registro</span>
-            </button>
-          ` : ""}
-        </div>
-      </section>
-    `;
-  }
-
   function renderTeamPresetsPanel(pelada, presets, jogadores) {
     const canManage = hasPermission("times:montar") && !isFinalizedPelada(pelada);
     const playerById = new Map(jogadores.map((player) => [player.id, player]));
@@ -6661,113 +6282,6 @@
           </label>
         ` : ""}
       </article>
-    `;
-  }
-
-  function renderLegacyGameSetup(pelada, jogadores) {
-    if (!hasPermission("jogos:iniciar")) return "";
-
-    const draft = normalizeGameDraft(jogadores);
-
-    if (pelada.status === "Finalizada") {
-      return `
-        <section class="data-card game-setup-card">
-          <div class="empty-state compact-empty">
-            <h3>Pelada finalizada</h3>
-            <p>Esta pelada já foi encerrada com MVP e Bagre. O histórico de jogos continua disponível abaixo.</p>
-          </div>
-        </section>
-      `;
-    }
-
-    return `
-      <section class="data-card game-setup-card">
-        <div class="players-toolbar">
-          <div>
-            <h3>Criar Jogo</h3>
-            <p>Monte cada time com botões de escalação e goleiro. Um jogador só pode estar em um lado.</p>
-          </div>
-        </div>
-        <form class="game-form" id="game-form" novalidate>
-          <div class="form-errors" id="game-form-errors" hidden></div>
-          <div class="team-config-grid">
-            <fieldset class="team-config" style="--team-color: #ff5a00;">
-              <legend>Time A</legend>
-              <label class="field-label">
-                <span>Nome</span>
-                <input type="text" name="timeANome" value="${escapeHtml(draft.A.nome)}" />
-              </label>
-              <label class="field-label">
-                <span>Cor</span>
-                <input type="color" name="timeACor" value="${escapeHtml(draft.A.cor)}" />
-              </label>
-              <div class="team-selection-actions">
-                <button class="ghost-button compact-button" type="button" data-pelada-action="open-lineup" data-team="A">Escalação</button>
-                <button class="ghost-button compact-button" type="button" data-pelada-action="open-goalkeeper" data-team="A">Goleiro</button>
-              </div>
-              ${renderTeamSelectionSummary("A", jogadores)}
-            </fieldset>
-            <fieldset class="team-config" style="--team-color: #4aa3df;">
-              <legend>Time B</legend>
-              <label class="field-label">
-                <span>Nome</span>
-                <input type="text" name="timeBNome" value="${escapeHtml(draft.B.nome)}" />
-              </label>
-              <label class="field-label">
-                <span>Cor</span>
-                <input type="color" name="timeBCor" value="${escapeHtml(draft.B.cor)}" />
-              </label>
-              <div class="team-selection-actions">
-                <button class="ghost-button compact-button" type="button" data-pelada-action="open-lineup" data-team="B">Escalação</button>
-                <button class="ghost-button compact-button" type="button" data-pelada-action="open-goalkeeper" data-team="B">Goleiro</button>
-              </div>
-              ${renderTeamSelectionSummary("B", jogadores)}
-            </fieldset>
-          </div>
-
-          ${renderSelectionAvailability(jogadores)}
-
-          <div class="form-actions">
-            <button class="primary-button big-touch" type="submit">Iniciar Jogo</button>
-          </div>
-        </form>
-      </section>
-    `;
-  }
-
-  function renderSelectionAvailability(jogadores) {
-    if (!jogadores.length) {
-      return `
-        <div class="empty-state">
-          <h3>Nenhum jogador ativo</h3>
-          <p>Cadastre jogadores ativos na aba Jogadores para montar os times.</p>
-        </div>
-      `;
-    }
-
-    return `
-      <div class="selection-help">
-        <strong>${escapeHtml(jogadores.length)}</strong>
-        jogador${jogadores.length === 1 ? "" : "es"} ativo${jogadores.length === 1 ? "" : "s"} ou convidado${jogadores.length === 1 ? "" : "s"} ${jogadores.length === 1 ? "disponível" : "disponíveis"} para seleção.
-      </div>
-    `;
-  }
-
-  function renderTeamSelectionSummary(teamKey, jogadores) {
-    const linePlayers = getDraftPlayers(teamKey, jogadores, "linha");
-    const goalkeeper = getDraftPlayers(teamKey, jogadores, "goleiro")[0] || null;
-
-    return `
-      <div class="team-selection-summary">
-        <span>
-          <strong>Goleiro:</strong>
-          ${goalkeeper ? escapeHtml(playerDisplayName(goalkeeper)) : "Nenhum jogador selecionado"}
-        </span>
-        <span>
-          <strong>Linha:</strong>
-          ${linePlayers.length ? escapeHtml(linePlayers.map(playerDisplayName).join(", ")) : "Nenhum jogador selecionado"}
-        </span>
-      </div>
     `;
   }
 
