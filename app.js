@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.25";
+  const APP_VERSION = "1.3.27";
   const MIN_SYNC_API_VERSION = "1.6.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -2201,19 +2201,22 @@
     return identity.includes("goleiro_reserva") || normalizeToken(player.perfilSistema) === "goleiro_reserva";
   }
 
-  function getPlayerPresenceStatus(pelada, playerId) {
+  function getPlayerPresenceStatus(pelada, playerOrId) {
+    const player = typeof playerOrId === "object" && playerOrId ? playerOrId : null;
+    const playerId = player?.id || playerOrId;
     const saved = normalizeToken(pelada?.presencas?.[playerId]);
+    if (saved === "presente") return "presente";
     if (saved === "ausente") return "ausente";
     if (["atrasado", "atrasada", "atraso"].includes(saved)) return "atrasado";
-    return "presente";
+    return player && getPlayerModality(player) === "Convidado" ? "ausente" : "presente";
   }
 
-  function isPlayerPresentAtPelada(pelada, playerId) {
-    return getPlayerPresenceStatus(pelada, playerId) === "presente";
+  function isPlayerPresentAtPelada(pelada, playerOrId) {
+    return getPlayerPresenceStatus(pelada, playerOrId) === "presente";
   }
 
   function getPresentPlayersForPelada(pelada, players = []) {
-    return players.filter((player) => isReserveGoalkeeperPlayer(player) || isPlayerPresentAtPelada(pelada, player.id));
+    return players.filter((player) => isReserveGoalkeeperPlayer(player) || isPlayerPresentAtPelada(pelada, player));
   }
 
   function getPresentLinePlayers(pelada, players = []) {
@@ -5719,7 +5722,7 @@
   function renderPeladaDetailNav(activeView, presets = [], pelada = null, jogadores = []) {
     const incomplete = presets.filter((preset) => !getPresetCompleteness(preset).complete).length;
     const presentCount = jogadores.filter(
-      (player) => !isReserveGoalkeeperPlayer(player) && isPlayerPresentAtPelada(pelada, player.id)
+      (player) => !isReserveGoalkeeperPlayer(player) && isPlayerPresentAtPelada(pelada, player)
     ).length;
 
     return `
@@ -5762,9 +5765,9 @@
     const queue = normalizePeladaPlayerQueue(pelada, jogadores);
     const queuePosition = new Map(queue.map((playerId, index) => [playerId, index + 1]));
     const fieldPlayerIds = getLiveFieldPlayerIds(activeBundle);
-    const presentCount = regularPlayers.filter((player) => isPlayerPresentAtPelada(pelada, player.id)).length;
-    const lateCount = regularPlayers.filter((player) => getPlayerPresenceStatus(pelada, player.id) === "atrasado").length;
-    const absentCount = regularPlayers.filter((player) => getPlayerPresenceStatus(pelada, player.id) === "ausente").length;
+    const presentCount = regularPlayers.filter((player) => isPlayerPresentAtPelada(pelada, player)).length;
+    const lateCount = regularPlayers.filter((player) => getPlayerPresenceStatus(pelada, player) === "atrasado").length;
+    const absentCount = regularPlayers.filter((player) => getPlayerPresenceStatus(pelada, player) === "ausente").length;
 
     return `
       <section class="pelada-presence-panel">
@@ -5773,7 +5776,7 @@
           <div class="presence-summary-metrics">
             <span><strong>${escapeHtml(presentCount)}</strong><small>Presentes</small></span>
             <span><strong>${escapeHtml(lateCount)}</strong><small>Atrasados</small></span>
-            <span><strong>${escapeHtml(absentCount)}</strong><small>Ausentes</small></span>
+            <span><strong>${escapeHtml(absentCount)}</strong><small>Inativos</small></span>
             <span><strong>${escapeHtml(queue.length)}</strong><small>Time da vez</small></span>
           </div>
         </header>
@@ -5781,7 +5784,7 @@
         ${renderTimeDaVezCard(pelada, jogadores)}
 
         <section class="presence-group is-goalkeepers">
-          <header><span>Goleiros da rodada</span><strong>${escapeHtml(goalkeepers.filter((player) => isPlayerPresentAtPelada(pelada, player.id)).length)} disponíveis</strong></header>
+          <header><span>Goleiros da rodada</span><strong>${escapeHtml(goalkeepers.filter((player) => isPlayerPresentAtPelada(pelada, player)).length)} disponíveis</strong></header>
           <div class="presence-player-list">
             ${goalkeepers.map((player) => renderPresencePlayerRow(pelada, player, null)).join("") || `<p class="presence-empty">Nenhum card de goleiro cadastrado.</p>`}
             ${reserve ? `
@@ -5843,7 +5846,7 @@
   }
 
   function renderPresencePlayerRow(pelada, player, queuePosition = null, fieldPlayerIds = new Set()) {
-    const status = getPlayerPresenceStatus(pelada, player.id);
+    const status = getPlayerPresenceStatus(pelada, player);
     const present = status === "presente";
     const goalkeeper = isGoalkeeperCandidate(player);
     const canManage = hasPermission("times:montar");
@@ -5864,9 +5867,9 @@
             <select class="presence-status-select is-${escapeHtml(status)}" data-player-presence-id="${escapeHtml(player.id)}" aria-label="Presença de ${escapeHtml(playerDisplayName(player))}">
               <option value="presente" ${status === "presente" ? "selected" : ""}>Presente</option>
               <option value="atrasado" ${status === "atrasado" ? "selected" : ""}>Atrasado</option>
-              <option value="ausente" ${status === "ausente" ? "selected" : ""}>Ausente</option>
+              <option value="ausente" ${status === "ausente" ? "selected" : ""}>Inativo</option>
             </select>
-          ` : `<span class="presence-readonly-status is-${escapeHtml(status)}">${escapeHtml(status === "atrasado" ? "Atrasado" : present ? "Presente" : "Ausente")}</span>`}
+          ` : `<span class="presence-readonly-status is-${escapeHtml(status)}">${escapeHtml(status === "atrasado" ? "Atrasado" : present ? "Presente" : "Inativo")}</span>`}
         </div>
       </article>
     `;
@@ -7441,7 +7444,7 @@
       findActiveGame(),
     ]);
     const player = jogadores.find((item) => item.id === playerId);
-    if (!pelada || !player || !isLineupPlayer(player) || !isPlayerPresentAtPelada(pelada, playerId)) return;
+    if (!pelada || !player || !isLineupPlayer(player) || !isPlayerPresentAtPelada(pelada, player)) return;
 
     if (activeGame?.peladaId === pelada.id) {
       const activeBundle = await readGameBundle(activeGame.id);
@@ -8755,41 +8758,28 @@
       `;
     }
 
-    const { jogo, pelada, eventos, playerById } = bundle;
-    const goals = eventos.filter((evento) => normalizeToken(evento.tipo) === "gol");
-    const goalAuthors = goals.length
-      ? goals.slice(0, 4).map((evento) => formatLiveIdleGoal(evento, jogo, playerById)).join(", ")
-      : "Nenhum gol registrado";
-    const extraGoals = goals.length > 4 ? ` +${goals.length - 4}` : "";
-    const dateLabel = formatDateLabel(pelada?.data || jogo.inicio?.slice(0, 10) || jogo.createdAt?.slice(0, 10) || "");
-    const winner = jogo.vencedor || getGameWinner(jogo);
+    const { jogo, eventos, playerById } = bundle;
 
     return `
       <section class="live-idle-card has-summary">
-        <div class="live-idle-heading">
-          <span class="live-idle-heading-copy">
-            <span class="live-idle-kicker">${gameNumber ? `Jogo ${escapeHtml(gameNumber)}` : "Último jogo"}</span>
-            <small>Última partida registrada</small>
+        <div class="live-idle-summary-layout">
+          <span class="live-idle-history-index">
+            <small>JOGO</small>
+            <strong>${escapeHtml(gameNumber || "—")}</strong>
           </span>
-          <strong>${escapeHtml(getGameStatusLabel(jogo))}</strong>
-        </div>
-        <div class="live-idle-score" aria-label="Placar final">
-          ${renderLiveIdleTeam(jogo, "A")}
-          <span class="live-idle-score-center">
-            <small>Placar final</small>
-            <strong><span>${escapeHtml(jogo.placarA ?? 0)}</span><i aria-hidden="true">-</i><span>${escapeHtml(jogo.placarB ?? 0)}</span></strong>
-            ${jogo.decididoNosPenaltis ? `<em>Pênaltis · ${escapeHtml(jogo.penaltisA || 0)} - ${escapeHtml(jogo.penaltisB || 0)}</em>` : ""}
-          </span>
-          ${renderLiveIdleTeam(jogo, "B")}
-        </div>
-        <div class="live-idle-meta">
-          <span><small>Local</small><strong>${escapeHtml(pelada?.local || "Pelada")}</strong></span>
-          <span><small>Data</small><strong>${escapeHtml(dateLabel)}</strong></span>
-          <span><small>Resultado</small><strong>${escapeHtml(winner)}</strong></span>
-        </div>
-        <div class="live-idle-goals">
-          <span>Gols</span>
-          <strong>${escapeHtml(goalAuthors)}${escapeHtml(extraGoals)}</strong>
+          <div class="live-idle-summary-content">
+            <strong class="live-idle-history-status">${escapeHtml(getGameStatusLabel(jogo))}</strong>
+            <div class="live-idle-score" aria-label="Placar final">
+              ${renderLiveIdleTeam(jogo, "A")}
+              <span class="live-idle-score-center">
+                <small>Placar final</small>
+                <strong><span>${escapeHtml(jogo.placarA ?? 0)}</span><i aria-hidden="true">-</i><span>${escapeHtml(jogo.placarB ?? 0)}</span></strong>
+              </span>
+              ${renderLiveIdleTeam(jogo, "B")}
+            </div>
+            ${renderGameHistoryDecision(jogo)}
+            ${renderGameGoalsSummary(jogo, eventos, playerById)}
+          </div>
         </div>
         ${hasPermission("jogos:iniciar") ? `<div class="live-idle-actions">
           <button class="primary-button big-touch" type="button" data-live-action="new-game" data-pelada-id="${escapeHtml(jogo.peladaId || "")}">
@@ -8817,17 +8807,6 @@
         <strong>${escapeHtml(name)}</strong>
       </span>
     `;
-  }
-
-  function formatLiveIdleGoal(evento, jogo, playerById) {
-    const author = playerNameFromMap(playerById, evento.jogadorId);
-
-    if (evento.golContra) {
-      const teamName = teamNameFromGame(jogo, evento.time || getEventTeamKey(evento, jogo));
-      return `GC ${author} para ${teamName}`;
-    }
-
-    return author;
   }
 
   function renderLiveScoreCard(bundle, remaining, gameNumber = 1) {

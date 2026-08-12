@@ -402,6 +402,23 @@ Não é necessário atualizar o `Code.gs` para a versão 1.3.24. Publique os arq
 
 Esta versão altera o `Code.gs`. Atualize o arquivo no Apps Script e publique uma **nova versão da implantação** antes de usar a exclusão de contas. A URL `/exec` pode continuar a mesma.
 
+## Atualização 1.3.26 — presença padrão por modalidade
+
+- Mensalistas sem presença registrada começam como **Presentes** na pelada.
+- Convidados sem presença registrada começam como **Inativos** e precisam ser ativados quando participarem.
+- Escolhas de presença já salvas nas peladas existentes são preservadas.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.3.26.
+
+## Atualização 1.3.27 — resumo após o jogo
+
+- A tela exibida ao encerrar uma partida agora segue a identidade visual do histórico de jogos.
+- Foram removidos o texto "Última partida registrada" e os blocos de local, data e resultado.
+- Os gols passaram a aparecer em linhas individuais com autor e tempo do lance.
+- O número do jogo, o status, o placar e a ação de criar a próxima partida foram preservados.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.3.27.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.
