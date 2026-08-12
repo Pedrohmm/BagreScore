@@ -22057,7 +22057,30 @@ body[data-section="peladas"] .game-history-card {
 body[data-section="peladas"] .game-history-heading {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   min-height: 22px;
+}
+
+body[data-section="peladas"] .game-history-heading .finish-pelada-button {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 11px;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+
+body[data-section="peladas"] .game-history-heading .finish-pelada-button svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 body[data-section="peladas"] .game-history-card .game-history-grid {
@@ -22096,6 +22119,15 @@ body[data-section="peladas"] .game-history-cta {
 @media (max-width: 620px) {
   body[data-section="peladas"] .game-history-card {
     padding: 13px;
+  }
+
+  body[data-section="peladas"] .game-history-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  body[data-section="peladas"] .game-history-heading .finish-pelada-button {
+    width: 100%;
   }
 
   body[data-section="peladas"] .game-history-card-item button {

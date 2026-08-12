@@ -363,6 +363,15 @@ Não é necessário atualizar o `Code.gs` para a versão 1.3.20. Publique os arq
 
 Não é necessário atualizar o `Code.gs` para a versão 1.3.21. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Correção 1.3.22 — finalização sem times salvos
+
+- O botão **Finalizar pelada** voltou a aparecer no histórico assim que houver pelo menos um jogo finalizado.
+- A finalização não depende da criação de times salvos; usa diretamente os jogos e as escalações já registrados.
+- Peladas e partidas existentes são preservadas, inclusive os registros criados antes desta atualização.
+- Se ainda houver uma partida em andamento, o botão permanece visível, mas bloqueado até essa partida ser encerrada.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.3.22. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.

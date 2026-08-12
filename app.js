@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.21";
+  const APP_VERSION = "1.3.22";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -3181,8 +3181,8 @@
 
   function buildPeladaClosureSummary(pelada, jogos = [], eventos = [], escalacoes = [], jogadores = []) {
     const playerById = new Map(jogadores.map((jogador) => [jogador.id, jogador]));
-    const finalizedGames = jogos.filter((jogo) => jogo.status === "Finalizado");
-    const activeGames = jogos.filter((jogo) => jogo.status === "Em andamento");
+    const finalizedGames = jogos.filter((jogo) => normalizeToken(jogo.status) === "finalizado");
+    const activeGames = jogos.filter((jogo) => normalizeToken(jogo.status) === "em andamento");
     const finalizedGameIds = new Set(finalizedGames.map((jogo) => jogo.id));
     const scoreByPlayerId = new Map();
     const awardEvents = eventos.filter((evento) =>
@@ -3390,8 +3390,9 @@
       },
     };
 
-    summary.canFinalize = summary.totals.jogosRealizados > 0 && !summary.hasActiveGames && pelada.status !== "Finalizada";
-    summary.finishDisabledReason = pelada.status === "Finalizada"
+    const peladaFinalizada = isFinalizedPelada(pelada);
+    summary.canFinalize = summary.totals.jogosRealizados > 0 && !summary.hasActiveGames && !peladaFinalizada;
+    summary.finishDisabledReason = peladaFinalizada
       ? "Pelada já finalizada."
       : summary.hasActiveGames
         ? "Finalize os jogos em andamento antes de encerrar a pelada."
@@ -7120,10 +7121,25 @@
   }
 
   function renderGameHistory(pelada, jogos, eventsByGameId = new Map(), playerById = new Map(), peladaSummary = null) {
+    const hasFinalizedGame = Number(peladaSummary?.totals?.jogosRealizados || 0) > 0;
+    const showFinishButton = hasPermission("jogos:finalizar") && hasFinalizedGame && !isFinalizedPelada(pelada);
+    const canFinalize = Boolean(peladaSummary?.canFinalize);
+    const finishTitle = peladaSummary?.finishDisabledReason || "Encerrar a pelada e escolher MVP, Bagre e Defensor.";
+
     return `
       <section class="data-card game-history-card">
         <div class="game-history-heading">
           <span class="panel-kicker">Histórico de jogos</span>
+          ${showFinishButton ? `<button
+            class="primary-button compact-button finish-pelada-button"
+            type="button"
+            data-pelada-action="finish-pelada"
+            ${canFinalize ? "" : "disabled"}
+            title="${escapeHtml(finishTitle)}"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4v16M7 5h10l-2 3 2 3H7"/></svg>
+            <span>Finalizar pelada</span>
+          </button>` : ""}
         </div>
         ${
           jogos.length
