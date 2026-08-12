@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.22";
+  const APP_VERSION = "1.3.23";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -202,6 +202,7 @@
       "posicaoSecundaria",
       "peForte",
       "tipoJogador",
+      "modalidade",
       "status",
       "overall",
       "estrelas",
@@ -381,6 +382,7 @@
     posicaoSecundaria: "Posição secundária",
     peForte: "Pé forte",
     tipoJogador: "Tipo de jogador",
+    modalidade: "Modalidade",
     status: "Status",
     overall: "Overall",
     estrelas: "Estrelas",
@@ -579,7 +581,8 @@
   ];
 
   const PLAYER_TYPES = ["Linha", "Goleiro"];
-  const PLAYER_STATUSES = ["Ativo", "Convidado", "Inativo"];
+  const PLAYER_STATUSES = ["Ativo", "Inativo"];
+  const PLAYER_MODALITIES = ["Mensalista", "Convidado"];
   const STRONG_FEET = ["Direito", "Esquerdo", "Ambidestro"];
   const PLAYER_POSITIONS = ["GK", "CB", "MC", "MAT", "SA", "ST", "LW", "RW"];
   const LINE_POSITIONS = ["CB", "MC", "MAT", "SA", "ST", "LW", "RW"];
@@ -691,6 +694,7 @@
     playerFormStep: "basicos",
     playerSaving: false,
     playersListOpen: false,
+    playerModalityFilter: "todos",
     selectedPeladaId: null,
     selectedGameSummaryId: null,
     peladasView: "gerenciar",
@@ -888,6 +892,21 @@
 
   function playerDisplayName(player) {
     return player.apelido || player.nome || "Jogador";
+  }
+
+  function getPlayerModality(player = {}) {
+    player = player || {};
+    const modalidade = normalizeToken(player.modalidade);
+    if (modalidade === "convidado") return "Convidado";
+    if (modalidade === "mensalista") return "Mensalista";
+
+    // Antes da v1.3.23, Convidado era armazenado como status.
+    return normalizeToken(player.status) === "convidado" ? "Convidado" : "Mensalista";
+  }
+
+  function getPlayerStatus(player = {}) {
+    player = player || {};
+    return normalizeToken(player.status) === "inativo" ? "Inativo" : "Ativo";
   }
 
   function comparePlayersByNickname(a, b) {
@@ -3007,7 +3026,7 @@
 
   async function readActivePlayers() {
     const jogadores = await readPlayersWithAttributes();
-    return jogadores.filter((jogador) => jogador.status === "Ativo" || jogador.status === "Convidado");
+    return jogadores.filter((jogador) => getPlayerStatus(jogador) === "Ativo");
   }
 
   async function readPeladasSorted() {
@@ -4593,9 +4612,15 @@
               </select>
             </label>
             <label class="field-label">
-              <span>Status</span>
+              <span>Modalidade</span>
+              <select name="modalidade">
+                ${renderOptions(PLAYER_MODALITIES, getPlayerModality(player))}
+              </select>
+            </label>
+            <label class="field-label">
+              <span>Situação</span>
               <select name="status">
-                ${renderOptions(PLAYER_STATUSES, player?.status || "Ativo")}
+                ${renderOptions(PLAYER_STATUSES, getPlayerStatus(player))}
               </select>
             </label>
           </div>
@@ -4630,12 +4655,15 @@
   }
 
   function renderPlayerCard(player) {
-    const statusClass = `status-${String(player.status || "Ativo").toLowerCase()}`;
+    const status = getPlayerStatus(player);
+    const modalidade = getPlayerModality(player);
+    const statusClass = `status-${status.toLowerCase()}`;
+    const modalityClass = modalidade === "Mensalista" ? "is-monthly-player" : "is-guest-player";
     const canEditPlayers = hasPermission("jogadores:editar");
     const miniAttributes = getActiveAttributeDefinitions(player.tipoJogador, player.posicaoPrincipal).slice(0, 3);
 
     return `
-      <article class="player-card ${player.status === "Inativo" ? "is-inactive" : ""}" data-player-id="${escapeHtml(player.id)}">
+      <article class="player-card ${status === "Inativo" ? "is-inactive" : ""} ${modalityClass}" data-player-id="${escapeHtml(player.id)}">
         <button class="player-card-main" type="button" data-player-action="view" data-player-id="${escapeHtml(player.id)}">
           ${renderPlayerAvatar(player)}
           <span class="player-card-info">
@@ -4644,14 +4672,17 @@
             <span class="player-card-mini-attrs">
               ${miniAttributes.map((attribute) => `<small><b>${escapeHtml(normalizeAttributeValue(player.attributes?.[attribute.key]))}</b> ${escapeHtml(attribute.label)}</small>`).join("")}
             </span>
-            <span class="player-status ${statusClass}"><i></i>${escapeHtml(player.status || "Ativo")}</span>
+            <span class="player-card-labels">
+              <span class="player-modality">${escapeHtml(modalidade)}</span>
+              <span class="player-status ${statusClass}"><i></i>${escapeHtml(status)}</span>
+            </span>
           </span>
           <span class="player-card-overall"><strong>${escapeHtml(player.overall ?? "-")}</strong><small>OVR</small></span>
         </button>
         ${canEditPlayers ? `<div class="player-card-actions">
           <button class="ghost-button compact-button" type="button" data-player-action="edit" data-player-id="${escapeHtml(player.id)}">Editar</button>
           ${
-            player.status === "Inativo"
+            status === "Inativo"
               ? `<button class="ghost-button compact-button" type="button" data-player-action="reactivate" data-player-id="${escapeHtml(player.id)}">Reativar</button>`
               : `<button class="danger-button compact-button" type="button" data-player-action="inactivate" data-player-id="${escapeHtml(player.id)}">Inativar</button>`
           }
@@ -4670,12 +4701,24 @@
   }
 
   function renderPlayersRosterPanel(jogadores) {
+    const activeFilter = ["todos", "mensalista", "convidado"].includes(state.playerModalityFilter)
+      ? state.playerModalityFilter
+      : "todos";
+    const filteredPlayers = activeFilter === "todos"
+      ? jogadores
+      : jogadores.filter((player) => normalizeToken(getPlayerModality(player)) === activeFilter);
+    const modalityCounts = jogadores.reduce((counts, player) => {
+      const key = normalizeToken(getPlayerModality(player));
+      counts[key] = (counts[key] || 0) + 1;
+      return counts;
+    }, { mensalista: 0, convidado: 0 });
+
     return `
       <section class="players-list-panel">
         ${renderPlayersCatalogHeader()}
         <div class="players-toolbar players-roster-toolbar">
           <div class="players-roster-summary">
-            <span class="players-roster-count">${escapeHtml(jogadores.length)} jogador${jogadores.length === 1 ? "" : "es"}</span>
+            <span class="players-roster-count">${escapeHtml(filteredPlayers.length)} jogador${filteredPlayers.length === 1 ? "" : "es"}</span>
             ${
               hasPermission("jogadores:criar")
                 ? `
@@ -4686,14 +4729,29 @@
                 : ""
             }
           </div>
+          <div class="players-modality-filters" role="group" aria-label="Filtrar jogadores por modalidade">
+            ${[
+              ["todos", "Todos", jogadores.length],
+              ["mensalista", "Mensalistas", modalityCounts.mensalista],
+              ["convidado", "Convidados", modalityCounts.convidado],
+            ].map(([value, label, count]) => `
+              <button
+                class="players-modality-filter ${activeFilter === value ? "is-active" : ""}"
+                type="button"
+                data-player-action="filter-modality"
+                data-modality="${value}"
+                aria-pressed="${activeFilter === value}"
+              >${label}<strong>${count}</strong></button>
+            `).join("")}
+          </div>
         </div>
         ${
-          jogadores.length
-            ? `<div class="player-card-grid">${jogadores.map(renderPlayerCard).join("")}</div>`
+          filteredPlayers.length
+            ? `<div class="player-card-grid">${filteredPlayers.map(renderPlayerCard).join("")}</div>`
             : `
               <div class="empty-state">
-                <h3>Nenhum jogador cadastrado</h3>
-                <p>Abra o cadastro para criar o primeiro jogador e liberar a seleção em times e eventos.</p>
+                <h3>${jogadores.length ? "Nenhum jogador neste filtro" : "Nenhum jogador cadastrado"}</h3>
+                <p>${jogadores.length ? "Escolha outra modalidade para visualizar o elenco." : "Abra o cadastro para criar o primeiro jogador e liberar a seleção em times e eventos."}</p>
               </div>
             `
         }
@@ -4781,6 +4839,13 @@
 
       const action = actionButton.dataset.playerAction;
       const playerId = actionButton.dataset.playerId;
+
+      if (action === "filter-modality") {
+        const modality = actionButton.dataset.modality || "todos";
+        state.playerModalityFilter = ["todos", "mensalista", "convidado"].includes(modality) ? modality : "todos";
+        await renderCurrentSection();
+        return;
+      }
 
       if (action === "remove-photo") {
         if (form) {
@@ -5134,6 +5199,7 @@
         posicaoSecundaria: form.elements.posicaoSecundaria?.value || "",
         peForte: form.elements.peForte?.value || "Direito",
         tipoJogador,
+        modalidade: form.elements.modalidade?.value || "Mensalista",
         status: form.elements.status?.value || "Ativo",
         overall: card.overall,
         estrelas: card.estrelas,
@@ -5161,6 +5227,14 @@
 
     if (!PLAYER_POSITIONS.includes(player.posicaoPrincipal)) {
       errors.push("Posição principal é obrigatória.");
+    }
+
+    if (!PLAYER_MODALITIES.includes(player.modalidade)) {
+      errors.push("Modalidade é obrigatória.");
+    }
+
+    if (!PLAYER_STATUSES.includes(player.status)) {
+      errors.push("Situação é obrigatória.");
     }
 
     if (player.tipoJogador === "Goleiro" && player.posicaoPrincipal !== "GK") {
@@ -5351,6 +5425,7 @@
     const savedAt = nowIso();
     const updatedPlayer = {
       ...existingPlayer,
+      modalidade: getPlayerModality(existingPlayer),
       status,
       updatedAt: savedAt,
       revision: (existingPlayer.revision || 0) + 1,

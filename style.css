@@ -23490,6 +23490,117 @@ body[data-section="jogadores"] .players-roster-summary {
   justify-items: stretch;
 }
 
+body[data-section="jogadores"] .players-modality-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+body[data-section="jogadores"] .players-modality-filter {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 10px;
+  padding: 7px 8px;
+  color: #aaa;
+  background: rgba(255, 255, 255, 0.025);
+  font: inherit;
+  font-size: 0.69rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+body[data-section="jogadores"] .players-modality-filter strong {
+  display: grid;
+  min-width: 20px;
+  min-height: 20px;
+  place-items: center;
+  border-radius: 999px;
+  padding-inline: 4px;
+  color: #d6d6d6;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 0.62rem;
+}
+
+body[data-section="jogadores"] .players-modality-filter.is-active {
+  border-color: rgba(255, 116, 36, 0.54);
+  color: #fff;
+  background: rgba(255, 90, 0, 0.11);
+}
+
+body[data-section="jogadores"] .players-modality-filter.is-active strong {
+  color: #fff;
+  background: rgba(255, 90, 0, 0.24);
+}
+
+body[data-section="jogadores"] .player-card-labels {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+body[data-section="jogadores"] .player-card .player-modality {
+  display: inline-flex;
+  width: max-content;
+  align-items: center;
+  border: 1px solid rgba(255, 90, 0, 0.25);
+  border-radius: 999px;
+  padding: 3px 7px;
+  color: #ff9c61;
+  background: rgba(255, 90, 0, 0.07);
+  font-size: 0.59rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+body[data-section="jogadores"] .player-card.is-monthly-player {
+  border-color: rgba(235, 188, 76, 0.34);
+  background:
+    linear-gradient(110deg, rgba(221, 166, 37, 0.12), transparent 38%),
+    repeating-linear-gradient(135deg, rgba(255, 224, 141, 0.016) 0 1px, transparent 1px 8px),
+    #0b0b0b;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.32), inset 0 0 28px rgba(221, 166, 37, 0.025);
+}
+
+body[data-section="jogadores"] .player-card.is-monthly-player::before {
+  background: linear-gradient(180deg, transparent, #e9bd50, transparent);
+}
+
+body[data-section="jogadores"] .player-card.is-monthly-player .player-avatar {
+  border-color: rgba(236, 190, 78, 0.88);
+  box-shadow: 0 0 0 4px rgba(232, 181, 57, 0.07), 0 0 26px rgba(232, 181, 57, 0.13);
+}
+
+body[data-section="jogadores"] .player-card.is-monthly-player .player-modality {
+  border-color: rgba(235, 188, 76, 0.42);
+  color: #f1ca6a;
+  background: rgba(221, 166, 37, 0.1);
+}
+
+body[data-section="jogadores"] .player-card.is-monthly-player .player-card-overall small,
+body[data-section="jogadores"] .player-card.is-monthly-player .player-card-mini-attrs small {
+  color: #e9bd50;
+}
+
+@media (max-width: 390px) {
+  body[data-section="jogadores"] .players-modality-filters {
+    gap: 5px;
+  }
+
+  body[data-section="jogadores"] .players-modality-filter {
+    gap: 4px;
+    padding-inline: 5px;
+    font-size: 0.62rem;
+  }
+}
+
 body[data-section="jogadores"] .players-roster-count {
   display: block;
   min-width: 0;

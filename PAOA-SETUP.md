@@ -372,6 +372,16 @@ Não é necessário atualizar o `Code.gs` para a versão 1.3.21. Publique os arq
 
 Não é necessário atualizar o `Code.gs` para a versão 1.3.22. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.3.23 — modalidades de jogadores
+
+- O cadastro separa **Situação** (Ativo ou Inativo) de **Modalidade** (Mensalista ou Convidado).
+- Jogadores mensalistas recebem identificação e acabamento dourados no card; convidados mantêm o visual tradicional.
+- A aba **Jogadores** permite filtrar Todos, Mensalistas e Convidados, com contadores por modalidade.
+- Registros antigos com status Convidado são reconhecidos automaticamente como convidados ativos, sem alteração do histórico.
+- Os demais registros antigos são tratados como mensalistas até que o cadastro seja editado.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.3.23. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.
