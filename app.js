@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.27";
+  const APP_VERSION = "1.3.28";
   const MIN_SYNC_API_VERSION = "1.6.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -8762,24 +8762,21 @@
 
     return `
       <section class="live-idle-card has-summary">
-        <div class="live-idle-summary-layout">
-          <span class="live-idle-history-index">
-            <small>JOGO</small>
-            <strong>${escapeHtml(gameNumber || "—")}</strong>
-          </span>
-          <div class="live-idle-summary-content">
+        <div class="live-idle-summary-content">
+          <header class="live-idle-summary-heading">
+            <strong>Jogo ${escapeHtml(gameNumber || "—")}</strong>
             <strong class="live-idle-history-status">${escapeHtml(getGameStatusLabel(jogo))}</strong>
-            <div class="live-idle-score" aria-label="Placar final">
-              ${renderLiveIdleTeam(jogo, "A")}
-              <span class="live-idle-score-center">
-                <small>Placar final</small>
-                <strong><span>${escapeHtml(jogo.placarA ?? 0)}</span><i aria-hidden="true">-</i><span>${escapeHtml(jogo.placarB ?? 0)}</span></strong>
-              </span>
-              ${renderLiveIdleTeam(jogo, "B")}
-            </div>
-            ${renderGameHistoryDecision(jogo)}
-            ${renderGameGoalsSummary(jogo, eventos, playerById)}
+          </header>
+          <div class="live-idle-score" aria-label="Placar final">
+            ${renderLiveIdleTeam(jogo, "A")}
+            <span class="live-idle-score-center">
+              <small>Placar final</small>
+              <strong><span>${escapeHtml(jogo.placarA ?? 0)}</span><i aria-hidden="true">-</i><span>${escapeHtml(jogo.placarB ?? 0)}</span></strong>
+            </span>
+            ${renderLiveIdleTeam(jogo, "B")}
           </div>
+          ${renderGameHistoryDecision(jogo)}
+          ${renderGameGoalsSummary(jogo, eventos, playerById)}
         </div>
         ${hasPermission("jogos:iniciar") ? `<div class="live-idle-actions">
           <button class="primary-button big-touch" type="button" data-live-action="new-game" data-pelada-id="${escapeHtml(jogo.peladaId || "")}">

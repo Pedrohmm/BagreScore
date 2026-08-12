@@ -22548,36 +22548,6 @@ body[data-section="ao-vivo"] .live-idle-card.has-summary {
   padding: 0;
 }
 
-body[data-section="ao-vivo"] .live-idle-summary-layout {
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
-  min-width: 0;
-}
-
-body[data-section="ao-vivo"] .live-idle-history-index {
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: 6px;
-  border-right: 1px solid rgba(255, 255, 255, 0.09);
-  padding: 14px 7px;
-  background: linear-gradient(180deg, rgba(255, 90, 0, 0.055), rgba(255, 255, 255, 0.012));
-}
-
-body[data-section="ao-vivo"] .live-idle-history-index > small {
-  color: var(--orange);
-  font-size: 0.61rem;
-  font-weight: 950;
-  letter-spacing: 0.08em;
-}
-
-body[data-section="ao-vivo"] .live-idle-history-index > strong {
-  color: var(--orange);
-  font-size: 2.7rem;
-  font-variant-numeric: tabular-nums;
-  line-height: 0.9;
-}
-
 body[data-section="ao-vivo"] .live-idle-summary-content {
   display: grid;
   align-content: center;
@@ -22586,8 +22556,23 @@ body[data-section="ao-vivo"] .live-idle-summary-content {
   padding: 14px;
 }
 
+body[data-section="ao-vivo"] .live-idle-summary-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-inline: 2px;
+}
+
+body[data-section="ao-vivo"] .live-idle-summary-heading > strong:first-child {
+  color: var(--orange);
+  font-size: 0.82rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 body[data-section="ao-vivo"] .live-idle-history-status {
-  justify-self: center;
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 999px;
   padding: 5px 13px;
@@ -22626,26 +22611,14 @@ body[data-section="ao-vivo"] .live-idle-summary-content > .game-history-goals {
 
 body[data-section="ao-vivo"] .live-idle-summary-content .game-history-goal-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 7px;
   min-width: 0;
 }
 
 body[data-section="ao-vivo"] .live-idle-summary-content .game-history-goal-icon {
-  display: grid;
-  place-items: center;
-  color: #56dc7e;
-}
-
-body[data-section="ao-vivo"] .live-idle-summary-content .game-history-goal-icon svg {
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.55;
+  display: none;
 }
 
 body[data-section="ao-vivo"] .live-idle-summary-content .game-history-goal-row strong {
@@ -22686,14 +22659,6 @@ body[data-section="ao-vivo"] .live-idle-card.has-summary > .live-idle-actions {
   body[data-section="ao-vivo"] .live-idle-card.has-summary {
     gap: 0;
     padding: 0;
-  }
-
-  body[data-section="ao-vivo"] .live-idle-summary-layout {
-    grid-template-columns: 54px minmax(0, 1fr);
-  }
-
-  body[data-section="ao-vivo"] .live-idle-history-index > strong {
-    font-size: 2.35rem;
   }
 
   body[data-section="ao-vivo"] .live-idle-summary-content {

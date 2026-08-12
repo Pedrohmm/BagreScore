@@ -419,6 +419,14 @@ Não é necessário atualizar o `Code.gs` para a versão 1.3.26.
 
 Não é necessário atualizar o `Code.gs` para a versão 1.3.27.
 
+## Atualização 1.3.28 — ajuste visual do pós-jogo
+
+- O número do jogo foi movido para o cabeçalho do resumo.
+- O placar agora ocupa toda a largura útil do card.
+- Os ícones ao lado dos autores dos gols foram removidos dessa tela.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.3.28.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.
