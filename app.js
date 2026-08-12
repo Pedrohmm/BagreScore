@@ -1,8 +1,8 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.24";
-  const MIN_SYNC_API_VERSION = "1.5.0";
+  const APP_VERSION = "1.3.25";
+  const MIN_SYNC_API_VERSION = "1.6.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 5000;
@@ -12948,7 +12948,8 @@
 
   async function renderConfigSection(counts = {}) {
     const isPlayerProfile = state.currentUser?.perfilId === "jogador";
-    setSectionTitle(isPlayerProfile ? "Minha conta" : "Sistema", isPlayerProfile ? "Meu jogador" : "Configurações");
+    const isAdminPanel = canManageUsers();
+    setSectionTitle(isPlayerProfile ? "Minha conta" : "Sistema", isPlayerProfile ? "Meu jogador" : isAdminPanel ? "Administração" : "Configurações");
     const [config, syncQueue, auditLog] = await Promise.all([
       getRecord("configs", "app"),
       getAllRecords("syncQueue"),
@@ -12972,7 +12973,7 @@
       return;
     }
 
-    if (canManageUsers()) {
+    if (isAdminPanel) {
       accountPlayers = await getAllRecords("jogadores");
       if (navigator.onLine && state.backendUrl && state.authToken) {
         try {
@@ -12985,159 +12986,106 @@
       }
     }
 
+    const totalLocalRecords = Object.values(counts).reduce((total, count) => total + Number(count || 0), 0);
+    const lastSyncLabel = config?.lastSyncAt ? new Date(config.lastSyncAt).toLocaleString("pt-BR") : "Não realizada";
+
     $("#section-content").innerHTML = `
-      <section class="data-card account-config-card">
-        <div class="section-heading-inline">
+      <div class="admin-settings-layout">
+        <section class="admin-settings-hero">
           <div>
-            <span class="panel-kicker">Conta e servidor</span>
-            <h3>${state.currentUser ? escapeHtml(state.currentUser.nome) : "Conectar BagreScore"}</h3>
-            <p>${state.currentUser
-              ? `${escapeHtml(state.currentUser.perfilNome || state.currentUser.perfilId || "Usuário")} · sessão ativa neste aparelho`
-              : config?.appsScriptUrl
-                ? "Servidor configurado. Entre para sincronizar os dados."
-                : "Cole a URL publicada do Apps Script para ativar contas e sincronização."}</p>
+            <span class="panel-kicker">Sessão atual</span>
+            <h2>${state.currentUser ? escapeHtml(state.currentUser.nome) : "Configurar BagreScore"}</h2>
+            <p>${state.currentUser ? `@${escapeHtml(state.currentUser.login || "admin")} · ${escapeHtml(state.currentUser.perfilNome || state.currentUser.perfilId || "Administrador")}` : "Acesso local"}</p>
           </div>
-          ${state.currentUser ? `<span class="status-pill account-online-pill">Conectado</span>` : ""}
-        </div>
-
-        ${canManageUsers() || !state.backendUrl ? `<form class="sync-config-form" id="sync-config-form" novalidate>
-          <label class="field-label">
-            <span>URL publicada do Apps Script</span>
-            <input type="url" name="appsScriptUrl" value="${escapeHtml(config?.appsScriptUrl || "")}" placeholder="https://script.google.com/macros/s/.../exec" required />
-          </label>
-          <button class="primary-button" type="submit">Salvar e conectar</button>
-          <p class="form-feedback" id="sync-config-feedback" role="status" hidden></p>
-        </form>` : ""}
-
-        ${state.currentUser ? `
-          <form class="change-pin-form" id="change-pin-form" novalidate>
-            <h3>Alterar meu PIN</h3>
-            <div class="form-grid">
-              <label class="field-label">
-                <span>PIN atual</span>
-                <input type="password" name="currentPin" inputmode="numeric" autocomplete="current-password" minlength="4" maxlength="12" required />
-              </label>
-              <label class="field-label">
-                <span>Novo PIN</span>
-                <input type="password" name="newPin" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="12" required />
-              </label>
-              <label class="field-label">
-                <span>Confirmar novo PIN</span>
-                <input type="password" name="confirmPin" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="12" required />
-              </label>
-            </div>
-            <button class="ghost-button" type="submit">Alterar PIN</button>
-            <p class="form-feedback" id="change-pin-feedback" role="status" hidden></p>
-          </form>
-        ` : ""}
-      </section>
-
-      ${renderMyPlayerProfile(linkedPlayer)}
-
-      ${canManageUsers() ? renderUserManagement(accountPlayers) : ""}
-
-      ${canManageUsers() ? `
-        <section class="data-card server-reset-card">
-          <div>
-            <span class="panel-kicker">Zona de segurança</span>
-            <h3>Zerar dados de teste</h3>
-            <p>Apaga jogadores, peladas, jogos, eventos, filas e contas de teste. A conta administrativa atual e os perfis são preservados.</p>
+          <div class="admin-settings-summary" aria-label="Resumo do sistema">
+            <span><small>Servidor</small><strong>${config?.appsScriptUrl ? "Conectado" : "Pendente"}</strong></span>
+            <span><small>Contas</small><strong>${isAdminPanel ? state.remoteUsers.length : "—"}</strong></span>
+            <span><small>Fila</small><strong>${pendingSync.length}</strong></span>
           </div>
-          <form class="server-reset-form" id="server-reset-form" novalidate>
-            <label class="field-label">
-              <span>Digite ZERAR BAGRESCORE</span>
-              <input type="text" name="confirmation" autocomplete="off" autocapitalize="characters" required />
-            </label>
-            <button class="danger-button" type="submit">Zerar todos os dados</button>
-            <p class="form-feedback" id="server-reset-feedback" role="alert" hidden></p>
-          </form>
         </section>
-      ` : ""}
 
-      <div class="content-grid">
-        <article class="data-card">
-          <h3>Regras do jogo</h3>
-          <p>${escapeHtml(config?.regras?.duracaoJogoMinutos || 10)} minutos ou ${escapeHtml(config?.regras?.golsParaEncerrar || 2)} gols para encerrar.</p>
-        </article>
-        <article class="data-card">
-          <h3>Sincronização</h3>
-          <p>Apps Script: ${config?.appsScriptUrl ? escapeHtml(config.appsScriptUrl) : "URL pendente"}</p>
-          <p>${pendingSync.length} registro${pendingSync.length === 1 ? "" : "s"} pendente${pendingSync.length === 1 ? "" : "s"}.</p>
-          <p>Revisão remota: ${escapeHtml(config?.lastServerRevision || 0)} · Última sincronização: ${escapeHtml(config?.lastSyncAt ? new Date(config.lastSyncAt).toLocaleString("pt-BR") : "ainda não concluída")}</p>
-          ${syncErrors.length ? `<p class="sync-error-summary">${syncErrors.length} operação${syncErrors.length === 1 ? "" : "ões"} com erro. ${escapeHtml(syncErrors[0]?.syncError || "Verifique as permissões da conta.")}</p>` : ""}
-        </article>
-      </div>
+        <section class="admin-settings-section account-config-card" id="admin-account-section">
+          <header class="admin-settings-section-heading">
+            <span class="admin-settings-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3a5 5 0 0 0-5 5v3H5v10h14V11h-2V8a5 5 0 0 0-5-5ZM9 11V8a3 3 0 0 1 6 0v3"/></svg></span>
+            <span>
+              <small>Conta</small>
+              <strong>Acesso e conexão</strong>
+              <p>Servidor de dados e segurança da conta atual.</p>
+            </span>
+            ${state.currentUser ? `<span class="status-pill account-online-pill">Ativa</span>` : ""}
+          </header>
 
-      <section class="data-card diagnostics-card">
-        <div class="section-heading-inline">
-          <div>
-            <span class="panel-kicker">Modo Desenvolvedor</span>
-            <h3>Diagnóstico do App</h3>
+          <div class="admin-account-grid">
+            ${(isAdminPanel || !state.backendUrl) ? `<details class="admin-settings-inner-card admin-setting-disclosure">
+              <summary><span><span class="panel-kicker">Servidor</span><h3>Conexão do Apps Script</h3></span><span aria-hidden="true">⌄</span></summary>
+              <form class="sync-config-form" id="sync-config-form" novalidate>
+                <label class="field-label">
+                  <span>URL publicada</span>
+                  <input type="url" name="appsScriptUrl" value="${escapeHtml(config?.appsScriptUrl || "")}" placeholder="https://script.google.com/macros/s/.../exec" required />
+                </label>
+                <button class="primary-button" type="submit">Salvar conexão</button>
+                <p class="form-feedback" id="sync-config-feedback" role="status" hidden></p>
+              </form>
+            </details>` : ""}
+
+            ${state.currentUser ? `<details class="admin-settings-inner-card admin-setting-disclosure">
+              <summary><span><span class="panel-kicker">Segurança</span><h3>Alterar meu PIN</h3></span><span aria-hidden="true">⌄</span></summary>
+              <form class="change-pin-form" id="change-pin-form" novalidate>
+                <div class="form-grid">
+                  <label class="field-label"><span>PIN atual</span><input type="password" name="currentPin" inputmode="numeric" autocomplete="current-password" minlength="4" maxlength="12" required /></label>
+                  <label class="field-label"><span>Novo PIN</span><input type="password" name="newPin" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="12" required /></label>
+                  <label class="field-label"><span>Confirmar PIN</span><input type="password" name="confirmPin" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="12" required /></label>
+                </div>
+                <button class="ghost-button" type="submit">Atualizar PIN</button>
+                <p class="form-feedback" id="change-pin-feedback" role="status" hidden></p>
+              </form>
+            </details>` : ""}
           </div>
-        </div>
+        </section>
 
-        <div class="diagnostics-grid">
-          <article>
-            <span class="metric-label">Versão do app</span>
-            <strong>${escapeHtml(APP_VERSION)}</strong>
-          </article>
-          <article>
-            <span class="metric-label">Rede</span>
-            <strong>${navigator.onLine ? "Online" : "Offline"}</strong>
-          </article>
-          <article>
-            <span class="metric-label">Offline/PWA</span>
-            <strong>${escapeHtml($("#db-status")?.textContent || "Banco local")}</strong>
-          </article>
-          <article>
-            <span class="metric-label">Fila pendente</span>
-            <strong>${pendingSync.length}</strong>
-          </article>
-          <article>
-            <span class="metric-label">Fila total</span>
-            <strong>${syncQueue.length}</strong>
-          </article>
-          <article>
-            <span class="metric-label">Auditoria</span>
-            <strong>${auditLog.length}</strong>
-          </article>
-        </div>
+        ${isAdminPanel ? renderUserManagement(accountPlayers) : ""}
 
-        <div class="content-grid diagnostics-lists">
-          <article class="nested-diagnostic">
-            <h3>Fila de sincronização <span class="count-badge">${syncQueue.length}</span></h3>
-            ${renderFields("syncQueue")}
-          </article>
-          <article class="nested-diagnostic">
-            <h3>Auditoria <span class="count-badge">${auditLog.length}</span></h3>
-            ${renderFields("auditLog")}
-          </article>
-        </div>
-      </section>
+        <section class="admin-settings-section admin-operation-section">
+          <header class="admin-settings-section-heading">
+            <span class="admin-settings-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg></span>
+            <span><small>Sistema</small><strong>Operação do aplicativo</strong><p>Resumo das regras e da sincronização.</p></span>
+          </header>
+          <div class="admin-operation-grid">
+            <article><small>Regra da partida</small><strong>${escapeHtml(config?.regras?.duracaoJogoMinutos || 10)} min · ${escapeHtml(config?.regras?.golsParaEncerrar || 2)} gols</strong></article>
+            <article><small>Última sincronização</small><strong>${escapeHtml(lastSyncLabel)}</strong></article>
+            <article><small>Revisão remota</small><strong>${escapeHtml(config?.lastServerRevision || 0)}</strong></article>
+            <article><small>Dados locais</small><strong>${escapeHtml(totalLocalRecords)}</strong></article>
+          </div>
+          ${syncErrors.length ? `<p class="sync-error-summary">${syncErrors.length} operação${syncErrors.length === 1 ? "" : "ões"} com erro. ${escapeHtml(syncErrors[0]?.syncError || "Verifique as permissões da conta.")}</p>` : ""}
+        </section>
 
-      <section class="collection-grid diagnostics-collections">
-        ${STORE_SCHEMAS.map(
-          (schema) => `
-            <article class="data-card">
-              <h3>
-                ${escapeHtml(STORE_LABELS[schema.name] || schema.name)}
-                <span class="count-badge">${counts[schema.name] || 0}</span>
-              </h3>
-              ${renderFields(schema.name)}
-            </article>
-          `
-        ).join("")}
-      </section>
+        <details class="admin-settings-advanced">
+          <summary>
+            <span><small>Área avançada</small><strong>Diagnóstico e manutenção</strong></span>
+            <span class="admin-settings-chevron" aria-hidden="true">⌄</span>
+          </summary>
+          <div class="admin-settings-advanced-content">
+            <section class="diagnostics-card">
+              <div class="diagnostics-grid">
+                <article><span class="metric-label">Versão</span><strong>${escapeHtml(APP_VERSION)}</strong></article>
+                <article><span class="metric-label">Rede</span><strong>${navigator.onLine ? "Online" : "Offline"}</strong></article>
+                <article><span class="metric-label">Banco</span><strong>${escapeHtml($("#db-status")?.textContent || "Local")}</strong></article>
+                <article><span class="metric-label">Fila total</span><strong>${syncQueue.length}</strong></article>
+                <article><span class="metric-label">Pendentes</span><strong>${pendingSync.length}</strong></article>
+                <article><span class="metric-label">Auditoria</span><strong>${auditLog.length}</strong></article>
+              </div>
+            </section>
 
-      <div class="content-grid">
-        <article class="data-card">
-          <h3>Campos de configuração</h3>
-          ${renderFields("configs")}
-        </article>
-        <article class="data-card">
-          <h3>Atualização</h3>
-          <p>Use o botão Forçar atualização no topo se precisar limpar cache e carregar a versão mais recente.</p>
-        </article>
+            ${isAdminPanel ? `<section class="server-reset-card">
+              <div><span class="panel-kicker">Zona de segurança</span><h3>Zerar dados de teste</h3><p>Preserva a conta administrativa atual e remove os demais dados.</p></div>
+              <form class="server-reset-form" id="server-reset-form" novalidate>
+                <label class="field-label"><span>Digite ZERAR BAGRESCORE</span><input type="text" name="confirmation" autocomplete="off" autocapitalize="characters" required /></label>
+                <button class="danger-button" type="submit">Zerar todos os dados</button>
+                <p class="form-feedback" id="server-reset-feedback" role="alert" hidden></p>
+              </form>
+            </section>` : ""}
+          </div>
+        </details>
       </div>
     `;
 
@@ -13598,75 +13546,106 @@
   function renderUserManagement(players) {
     const availableProfiles = state.remoteProfiles.length ? state.remoteProfiles : DEFAULT_PERFIS;
     const profiles = availableProfiles.filter((profile) => ["administrador", "organizador", "jogador"].includes(profile.id));
-    const userRows = state.remoteUsers.length
-      ? state.remoteUsers.map((user) => `
-          <button class="remote-user-row" type="button" data-user-admin-action="edit" data-user-id="${escapeHtml(user.id)}">
-            <span class="remote-user-avatar" aria-hidden="true">${escapeHtml(String(user.nome || "U").slice(0, 1).toUpperCase())}</span>
-            <span>
-              <strong>${escapeHtml(user.nome)}</strong>
-              <small>@${escapeHtml(user.login)} · ${escapeHtml(user.perfilNome || user.perfilId)}</small>
-            </span>
-            <em class="${user.status === "ativo" ? "is-active" : ""}">${escapeHtml(user.status)}</em>
-          </button>
-        `).join("")
+    const users = [...state.remoteUsers].sort((a, b) => String(a.nome || "").localeCompare(String(b.nome || ""), "pt-BR"));
+    const userRows = users.length
+      ? users.map((user) => {
+          const isCurrentUser = user.id === state.currentUser?.id;
+          const linkedPlayer = players.find((player) => player.id === user.jogadorId);
+          return `
+            <article class="remote-user-row ${isCurrentUser ? "is-current-user" : ""}">
+              <button class="remote-user-main" type="button" data-user-admin-action="edit" data-user-id="${escapeHtml(user.id)}" aria-label="Editar conta de ${escapeHtml(user.nome)}">
+                <span class="remote-user-avatar" aria-hidden="true">${escapeHtml(String(user.nome || "U").slice(0, 1).toUpperCase())}</span>
+                <span class="remote-user-identity">
+                  <strong>${escapeHtml(user.nome)}${isCurrentUser ? " <small>Você</small>" : ""}</strong>
+                  <span>@${escapeHtml(user.login)} · ${escapeHtml(user.perfilNome || user.perfilId)}</span>
+                  ${linkedPlayer ? `<small>Jogador: ${escapeHtml(playerDisplayName(linkedPlayer))}</small>` : ""}
+                </span>
+              </button>
+              <span class="remote-user-actions">
+                <em class="${user.status === "ativo" ? "is-active" : ""}">${escapeHtml(user.status)}</em>
+                <button class="remote-user-delete" type="button" data-user-admin-action="delete" data-user-id="${escapeHtml(user.id)}" ${isCurrentUser ? "disabled" : ""} aria-label="${isCurrentUser ? "A conta em uso não pode ser excluída" : `Excluir conta de ${escapeHtml(user.nome)}`}">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>
+                </button>
+              </span>
+            </article>
+          `;
+        }).join("")
       : `<p class="account-list-empty">Nenhuma conta remota encontrada.</p>`;
 
     return `
-      <section class="data-card user-admin-card">
-        <div class="section-heading-inline">
-          <div>
-            <span class="panel-kicker">Acessos</span>
-            <h3>Contas dos usuários</h3>
-            <p>Use Administrador para configurações, Operador para gerenciar peladas e Jogador para acesso pessoal a estatísticas, ranking e carta.</p>
-          </div>
-          <span class="count-badge">${state.remoteUsers.length}</span>
-        </div>
+      <section class="admin-settings-section user-admin-card" id="admin-access-section">
+        <header class="admin-settings-section-heading">
+          <span class="admin-settings-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3.5 20v-1.5A5.5 5.5 0 0 1 9 13h.5a5.5 5.5 0 0 1 5.5 5.5V20M14 14.2a4.8 4.8 0 0 1 6.5 4.5V20"/></svg></span>
+          <span>
+            <small>Acessos</small>
+            <strong>Usuários e permissões</strong>
+            <p>Crie contas ou selecione uma conta existente para editar.</p>
+          </span>
+          <span class="count-badge">${users.length}</span>
+        </header>
 
-        <form class="user-admin-form" id="user-admin-form" novalidate>
-          <input type="hidden" name="id" />
-          <div class="form-grid">
-            <label class="field-label">
-              <span>Nome *</span>
-              <input type="text" name="nome" autocomplete="off" required />
-            </label>
-            <label class="field-label">
-              <span>Login *</span>
-              <input type="text" name="login" autocomplete="off" autocapitalize="none" placeholder="ex.: juninho" required />
-            </label>
-            <label class="field-label">
-              <span>Perfil *</span>
-              <select name="perfilId" required>
-                ${profiles.map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.nome)}</option>`).join("")}
-              </select>
-            </label>
-            <label class="field-label">
-              <span>Vincular ao jogador</span>
-              <select name="jogadorId">
-                <option value="">Sem vínculo</option>
-                ${players.map((player) => `<option value="${escapeHtml(player.id)}">${escapeHtml(playerDisplayName(player))}</option>`).join("")}
-              </select>
-            </label>
-            <label class="field-label">
-              <span>Status</span>
-              <select name="status">
-                <option value="ativo">Ativo</option>
-                <option value="inativo">Inativo</option>
-              </select>
-            </label>
-            <label class="field-label">
-              <span>Definir novo PIN</span>
-              <input type="password" name="pin" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="12" placeholder="Gerado automaticamente" />
-            </label>
-          </div>
-          <div class="form-actions">
-            <button class="primary-button" type="submit">Salvar conta</button>
-            <button class="ghost-button" type="reset" data-user-admin-action="reset">Limpar</button>
-          </div>
-          <p class="form-feedback" id="user-admin-feedback" role="status" ${state.accountMessage ? "" : "hidden"}>${escapeHtml(state.accountMessage)}</p>
-        </form>
+        <div class="user-admin-workspace">
+          <section class="user-admin-editor">
+            <header>
+              <span class="panel-kicker">Cadastro</span>
+              <h3 id="user-admin-form-title">Nova conta</h3>
+            </header>
+            <form class="user-admin-form" id="user-admin-form" novalidate>
+              <input type="hidden" name="id" />
+              <div class="form-grid">
+                <label class="field-label">
+                  <span>Nome *</span>
+                  <input type="text" name="nome" autocomplete="off" required />
+                </label>
+                <label class="field-label">
+                  <span>Login *</span>
+                  <input type="text" name="login" autocomplete="off" autocapitalize="none" placeholder="ex.: juninho" required />
+                </label>
+                <label class="field-label">
+                  <span>Tipo de acesso *</span>
+                  <select name="perfilId" required>
+                    ${profiles.map((profile) => `<option value="${escapeHtml(profile.id)}" ${profile.id === "jogador" ? "selected" : ""}>${escapeHtml(profile.nome)}</option>`).join("")}
+                  </select>
+                </label>
+                <label class="field-label">
+                  <span>Jogador associado</span>
+                  <select name="jogadorId">
+                    <option value="">Sem vínculo</option>
+                    ${players.map((player) => `<option value="${escapeHtml(player.id)}">${escapeHtml(playerDisplayName(player))}</option>`).join("")}
+                  </select>
+                </label>
+                <label class="field-label">
+                  <span>Situação</span>
+                  <select name="status">
+                    <option value="ativo">Ativo</option>
+                    <option value="inativo">Inativo</option>
+                  </select>
+                </label>
+                <label class="field-label">
+                  <span>PIN</span>
+                  <input type="password" name="pin" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="12" placeholder="Gerar automaticamente" />
+                </label>
+              </div>
+              <div class="form-actions">
+                <button class="primary-button" id="user-admin-submit" type="submit">Criar conta</button>
+                <button class="ghost-button" id="user-admin-reset" type="reset" data-user-admin-action="reset">Limpar</button>
+              </div>
+              <p class="form-feedback" id="user-admin-feedback" role="status" ${state.accountMessage ? "" : "hidden"}>${escapeHtml(state.accountMessage)}</p>
+            </form>
+          </section>
 
-        <div class="remote-user-list">
-          ${userRows}
+          <section class="user-admin-directory">
+            <header>
+              <span>
+                <span class="panel-kicker">Cadastradas</span>
+                <h3>Contas existentes</h3>
+              </span>
+              <small>Toque em uma conta para editar.</small>
+            </header>
+            <div class="remote-user-list">
+              ${userRows}
+            </div>
+          </section>
         </div>
       </section>
     `;
@@ -13723,20 +13702,53 @@
       feedback.textContent = state.accountMessage;
       feedback.hidden = false;
       submitButton.disabled = false;
-      submitButton.textContent = "Salvar conta";
+      submitButton.textContent = user.id ? "Salvar alterações" : "Criar conta";
     }
   }
 
-  function handleUserAdminClick(event) {
+  function resetUserAdminForm(form) {
+    form.reset();
+    form.elements.id.value = "";
+    $("#user-admin-form-title").textContent = "Nova conta";
+    $("#user-admin-submit").textContent = "Criar conta";
+    $("#user-admin-reset").textContent = "Limpar";
+  }
+
+  async function handleUserAdminClick(event) {
     const button = event.target.closest("[data-user-admin-action]");
     if (!button) return;
     const form = $("#user-admin-form");
     if (!form) return;
 
     if (button.dataset.userAdminAction === "reset") {
-      form.reset();
-      form.elements.id.value = "";
+      resetUserAdminForm(form);
       state.accountMessage = "";
+      return;
+    }
+
+    if (button.dataset.userAdminAction === "delete") {
+      const user = state.remoteUsers.find((item) => item.id === button.dataset.userId);
+      if (!user || user.id === state.currentUser?.id) return;
+      const confirmed = window.confirm(`Excluir a conta de ${user.nome}? O jogador e todo o histórico esportivo serão preservados.`);
+      if (!confirmed) return;
+
+      button.disabled = true;
+      try {
+        await callAppsScript("deleteUser", {
+          token: state.authToken,
+          deviceId: getDeviceId(),
+          userId: user.id,
+        });
+        state.remoteUsers = state.remoteUsers.filter((item) => item.id !== user.id);
+        state.accountMessage = `Conta de ${user.nome} excluída. O jogador e o histórico foram preservados.`;
+        await renderCurrentSection();
+      } catch (error) {
+        state.accountMessage = error.message;
+        const feedback = $("#user-admin-feedback");
+        feedback.textContent = state.accountMessage;
+        feedback.hidden = false;
+        button.disabled = false;
+      }
       return;
     }
 
@@ -13751,6 +13763,9 @@
     form.elements.jogadorId.value = user.jogadorId || "";
     form.elements.status.value = user.status || "ativo";
     form.elements.pin.value = "";
+    $("#user-admin-form-title").textContent = `Editar ${user.nome}`;
+    $("#user-admin-submit").textContent = "Salvar alterações";
+    $("#user-admin-reset").textContent = "Cancelar edição";
     form.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 

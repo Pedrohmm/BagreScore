@@ -23966,3 +23966,597 @@ body[data-section="inicio"] .home-primary-action-icon {
   font-weight: 650;
   line-height: 1;
 }
+
+/* Painel administrativo organizado v1.3.25 */
+body[data-section="configuracoes"] .admin-settings-layout {
+  display: grid;
+  width: min(100%, 1120px);
+  gap: 16px;
+  margin-inline: auto;
+}
+
+body[data-section="configuracoes"] .admin-settings-hero,
+body[data-section="configuracoes"] .admin-settings-section,
+body[data-section="configuracoes"] .admin-settings-advanced {
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.07), transparent 18rem),
+    linear-gradient(145deg, rgba(17, 17, 17, 0.98), rgba(7, 7, 7, 0.98));
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.26);
+}
+
+body[data-section="configuracoes"] .admin-settings-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 24px;
+  padding: 24px;
+}
+
+body[data-section="configuracoes"] .admin-settings-hero h2,
+body[data-section="configuracoes"] .admin-settings-hero p {
+  margin: 0;
+}
+
+body[data-section="configuracoes"] .admin-settings-hero h2 {
+  margin-top: 5px;
+  color: #fff;
+  font-size: clamp(1.45rem, 3vw, 2rem);
+}
+
+body[data-section="configuracoes"] .admin-settings-hero p {
+  margin-top: 4px;
+  color: #8f8f8f;
+}
+
+body[data-section="configuracoes"] .admin-settings-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(84px, 1fr));
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+body[data-section="configuracoes"] .admin-settings-summary > span {
+  display: grid;
+  gap: 4px;
+  padding: 13px 16px;
+}
+
+body[data-section="configuracoes"] .admin-settings-summary > span + span {
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+body[data-section="configuracoes"] .admin-settings-summary small,
+body[data-section="configuracoes"] .admin-operation-grid small {
+  color: #747474;
+  font-size: 0.63rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+body[data-section="configuracoes"] .admin-settings-summary strong {
+  color: #f3f3f3;
+  font-size: 0.9rem;
+}
+
+body[data-section="configuracoes"] .admin-settings-section {
+  display: grid;
+  gap: 18px;
+  margin: 0;
+  padding: 20px;
+  overflow: hidden;
+}
+
+body[data-section="configuracoes"] .admin-settings-section-heading {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+}
+
+body[data-section="configuracoes"] .admin-settings-section-heading > span:nth-child(2) {
+  display: grid;
+  gap: 3px;
+}
+
+body[data-section="configuracoes"] .admin-settings-section-heading small,
+body[data-section="configuracoes"] .admin-settings-section-heading strong,
+body[data-section="configuracoes"] .admin-settings-section-heading p {
+  margin: 0;
+}
+
+body[data-section="configuracoes"] .admin-settings-section-heading > span:nth-child(2) > small {
+  color: var(--orange);
+  font-size: 0.64rem;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+body[data-section="configuracoes"] .admin-settings-section-heading > span:nth-child(2) > strong {
+  color: #fff;
+  font-size: 1.18rem;
+}
+
+body[data-section="configuracoes"] .admin-settings-section-heading p {
+  color: #858585;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+body[data-section="configuracoes"] .admin-settings-section-icon {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border: 1px solid rgba(255, 90, 0, 0.3);
+  border-radius: 14px;
+  color: var(--orange);
+  background: rgba(255, 90, 0, 0.08);
+}
+
+body[data-section="configuracoes"] .admin-settings-section-icon svg {
+  width: 23px;
+  height: 23px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+body[data-section="configuracoes"] .admin-account-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+body[data-section="configuracoes"] .admin-settings-inner-card,
+body[data-section="configuracoes"] .user-admin-editor,
+body[data-section="configuracoes"] .user-admin-directory {
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+body[data-section="configuracoes"] .admin-settings-inner-card > header,
+body[data-section="configuracoes"] .user-admin-editor > header,
+body[data-section="configuracoes"] .user-admin-directory > header {
+  margin-bottom: 14px;
+}
+
+body[data-section="configuracoes"] .admin-setting-disclosure > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+body[data-section="configuracoes"] .admin-setting-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+body[data-section="configuracoes"] .admin-setting-disclosure > summary > span:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+body[data-section="configuracoes"] .admin-setting-disclosure > summary > span:last-child {
+  color: var(--orange);
+  font-size: 1.1rem;
+  transition: transform 160ms ease;
+}
+
+body[data-section="configuracoes"] .admin-setting-disclosure[open] > summary > span:last-child {
+  transform: rotate(180deg);
+}
+
+body[data-section="configuracoes"] .admin-setting-disclosure > form {
+  margin-top: 14px;
+}
+
+body[data-section="configuracoes"] .admin-settings-inner-card h3,
+body[data-section="configuracoes"] .user-admin-editor h3,
+body[data-section="configuracoes"] .user-admin-directory h3 {
+  margin: 4px 0 0;
+  color: #fff;
+  font-size: 1rem;
+}
+
+body[data-section="configuracoes"] .admin-settings-inner-card .sync-config-form,
+body[data-section="configuracoes"] .admin-settings-inner-card .change-pin-form {
+  grid-template-columns: 1fr;
+  gap: 10px;
+  border-top: 0;
+  padding-top: 0;
+}
+
+body[data-section="configuracoes"] .admin-settings-inner-card .change-pin-form .form-grid {
+  grid-template-columns: 1fr;
+  gap: 9px;
+}
+
+body[data-section="configuracoes"] .admin-settings-inner-card .primary-button,
+body[data-section="configuracoes"] .admin-settings-inner-card .ghost-button {
+  width: 100%;
+  min-height: 46px;
+}
+
+body[data-section="configuracoes"] .user-admin-card {
+  gap: 18px;
+}
+
+body[data-section="configuracoes"] .user-admin-workspace {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.9fr) minmax(360px, 1.1fr);
+  align-items: start;
+  gap: 12px;
+}
+
+body[data-section="configuracoes"] .user-admin-form {
+  gap: 12px;
+  border-top: 0;
+  padding-top: 0;
+}
+
+body[data-section="configuracoes"] .user-admin-form .form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+body[data-section="configuracoes"] .user-admin-directory > header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body[data-section="configuracoes"] .user-admin-directory > header > small {
+  color: #777;
+  font-size: 0.68rem;
+  text-align: right;
+}
+
+body[data-section="configuracoes"] .remote-user-list {
+  max-height: 550px;
+  overflow-y: auto;
+  gap: 8px;
+  border-top: 0;
+  padding: 0 3px 0 0;
+}
+
+body[data-section="configuracoes"] .remote-user-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 70px;
+  padding: 7px 8px;
+  background: rgba(255, 255, 255, 0.025);
+  cursor: default;
+}
+
+body[data-section="configuracoes"] .remote-user-row.is-current-user {
+  border-color: rgba(255, 90, 0, 0.25);
+  background: rgba(255, 90, 0, 0.045);
+}
+
+body[data-section="configuracoes"] .remote-user-main {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+}
+
+body[data-section="configuracoes"] .remote-user-main:focus-visible {
+  border-radius: 12px;
+  outline: 2px solid rgba(255, 90, 0, 0.5);
+  outline-offset: 3px;
+}
+
+body[data-section="configuracoes"] .remote-user-identity {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+body[data-section="configuracoes"] .remote-user-identity strong,
+body[data-section="configuracoes"] .remote-user-identity > span,
+body[data-section="configuracoes"] .remote-user-identity > small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-section="configuracoes"] .remote-user-identity strong {
+  color: #eee;
+  font-size: 0.86rem;
+}
+
+body[data-section="configuracoes"] .remote-user-identity strong small {
+  border-radius: 999px;
+  margin-left: 4px;
+  padding: 2px 5px;
+  color: #ff9b60;
+  background: rgba(255, 90, 0, 0.1);
+  font-size: 0.54rem;
+  text-transform: uppercase;
+}
+
+body[data-section="configuracoes"] .remote-user-identity > span,
+body[data-section="configuracoes"] .remote-user-identity > small {
+  color: #888;
+  font-size: 0.68rem;
+}
+
+body[data-section="configuracoes"] .remote-user-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+body[data-section="configuracoes"] .remote-user-actions em {
+  border-radius: 999px;
+  padding: 5px 7px;
+  color: #888;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 0.58rem;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+body[data-section="configuracoes"] .remote-user-actions em.is-active {
+  color: #83e99a;
+  background: rgba(34, 197, 94, 0.08);
+}
+
+body[data-section="configuracoes"] .remote-user-delete {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgba(227, 93, 93, 0.28);
+  border-radius: 10px;
+  color: #e97575;
+  background: rgba(227, 93, 93, 0.06);
+  cursor: pointer;
+}
+
+body[data-section="configuracoes"] .remote-user-delete:hover,
+body[data-section="configuracoes"] .remote-user-delete:focus-visible {
+  border-color: rgba(227, 93, 93, 0.58);
+  color: #ff9b9b;
+  outline: none;
+  background: rgba(227, 93, 93, 0.12);
+}
+
+body[data-section="configuracoes"] .remote-user-delete:disabled {
+  opacity: 0.24;
+  cursor: not-allowed;
+}
+
+body[data-section="configuracoes"] .remote-user-delete svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+body[data-section="configuracoes"] .admin-operation-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+body[data-section="configuracoes"] .admin-operation-grid article {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  padding: 14px;
+}
+
+body[data-section="configuracoes"] .admin-operation-grid article + article {
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+body[data-section="configuracoes"] .admin-operation-grid strong {
+  overflow: hidden;
+  color: #eee;
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-section="configuracoes"] .admin-settings-advanced {
+  overflow: hidden;
+}
+
+body[data-section="configuracoes"] .admin-settings-advanced > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  cursor: pointer;
+  list-style: none;
+}
+
+body[data-section="configuracoes"] .admin-settings-advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+body[data-section="configuracoes"] .admin-settings-advanced > summary > span:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+body[data-section="configuracoes"] .admin-settings-advanced > summary small {
+  color: #777;
+  font-size: 0.63rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+body[data-section="configuracoes"] .admin-settings-advanced > summary strong {
+  color: #ddd;
+  font-size: 0.92rem;
+}
+
+body[data-section="configuracoes"] .admin-settings-chevron {
+  color: var(--orange);
+  font-size: 1.3rem;
+  transition: transform 160ms ease;
+}
+
+body[data-section="configuracoes"] .admin-settings-advanced[open] .admin-settings-chevron {
+  transform: rotate(180deg);
+}
+
+body[data-section="configuracoes"] .admin-settings-advanced-content {
+  display: grid;
+  gap: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 18px 20px 20px;
+}
+
+body[data-section="configuracoes"] .admin-settings-advanced .diagnostics-card {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body[data-section="configuracoes"] .admin-settings-advanced .server-reset-card {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  border: 1px solid rgba(227, 93, 93, 0.24);
+  border-radius: 18px;
+  padding: 16px;
+}
+
+@media (max-width: 860px) {
+  body[data-section="configuracoes"] .admin-settings-hero,
+  body[data-section="configuracoes"] .user-admin-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  body[data-section="configuracoes"] .admin-settings-summary {
+    width: 100%;
+  }
+
+  body[data-section="configuracoes"] .remote-user-list {
+    max-height: none;
+  }
+}
+
+@media (max-width: 680px) {
+  body[data-section="configuracoes"] .admin-account-grid,
+  body[data-section="configuracoes"] .admin-operation-grid {
+    grid-template-columns: 1fr;
+  }
+
+  body[data-section="configuracoes"] .admin-operation-grid article + article {
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-left: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  body[data-section="configuracoes"] .admin-settings-layout {
+    gap: 11px;
+  }
+
+  body[data-section="configuracoes"] .admin-settings-hero,
+  body[data-section="configuracoes"] .admin-settings-section {
+    border-radius: 19px;
+    padding: 15px;
+  }
+
+  body[data-section="configuracoes"] .admin-settings-summary > span {
+    padding: 11px 9px;
+  }
+
+  body[data-section="configuracoes"] .admin-settings-summary small {
+    font-size: 0.54rem;
+  }
+
+  body[data-section="configuracoes"] .admin-settings-summary strong {
+    font-size: 0.74rem;
+  }
+
+  body[data-section="configuracoes"] .admin-settings-section-heading {
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+
+  body[data-section="configuracoes"] .admin-settings-section-icon {
+    width: 42px;
+    height: 42px;
+  }
+
+  body[data-section="configuracoes"] .admin-settings-section-heading p {
+    display: none;
+  }
+
+  body[data-section="configuracoes"] .admin-settings-inner-card,
+  body[data-section="configuracoes"] .user-admin-editor,
+  body[data-section="configuracoes"] .user-admin-directory {
+    border-radius: 15px;
+    padding: 13px;
+  }
+
+  body[data-section="configuracoes"] .user-admin-form .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  body[data-section="configuracoes"] .user-admin-directory > header {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  body[data-section="configuracoes"] .user-admin-directory > header > small {
+    text-align: left;
+  }
+
+  body[data-section="configuracoes"] .remote-user-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 7px;
+  }
+
+  body[data-section="configuracoes"] .remote-user-actions {
+    align-items: flex-end;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  body[data-section="configuracoes"] .remote-user-actions em {
+    padding: 3px 5px;
+    font-size: 0.5rem;
+  }
+
+  body[data-section="configuracoes"] .admin-settings-advanced > summary,
+  body[data-section="configuracoes"] .admin-settings-advanced-content {
+    padding-inline: 15px;
+  }
+}

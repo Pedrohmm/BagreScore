@@ -1,4 +1,4 @@
-var BAGRESCORE_API_VERSION = "1.5.0";
+var BAGRESCORE_API_VERSION = "1.6.0";
 var BAGRESCORE_DB_PROPERTY = "BAGRESCORE_SPREADSHEET_ID";
 var BAGRESCORE_SECRET_PROPERTY = "BAGRESCORE_AUTH_SECRET";
 var BAGRESCORE_REVISION_PROPERTY = "BAGRESCORE_GLOBAL_REVISION";
@@ -151,6 +151,7 @@ function doPost(e) {
     if (action === "updateMyPlayerProfile") return bagreScoreJsonOutput_(bagreScoreHandleUpdateMyPlayerProfile_(request));
     if (action === "listUsers") return bagreScoreJsonOutput_(bagreScoreHandleListUsers_(request));
     if (action === "saveUser") return bagreScoreJsonOutput_(bagreScoreHandleSaveUser_(request));
+    if (action === "deleteUser") return bagreScoreJsonOutput_(bagreScoreHandleDeleteUser_(request));
     if (action === "resetData") return bagreScoreJsonOutput_(bagreScoreHandleResetData_(request));
     if (action === "sync") return bagreScoreJsonOutput_(bagreScoreHandleSync_(request));
 
@@ -553,6 +554,38 @@ function bagreScoreHandleSaveUser_(request) {
     temporaryPin: temporaryPin,
     serverTime: now
   };
+}
+
+function bagreScoreHandleDeleteUser_(request) {
+  var auth = bagreScoreRequireSession_(request.token, "usuarios:gerenciar");
+  var userId = String(request.userId || "").trim();
+  if (!userId) throw new Error("Conta não informada.");
+  if (userId === auth.user.id) throw new Error("Você não pode excluir a conta administrativa em uso.");
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+
+  try {
+    var userSheet = auth.spreadsheet.getSheetByName("usuarios");
+    var found = bagreScoreFindRowByValue_(userSheet, "id", userId);
+    if (!found) throw new Error("Conta não encontrada.");
+
+    bagreScoreRevokeUserSessions_(userId, "");
+    userSheet.deleteRow(found.rowNumber);
+    bagreScoreAppendAudit_(auth.spreadsheet, auth.user.id, String(request.deviceId || ""), "excluir-usuario", "usuarios", userId, {
+      nome: String(found.record.nome || ""),
+      login: String(found.record.login || ""),
+      jogadorId: String(found.record.jogadorId || "")
+    }, 0);
+
+    return {
+      ok: true,
+      deletedUserId: userId,
+      serverTime: new Date().toISOString()
+    };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function bagreScoreHandleResetData_(request) {

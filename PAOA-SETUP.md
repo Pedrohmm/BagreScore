@@ -103,7 +103,7 @@ Para publicar a atualização:
 5. publique os arquivos do aplicativo;
 6. no celular, use **Forçar atualização** uma vez.
 
-O aplicativo exige o Apps Script `1.5.0` para todas as operações novas de sincronização.
+O aplicativo exige o Apps Script `1.6.0` para as operações administrativas mais recentes.
 
 ## Atualização 1.2.0 — presenças, fila e goleiros por confronto
 
@@ -391,6 +391,16 @@ Não é necessário atualizar o `Code.gs` para a versão 1.3.23. Publique os arq
 - Mensalistas receberam moldura, selo e detalhes dourados mais evidentes; convidados mantêm a identidade visual tradicional.
 
 Não é necessário atualizar o `Code.gs` para a versão 1.3.24. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
+## Atualização 1.3.25 — painel administrativo e exclusão de contas
+
+- A tela **Sistema / Administração** foi reorganizada em visão geral, acesso e conexão, usuários, operação e área avançada.
+- Criação e edição de contas agora ficam separadas da lista de contas existentes.
+- O administrador pode excluir contas de acesso sem apagar o jogador, as partidas ou o histórico do ranking.
+- A conta administrativa em uso não pode ser excluída; sessões da conta removida são revogadas e a ação é auditada.
+- Diagnósticos e ações de manutenção ficam recolhidos para reduzir ruído visual.
+
+Esta versão altera o `Code.gs`. Atualize o arquivo no Apps Script e publique uma **nova versão da implantação** antes de usar a exclusão de contas. A URL `/exec` pode continuar a mesma.
 
 ## Atualizações futuras
 
