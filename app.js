@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.23";
+  const APP_VERSION = "1.3.24";
   const MIN_SYNC_API_VERSION = "1.5.0";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -525,11 +525,12 @@
     usarHorarioServidorEmConflitos: true,
     excluirEventosComoCancelados: true,
   };
-  const SECTION_NAMES = ["inicio", "jogadores", "peladas", "ao-vivo", "ranking", "estatisticas", "historico", "configuracoes"];
+  const SECTION_NAMES = ["inicio", "jogadores", "peladas", "perfil", "ao-vivo", "ranking", "estatisticas", "historico", "configuracoes"];
   const SECTION_HEADINGS = {
     inicio: ["Início", "Resumo da pelada"],
     jogadores: ["Elenco", "Jogadores"],
     peladas: ["Peladas", "Suas rodadas"],
+    perfil: ["Conta", "Meu perfil"],
     "ao-vivo": ["Partida", "Ao vivo"],
     ranking: ["Desempenho", "Ranking geral"],
     estatisticas: ["Desempenho", "Estatísticas"],
@@ -888,6 +889,17 @@
 
   function starsText(stars) {
     return `${stars} estrela${stars === 1 ? "" : "s"}`;
+  }
+
+  function renderPlayerStars(overall, className = "") {
+    const stars = calculateStars(clamp(Number(overall) || 1, 1, 99));
+    const starIcons = Array.from({ length: 5 }, (_, index) => `
+      <svg class="${index < stars ? "is-filled" : "is-empty"}" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m12 2.7 2.8 5.7 6.3.9-4.6 4.4 1.1 6.3-5.6-3-5.6 3 1.1-6.3-4.6-4.4 6.3-.9Z"/>
+      </svg>
+    `).join("");
+
+    return `<span class="player-stars ${className}" role="img" aria-label="${escapeHtml(`${stars} de 5 estrelas, conforme o overall`)}">${starIcons}</span>`;
   }
 
   function playerDisplayName(player) {
@@ -4345,7 +4357,8 @@
     }
 
     const isHome = state.currentSection === "inicio";
-    const isStatsProfile = state.currentSection === "estatisticas" && Boolean(state.selectedStatsPlayerId);
+    const isStatsProfile = (state.currentSection === "estatisticas" && Boolean(state.selectedStatsPlayerId))
+      || (state.currentSection === "perfil" && Boolean(state.currentUser?.jogadorId));
     document.body.dataset.section = state.currentSection;
     document.body.classList.toggle("is-internal", !isHome);
     document.body.classList.toggle("stats-profile-mode", isStatsProfile);
@@ -4362,6 +4375,7 @@
       inicio: renderHomeSection,
       jogadores: renderPlayersSection,
       peladas: renderPeladasSection,
+      perfil: renderMyProfileSection,
       "ao-vivo": renderLiveSection,
       ranking: renderRankingSection,
       estatisticas: renderStatsSection,
@@ -4672,6 +4686,7 @@
             <span class="player-card-mini-attrs">
               ${miniAttributes.map((attribute) => `<small><b>${escapeHtml(normalizeAttributeValue(player.attributes?.[attribute.key]))}</b> ${escapeHtml(attribute.label)}</small>`).join("")}
             </span>
+            ${renderPlayerStars(player.overall, "player-card-stars")}
             <span class="player-card-labels">
               <span class="player-modality">${escapeHtml(modalidade)}</span>
               <span class="player-status ${statusClass}"><i></i>${escapeHtml(status)}</span>
@@ -11278,6 +11293,57 @@
     bindStatsSectionEvents(statsResult);
   }
 
+  function renderMyProfileEmptyState(message) {
+    return `
+      <section class="data-card my-profile-empty">
+        <span class="my-profile-empty-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20v-1.5A6.5 6.5 0 0 1 11.5 12h1A6.5 6.5 0 0 1 19 18.5V20"/></svg>
+        </span>
+        <span class="panel-kicker">Meu jogador</span>
+        <h2>Perfil ainda não vinculado</h2>
+        <p>${escapeHtml(message)}</p>
+        <button class="primary-button" type="button" data-profile-action="account">Abrir minha conta</button>
+      </section>
+    `;
+  }
+
+  async function renderMyProfileSection() {
+    const linkedPlayerId = String(state.currentUser?.jogadorId || "").trim();
+    state.selectedStatsPlayerId = linkedPlayerId || null;
+    state.selectedProfileTab = getActiveProfileTab();
+    setSectionTitle("Conta", "Meu perfil");
+
+    if (!linkedPlayerId) {
+      document.body.classList.remove("stats-profile-mode");
+      const message = state.currentUser
+        ? "Associe esta conta a um jogador nas configurações para exibir sua cartinha e suas estatísticas aqui."
+        : "Entre na sua conta e associe-a a um jogador para exibir sua cartinha e suas estatísticas aqui.";
+      $("#section-content").innerHTML = renderMyProfileEmptyState(message);
+      $("[data-profile-action=\"account\"]")?.addEventListener("click", async () => {
+        if (state.backendUrl && !state.currentUser) {
+          openAuthGate();
+          return;
+        }
+        await switchSection("configuracoes");
+      });
+      return;
+    }
+
+    const statsResult = await calcularEstatisticasJogadores();
+    const selectedProfile = statsResult.playersStats.find((item) => item.jogadorId === linkedPlayerId);
+
+    if (!selectedProfile) {
+      document.body.classList.remove("stats-profile-mode");
+      $("#section-content").innerHTML = renderMyProfileEmptyState("O jogador associado à sua conta não foi encontrado no elenco atual. Revise o vínculo nas configurações.");
+      $("[data-profile-action=\"account\"]")?.addEventListener("click", () => switchSection("configuracoes"));
+      return;
+    }
+
+    document.body.classList.add("stats-profile-mode");
+    $("#section-content").innerHTML = renderPlayerStatsProfile(selectedProfile, statsResult);
+    bindStatsSectionEvents(statsResult);
+  }
+
   function renderStatsDashboard(statsResult) {
     return `
       <div class="stats-layout">
@@ -12234,7 +12300,7 @@
             <div class="player-context-facts">
               <span><small>Função</small><strong>${escapeHtml(jogador.posicaoPrincipal || "-")} · ${escapeHtml(jogador.tipoJogador || "Linha")}</strong></span>
               <span><small>Pé dominante</small><strong>${escapeHtml(jogador.peForte || "-")}</strong></span>
-              <span><small>Nível</small><strong>${escapeHtml(starsText(jogador.estrelas || 1))}</strong></span>
+              <span><small>Nível</small><strong>${escapeHtml(starsText(calculateStars(Number(jogador.overall) || 1)))}</strong></span>
               <span><small>Aproveitamento</small><strong>${escapeHtml(formatPercent(stats.aproveitamento))}</strong></span>
             </div>
           </div>
@@ -12264,8 +12330,10 @@
   }
 
   function renderPlayerBagreCard(jogador, activeDefinitions) {
+    const modalidade = getPlayerModality(jogador);
+    const isMonthly = modalidade === "Mensalista";
     return `
-      <article class="player-bagre-card" aria-label="Carta BagreScore de ${escapeHtml(playerDisplayName(jogador))}">
+      <article class="player-bagre-card ${isMonthly ? "is-monthly-player-card" : "is-guest-player-card"}" aria-label="Carta BagreScore de ${escapeHtml(playerDisplayName(jogador))}">
         <svg class="player-bagre-frame" viewBox="0 0 360 560" preserveAspectRatio="none" aria-hidden="true">
           <defs>
             <linearGradient id="bagre-frame-metal" x1="0" y1="0" x2="1" y2="1">
@@ -12299,6 +12367,10 @@
           <span class="player-bagre-rating">
             <strong>${escapeHtml(jogador.overall || "-")}</strong>
             <small>${escapeHtml(jogador.posicaoPrincipal || "-")}</small>
+          </span>
+          <span class="player-bagre-level">
+            ${renderPlayerStars(jogador.overall, "player-bagre-stars")}
+            ${isMonthly ? `<small class="player-bagre-modality">Mensalista</small>` : ""}
           </span>
         </div>
         <div class="player-bagre-portrait">

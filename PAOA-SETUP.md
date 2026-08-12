@@ -382,6 +382,16 @@ Não é necessário atualizar o `Code.gs` para a versão 1.3.22. Publique os arq
 
 Não é necessário atualizar o `Code.gs` para a versão 1.3.23. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.3.24 — perfil na navegação e estrelas por overall
+
+- A aba **Ao Vivo** da barra inferior foi substituída por **Perfil**; partidas em andamento continuam acessíveis pelo placar flutuante.
+- A aba **Perfil** abre a cartinha e as estatísticas do jogador associado à conta autenticada.
+- Contas sem jogador associado recebem uma orientação para revisar o vínculo nas configurações.
+- As cartinhas e os cards do elenco agora exibem cinco estrelas amarelas, preenchidas progressivamente conforme o overall.
+- Mensalistas receberam moldura, selo e detalhes dourados mais evidentes; convidados mantêm a identidade visual tradicional.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.3.24. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.
