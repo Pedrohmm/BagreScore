@@ -450,6 +450,14 @@ Esta versão altera o `Code.gs` para impedir que jogos da BagreCup sejam encerra
 
 Não é necessário atualizar o `Code.gs` para a versão 1.4.1.
 
+## Atualização 1.4.2 — seleção dos times da BagreCup
+
+- A formação dos 4 times volta a selecionar somente os 5 jogadores de linha.
+- Os goleiros são escolhidos depois, na preparação de cada partida.
+- O goleiro selecionado não fica vinculado permanentemente ao time salvo.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.4.2.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.

@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.1";
+  const APP_VERSION = "1.4.2";
   const MIN_SYNC_API_VERSION = "1.6.1";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -2552,8 +2552,8 @@
       nome: savedName || preset?.nome || `Time ${fallbackKey}`,
       cor: savedColor || preset?.cor || (fallbackKey === "A" ? "#ff5a00" : "#4aa3df"),
       linha: savedLineup === null || savedLineupIsCorrupted ? presetLineup : savedLineup,
-      goleiro: preservedDraft?.goleiro || savedGoalkeeper.goleiro || preset?.goleiroId || "",
-      goleiroReservaOperadorId: preservedDraft?.goleiroReservaOperadorId || savedGoalkeeper.goleiroReservaOperadorId || preset?.goleiroReservaOperadorId || "",
+      goleiro: preservedDraft?.goleiro || savedGoalkeeper.goleiro || "",
+      goleiroReservaOperadorId: preservedDraft?.goleiroReservaOperadorId || savedGoalkeeper.goleiroReservaOperadorId || "",
     };
   }
 
@@ -2598,14 +2598,13 @@
     state.matchPersist[teamKey] = false;
   }
 
-  function getPresetCompleteness(preset, requiredLineCount = 5, requireGoalkeeper = false) {
+  function getPresetCompleteness(preset, requiredLineCount = 5) {
     const lineCount = uniqueIds(preset?.linha || []).length;
-    const hasGoalkeeper = Boolean(preset?.goleiroId);
     return {
       lineCount,
-      hasGoalkeeper,
-      total: lineCount + (hasGoalkeeper ? 1 : 0),
-      complete: lineCount === requiredLineCount && (!requireGoalkeeper || hasGoalkeeper),
+      hasGoalkeeper: false,
+      total: lineCount,
+      complete: lineCount === requiredLineCount,
     };
   }
 
@@ -5894,7 +5893,7 @@
     setSectionTitle("Pelada", selectedPelada.local || "Detalhes da pelada");
     state.selectedGameSummaryId = null;
     const cupTeamsReady = gameMode === "bagrecup" && teamPresets.length === 4 &&
-      teamPresets.every((preset) => getPresetCompleteness(preset, 5, true).complete);
+      teamPresets.every((preset) => getPresetCompleteness(preset, 5).complete);
     const cupViews = ["torneio", "classificacao", "chaveamento", "times"];
     const classicViews = ["confrontos", "times", "presencas"];
     const detailView = gameMode === "bagrecup"
@@ -6024,7 +6023,7 @@
     const settings = getBagreCupSettings(pelada);
     const completeTeams = presets
       .slice(0, 4)
-      .filter((preset) => getPresetCompleteness(preset, 5, true).complete).length;
+      .filter((preset) => getPresetCompleteness(preset, 5).complete).length;
 
     return `
       <section class="bagrecup-control-bar" aria-label="Configurações da BagreCup">
@@ -6548,13 +6547,13 @@
         </header>
         ${presets.length
           ? `<div class="team-presets-grid">
-              ${presets.map((preset, index) => renderTeamPresetCard(preset, index, playerById, canManage, 5, isCup)).join("")}
+              ${presets.map((preset, index) => renderTeamPresetCard(preset, index, playerById, canManage, 5)).join("")}
             </div>`
           : `<div class="team-presets-empty">
               <span aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM16 10a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM3 19c0-3 2.1-5 5-5s5 2 5 5M13 15c.8-.7 1.8-1 3-1 2.8 0 4.5 1.9 4.5 4.5"/></svg>
               </span>
-              <div><h3>Nenhum time salvo</h3><p>${isCup ? "Crie os 4 times com 5 jogadores de linha e 1 goleiro." : "Times salvos são opcionais. Você pode montar cada confronto diretamente na aba Confrontos."}</p></div>
+              <div><h3>Nenhum time salvo</h3><p>${isCup ? "Crie os 4 times com 5 jogadores de linha. Os goleiros serão escolhidos antes de cada jogo." : "Times salvos são opcionais. Você pode montar cada confronto diretamente na aba Confrontos."}</p></div>
               ${canAdd ? `<button class="primary-button" type="button" data-pelada-action="add-team-preset">${isCup ? "Criar primeiro time" : "Criar time reutilizável"}</button>` : ""}
             </div>`}
         ${isCup ? `<footer class="bagrecup-team-limit"><strong>${escapeHtml(Math.min(presets.length, 4))}/4 times</strong><span>${presets.length === 4 ? "Chave completa" : "Complete os times para gerar os confrontos"}</span></footer>` : ""}
@@ -6562,20 +6561,19 @@
     `;
   }
 
-  function renderTeamPresetCard(preset, index, playerById, canManage, requiredLineCount = 5, requireGoalkeeper = false) {
-    const completeness = getPresetCompleteness(preset, requiredLineCount, requireGoalkeeper);
+  function renderTeamPresetCard(preset, index, playerById, canManage, requiredLineCount = 5) {
+    const completeness = getPresetCompleteness(preset, requiredLineCount);
     const linePlayers = uniqueIds(preset.linha || []).map((id) => playerById.get(id)).filter(Boolean);
-    const goalkeeper = playerById.get(preset.goleiroId) || null;
 
     return `
       <article class="team-preset-card ${completeness.complete ? "is-complete" : "is-incomplete"}" style="--team-color:${escapeHtml(preset.cor || "#ff5a00")}">
         <div class="team-preset-top">
           <span class="team-preset-index">${String(index + 1).padStart(2, "0")}</span>
-          <span class="team-preset-status"><i></i>${completeness.complete ? "Completo" : `${completeness.total}/${requiredLineCount + (requireGoalkeeper ? 1 : 0)}`}</span>
+          <span class="team-preset-status"><i></i>${completeness.complete ? "Completo" : `${completeness.total}/${requiredLineCount}`}</span>
         </div>
         <div class="team-preset-identity">
           <span class="team-preset-monogram">${escapeHtml(getLiveTeamInitials(preset.nome, "T"))}</span>
-          <span><strong>${escapeHtml(preset.nome || "Time")}</strong><small>${requireGoalkeeper ? `${escapeHtml(completeness.total)}/6 jogadores` : `${escapeHtml(completeness.lineCount)}/5 jogadores de linha`}</small></span>
+          <span><strong>${escapeHtml(preset.nome || "Time")}</strong><small>${escapeHtml(completeness.lineCount)}/5 jogadores de linha</small></span>
         </div>
         <div class="team-preset-roster">
           <div class="team-preset-line">
@@ -6583,13 +6581,6 @@
               ? linePlayers.map((player) => `<span>${renderPlayerAvatar(player, "player-avatar team-preset-avatar")}<small>${escapeHtml(shortPlayerName(player))}</small></span>`).join("")
               : `<small class="team-preset-no-line">Nenhum jogador de linha</small>`}
           </div>
-          ${requireGoalkeeper ? `
-            <div class="team-preset-goalkeeper ${goalkeeper ? "" : "is-empty"}">
-              <small>GK</small>
-              ${goalkeeper ? renderPlayerAvatar(goalkeeper, "player-avatar team-preset-avatar") : `<i>+</i>`}
-              <strong>${goalkeeper ? escapeHtml(shortPlayerName(goalkeeper)) : "Sem goleiro"}</strong>
-            </div>
-          ` : ""}
         </div>
         ${canManage ? `
           <div class="team-preset-actions">
@@ -6793,7 +6784,7 @@
   function renderBagreCupReadiness(presets = []) {
     const completeTeams = presets
       .slice(0, 4)
-      .filter((team) => getPresetCompleteness(team, 5, true).complete).length;
+      .filter((team) => getPresetCompleteness(team, 5).complete).length;
     return `
       <section class="bagrecup-readiness-card">
         <div><span class="panel-kicker">Formação dos times</span><h3>${escapeHtml(completeTeams)}/4 completos</h3></div>
@@ -6868,7 +6859,7 @@
 
   function renderBagreCupView(activeView, pelada, games = [], presets = [], jogadores = [], eventsByGameId = new Map(), playerById = new Map(), peladaSummary = null) {
     const progress = buildBagreCupProgress(pelada, games, presets);
-    const completeTeams = progress.teams.filter((team) => getPresetCompleteness(team, 5, true).complete).length;
+    const completeTeams = progress.teams.filter((team) => getPresetCompleteness(team, 5).complete).length;
     const ready = progress.teams.length === 4 && completeTeams === 4;
 
     if (!ready) return renderBagreCupReadiness(presets);
@@ -7174,30 +7165,22 @@
     });
   }
 
-  function renderTeamPresetEditor(preset, players, presets, requiredLineCount = 5, requireGoalkeeper = false) {
+  function renderTeamPresetEditor(preset, players, presets, requiredLineCount = 5) {
     const linePlayers = players.filter((player) => isLineupPlayer(player) && !isReserveGoalkeeperPlayer(player));
-    const goalkeepers = players.filter(isGoalkeeperCandidate);
     const assignedElsewhere = new Map();
     presets
       .filter((item) => item.id !== preset?.id)
       .forEach((item) => {
         uniqueIds(item.linha || []).forEach((playerId) => assignedElsewhere.set(playerId, item.nome || "Outro time"));
-        if (item.goleiroId) assignedElsewhere.set(item.goleiroId, item.nome || "Outro time");
-        if (item.goleiroReservaOperadorId) assignedElsewhere.set(item.goleiroReservaOperadorId, item.nome || "Outro time");
       });
     const selectedLine = new Set(preset?.linha || []);
-    const selectedGoalkeeperId = preset?.goleiroId || "";
-    const selectedGoalkeeper = players.find((player) => player.id === selectedGoalkeeperId) || null;
-    const reserveOperatorCandidates = players.filter((player) =>
-      !isReserveGoalkeeperPlayer(player) && !assignedElsewhere.has(player.id)
-    );
 
     return `
       <form class="team-preset-form" id="team-preset-form" data-preset-id="${escapeHtml(preset?.id || "")}" novalidate>
         <div class="form-errors" id="team-preset-errors" hidden></div>
         <section class="team-preset-form-hero" style="--team-color:${escapeHtml(preset?.cor || "#ff5a00")}">
           <span class="team-preset-form-icon">${escapeHtml(getLiveTeamInitials(preset?.nome, "T"))}</span>
-          <div><span>Time da pelada</span><h3>${escapeHtml(preset?.nome || "Novo time")}</h3><p>${requireGoalkeeper ? `${requiredLineCount} de linha e 1 goleiro.` : `${requiredLineCount} jogadores de linha.`}</p></div>
+          <div><span>Time da pelada</span><h3>${escapeHtml(preset?.nome || "Novo time")}</h3><p>${requiredLineCount} jogadores de linha. O goleiro será escolhido antes de cada jogo.</p></div>
         </section>
         <div class="team-preset-basics">
           <label class="field-label"><span>Nome do time</span><input name="nome" value="${escapeHtml(preset?.nome || "")}" maxlength="28" placeholder="Ex.: Time A" required /></label>
@@ -7219,30 +7202,6 @@
             `;
           }).join("")}
         </div>
-        ${requireGoalkeeper ? `
-          <div class="team-preset-player-heading"><span>Goleiro</span><strong data-goalkeeper-count>${selectedGoalkeeperId ? "1/1" : "0/1"}</strong></div>
-          <div class="team-preset-player-list is-goalkeepers">
-            ${goalkeepers.map((player) => {
-              const assignedTeam = assignedElsewhere.get(player.id);
-              const checked = selectedGoalkeeperId === player.id;
-              const blocked = Boolean(assignedTeam) || selectedLine.has(player.id);
-              return `
-                <label class="team-preset-player-option ${checked ? "is-selected" : ""} ${blocked ? "is-disabled" : ""}" data-goalkeeper-option>
-                  <input type="radio" name="goleiroId" value="${escapeHtml(player.id)}" ${checked ? "checked" : ""} ${blocked ? "disabled" : ""} data-reserve-goalkeeper="${isReserveGoalkeeperPlayer(player)}" />
-                  ${renderPlayerAvatar(player, "player-avatar small")}
-                  <span><strong>${escapeHtml(playerDisplayName(player))}</strong><small>${escapeHtml(isReserveGoalkeeperPlayer(player) ? "Carta reserva" : player.posicaoPrincipal || "Goleiro")}${assignedTeam ? ` · ${escapeHtml(assignedTeam)}` : ""}</small></span>
-                  <i aria-hidden="true">✓</i>
-                </label>
-              `;
-            }).join("") || `<p class="presence-empty">Nenhum goleiro cadastrado.</p>`}
-          </div>
-          <label class="field-label team-preset-reserve-operator" data-team-preset-reserve-field ${isReserveGoalkeeperPlayer(selectedGoalkeeper) ? "" : "hidden"}>
-            <span>Quem vai usar a carta Goleiro Reserva?</span>
-            <select name="goleiroReservaOperadorId">
-              ${renderPlayerOptions(reserveOperatorCandidates, preset?.goleiroReservaOperadorId || "", "Escolha quem vai agarrar")}
-            </select>
-          </label>
-        ` : ""}
         <div class="team-preset-form-note"><strong>Time incompleto?</strong><span>Você pode salvar agora e completar antes de iniciar a partida.</span></div>
         <div class="form-actions">
           <button class="primary-button big-touch" type="submit">Salvar time</button>
@@ -7267,41 +7226,23 @@
     }
     const players = allPlayers;
     const requiredLineCount = 5;
-    const modal = openLiveModal(preset ? "Editar time" : "Criar time", renderTeamPresetEditor(preset, players, presets, requiredLineCount, isCup));
+    const modal = openLiveModal(preset ? "Editar time" : "Criar time", renderTeamPresetEditor(preset, players, presets, requiredLineCount));
     const form = modal.querySelector("#team-preset-form");
     const lineInputs = [...form.querySelectorAll('input[name="linhaIds"]')];
-    const goalkeeperInputs = [...form.querySelectorAll('input[name="goleiroId"]')];
     const countLabel = form.querySelector("[data-line-count]");
-    const goalkeeperCountLabel = form.querySelector("[data-goalkeeper-count]");
-    const reserveField = form.querySelector("[data-team-preset-reserve-field]");
 
     const refreshOptions = () => {
-      const selectedGoalkeeperInput = goalkeeperInputs.find((input) => input.checked) || null;
-      const selectedGoalkeeperId = selectedGoalkeeperInput?.value || "";
       const checkedCount = lineInputs.filter((input) => input.checked).length;
       lineInputs.forEach((input) => {
         const option = input.closest("[data-player-option]");
-        input.disabled = input.dataset.assigned === "true" || input.value === selectedGoalkeeperId || (!input.checked && checkedCount >= requiredLineCount);
-        option?.classList.toggle("is-selected", input.checked);
-        option?.classList.toggle("is-disabled", input.disabled);
-      });
-      const selectedLineIds = new Set(lineInputs.filter((input) => input.checked).map((input) => input.value));
-      goalkeeperInputs.forEach((input) => {
-        const option = input.closest("[data-goalkeeper-option]");
-        input.disabled = input.dataset.assigned === "true" || selectedLineIds.has(input.value);
+        input.disabled = input.dataset.assigned === "true" || (!input.checked && checkedCount >= requiredLineCount);
         option?.classList.toggle("is-selected", input.checked);
         option?.classList.toggle("is-disabled", input.disabled);
       });
       countLabel.textContent = `${checkedCount}/${requiredLineCount}`;
-      if (goalkeeperCountLabel) goalkeeperCountLabel.textContent = selectedGoalkeeperId ? "1/1" : "0/1";
-      if (reserveField) reserveField.hidden = selectedGoalkeeperInput?.dataset.reserveGoalkeeper !== "true";
     };
 
     lineInputs.forEach((input) => {
-      if (input.disabled) input.dataset.assigned = "true";
-      input.addEventListener("change", refreshOptions);
-    });
-    goalkeeperInputs.forEach((input) => {
       if (input.disabled) input.dataset.assigned = "true";
       input.addEventListener("change", refreshOptions);
     });
@@ -7311,20 +7252,9 @@
       event.preventDefault();
       const nome = String(form.elements.nome?.value || "").trim();
       const linha = lineInputs.filter((input) => input.checked && !input.disabled).map((input) => input.value);
-      const goleiroId = form.querySelector('input[name="goleiroId"]:checked:not(:disabled)')?.value || "";
-      const selectedGoalkeeper = players.find((player) => player.id === goleiroId) || null;
-      const goleiroReservaOperadorId = isReserveGoalkeeperPlayer(selectedGoalkeeper)
-        ? form.elements.goleiroReservaOperadorId?.value || ""
-        : "";
       const errors = [];
       if (!nome) errors.push("Informe o nome do time.");
       if (linha.length > requiredLineCount) errors.push(`Escolha no máximo ${requiredLineCount} jogadores de linha.`);
-      if (isCup && isReserveGoalkeeperPlayer(selectedGoalkeeper) && !goleiroReservaOperadorId) {
-        errors.push("Escolha quem vai usar a carta Goleiro Reserva.");
-      }
-      if (goleiroReservaOperadorId && linha.includes(goleiroReservaOperadorId)) {
-        errors.push("Quem usa a carta Goleiro Reserva não pode estar na linha.");
-      }
       showFormErrors("team-preset-errors", errors);
       if (errors.length) return;
 
@@ -7339,9 +7269,9 @@
         nome,
         cor: form.elements.cor?.value || "#ff5a00",
         linha: uniqueIds(linha),
-        goleiroId,
-        goleiroReservaOperadorId,
-        jogadores: uniqueIds([goleiroId, ...linha]),
+        goleiroId: "",
+        goleiroReservaOperadorId: "",
+        jogadores: uniqueIds(linha),
         status: "Ativo",
         createdAt: preset?.createdAt || savedAt,
         updatedAt: savedAt,
@@ -7357,8 +7287,8 @@
       const nextPresets = preset
         ? presets.map((item) => item.id === record.id ? record : item)
         : [...presets, record];
-      const cupWasReady = presets.length === 4 && presets.every((item) => getPresetCompleteness(item, 5, true).complete);
-      const cupIsReady = nextPresets.length === 4 && nextPresets.every((item) => getPresetCompleteness(item, 5, true).complete);
+      const cupWasReady = presets.length === 4 && presets.every((item) => getPresetCompleteness(item, 5).complete);
+      const cupIsReady = nextPresets.length === 4 && nextPresets.every((item) => getPresetCompleteness(item, 5).complete);
       if (isCup && !cupWasReady && cupIsReady) {
         state.peladaDetailView = "torneio";
       }
@@ -9143,46 +9073,33 @@
         nome: team.nome,
         cor: team.cor,
         linha: uniqueIds(team.linha).slice(0, 5),
-        goleiroId: team.goleiroId || "",
-        goleiroReservaOperadorId: team.goleiroReservaOperadorId || "",
       });
     });
 
     if (!desiredByPresetId.size) return [];
 
     const claimedPlayerIds = new Set(
-      [...desiredByPresetId.values()].flatMap((desired) => [desired.goleiroId, ...desired.linha].filter(Boolean))
+      [...desiredByPresetId.values()].flatMap((desired) => desired.linha)
     );
 
     return presets.flatMap((preset) => {
       const desired = desiredByPresetId.get(preset.id) || null;
       const currentLine = uniqueIds(preset.linha || []).slice(0, 5);
-      const currentGoalkeeperId = preset.goleiroId || "";
       const nextLine = desired
         ? desired.linha
         : currentLine.filter((playerId) => !claimedPlayerIds.has(playerId));
-      const nextGoalkeeperId = desired
-        ? desired.goleiroId
-        : claimedPlayerIds.has(currentGoalkeeperId)
-          ? ""
-          : currentGoalkeeperId;
       const lineupChanged = currentLine.length !== nextLine.length ||
-        currentLine.some((playerId, index) => playerId !== nextLine[index]) ||
-        currentGoalkeeperId !== nextGoalkeeperId;
+        currentLine.some((playerId, index) => playerId !== nextLine[index]);
 
       if (!desired && !lineupChanged) return [];
 
       return [{
         ...preset,
         ...(desired ? { nome: desired.nome, cor: desired.cor } : {}),
-        jogadores: uniqueIds([nextGoalkeeperId, ...nextLine]),
+        jogadores: [...nextLine],
         linha: [...nextLine],
-        goleiroId: nextGoalkeeperId,
-        goleiroReservaOperadorId: desired
-          ? desired.goleiroReservaOperadorId
-          : nextGoalkeeperId
-            ? preset.goleiroReservaOperadorId || ""
-            : "",
+        goleiroId: "",
+        goleiroReservaOperadorId: "",
         updatedAt: savedAt,
         revision: (preset.revision || 0) + 1,
       }];

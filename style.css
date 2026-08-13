@@ -5350,7 +5350,7 @@ body[data-section="peladas"] .selection-modal-intro {
     rgba(255, 255, 255, 0.04);
 }
 
-/* BagreCup flow and navigation v1.4.1 */
+/* BagreCup flow and navigation v1.4.2 */
 body[data-section="peladas"] .bagrecup-control-bar {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(62px, 0.58fr) minmax(94px, 0.9fr);
@@ -5563,45 +5563,6 @@ body[data-section="peladas"] .bagrecup-bracket-locked small {
   line-height: 1.4;
 }
 
-body[data-section="peladas"] .team-preset-goalkeeper {
-  display: grid;
-  grid-template-columns: 30px 34px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
-  margin-top: 9px;
-  padding-top: 9px;
-}
-
-body[data-section="peladas"] .team-preset-goalkeeper > small {
-  color: #ff7c34;
-  font-size: 0.58rem;
-  font-weight: 950;
-}
-
-body[data-section="peladas"] .team-preset-goalkeeper > strong {
-  overflow: hidden;
-  color: #d7d7d7;
-  font-size: 0.67rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-body[data-section="peladas"] .team-preset-goalkeeper.is-empty > i {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border: 1px dashed rgba(255, 255, 255, 0.18);
-  border-radius: 50%;
-  color: #777;
-  font-style: normal;
-}
-
-body[data-section="peladas"] .team-preset-player-list.is-goalkeepers {
-  max-height: 250px;
-}
-
 @media (max-width: 370px) {
   body[data-section="peladas"] .bagrecup-control-bar {
     grid-template-columns: minmax(0, 1.42fr) 58px minmax(88px, 0.9fr);
@@ -5627,7 +5588,7 @@ body[data-section="peladas"] .team-preset-player-list.is-goalkeepers {
   }
 }
 
-/* BagreCup and game-mode selection v1.4.1 */
+/* BagreCup and game-mode selection v1.4.2 */
 body[data-section="peladas"] .game-mode-selector-card,
 body[data-section="peladas"] .pelada-game-mode-bar,
 body[data-section="peladas"] .bagrecup-hero,
