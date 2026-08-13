@@ -5350,6 +5350,594 @@ body[data-section="peladas"] .selection-modal-intro {
     rgba(255, 255, 255, 0.04);
 }
 
+/* BagreCup and game-mode selection v1.4.0 */
+body[data-section="peladas"] .game-mode-selector-card,
+body[data-section="peladas"] .pelada-game-mode-bar,
+body[data-section="peladas"] .bagrecup-hero,
+body[data-section="peladas"] .bagrecup-readiness-card,
+body[data-section="peladas"] .bagrecup-standings-card,
+body[data-section="peladas"] .bagrecup-next-match,
+body[data-section="peladas"] .bagrecup-fixtures-board,
+body[data-section="peladas"] .bagrecup-champion,
+body[data-section="peladas"] .bagrecup-third-place-toggle {
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.1), transparent 14rem),
+    linear-gradient(145deg, rgba(16, 17, 16, 0.99), rgba(5, 6, 5, 0.99));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+body[data-section="peladas"] .game-mode-selector-card {
+  display: grid;
+  gap: 16px;
+  border-radius: 22px;
+  padding: 18px;
+}
+
+body[data-section="peladas"] .game-mode-selector-card > header {
+  display: grid;
+  gap: 4px;
+}
+
+body[data-section="peladas"] .game-mode-selector-card h3 {
+  margin: 0;
+  color: #f4f4f4;
+  font-size: 1.15rem;
+}
+
+body[data-section="peladas"] .game-mode-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+body[data-section="peladas"] .game-mode-options > button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  min-height: 88px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 17px;
+  padding: 12px;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.025);
+  text-align: left;
+}
+
+body[data-section="peladas"] .game-mode-options > button:hover,
+body[data-section="peladas"] .game-mode-options > button:focus-visible {
+  border-color: rgba(255, 90, 0, 0.56);
+  background: rgba(255, 90, 0, 0.07);
+}
+
+body[data-section="peladas"] .game-mode-options > button > span:nth-child(2) {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+body[data-section="peladas"] .game-mode-options strong {
+  color: #f3f3f3;
+  font-size: 0.86rem;
+}
+
+body[data-section="peladas"] .game-mode-options small {
+  color: #858585;
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+body[data-section="peladas"] .game-mode-options > button > i {
+  color: var(--orange);
+  font-size: 1.35rem;
+  font-style: normal;
+}
+
+.game-mode-option-mark {
+  display: grid;
+  width: 43px;
+  height: 43px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 13px;
+  color: #b7b7b7;
+  background: rgba(255, 255, 255, 0.045);
+  font-size: 0.68rem;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+}
+
+.game-mode-option-mark.is-cup {
+  border-color: rgba(255, 90, 0, 0.4);
+  color: #ff7c34;
+  background: rgba(255, 90, 0, 0.1);
+  box-shadow: 0 0 20px rgba(255, 90, 0, 0.08);
+}
+
+body[data-section="peladas"] .pelada-game-mode-bar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border-radius: 17px;
+  padding: 10px 12px;
+}
+
+body[data-section="peladas"] .pelada-game-mode-bar > span:nth-child(2) {
+  display: grid;
+  gap: 2px;
+}
+
+body[data-section="peladas"] .pelada-game-mode-bar small {
+  color: #757575;
+  font-size: 0.57rem;
+  font-weight: 850;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+body[data-section="peladas"] .pelada-game-mode-bar strong {
+  color: #ededed;
+  font-size: 0.79rem;
+}
+
+body[data-section="peladas"] .pelada-game-mode-bar > button {
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: #aaa;
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 0.64rem;
+  font-weight: 850;
+}
+
+body[data-section="peladas"] .bagrecup-dashboard {
+  display: grid;
+  gap: 11px;
+}
+
+body[data-section="peladas"] .bagrecup-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  overflow: hidden;
+  border-color: rgba(255, 90, 0, 0.24);
+  border-radius: 21px;
+  padding: 15px;
+}
+
+body[data-section="peladas"] .bagrecup-logo {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border: 1px solid rgba(255, 90, 0, 0.55);
+  border-radius: 16px;
+  color: #ff7629;
+  background: linear-gradient(145deg, rgba(255, 90, 0, 0.16), rgba(255, 90, 0, 0.035));
+  box-shadow: inset 0 0 18px rgba(255, 90, 0, 0.08);
+  font-size: 0.82rem;
+  font-weight: 950;
+}
+
+body[data-section="peladas"] .bagrecup-hero > span:nth-child(2) {
+  display: grid;
+  gap: 1px;
+}
+
+body[data-section="peladas"] .bagrecup-hero small {
+  color: #777;
+  font-size: 0.58rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+body[data-section="peladas"] .bagrecup-hero h2 {
+  margin: 0;
+  color: #f5f5f5;
+  font-size: 1.25rem;
+}
+
+body[data-section="peladas"] .bagrecup-hero > em {
+  border-radius: 999px;
+  padding: 6px 9px;
+  color: #ff8a48;
+  background: rgba(255, 90, 0, 0.09);
+  font-size: 0.61rem;
+  font-style: normal;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+body[data-section="peladas"] .bagrecup-readiness-card {
+  display: grid;
+  gap: 13px;
+  border-radius: 19px;
+  padding: 16px;
+}
+
+body[data-section="peladas"] .bagrecup-readiness-card h3 {
+  margin: 3px 0 0;
+  color: #ededed;
+}
+
+body[data-section="peladas"] .bagrecup-readiness-track {
+  overflow: hidden;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+body[data-section="peladas"] .bagrecup-readiness-track > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ff5a00, #ff9a58);
+}
+
+body[data-section="peladas"] .bagrecup-third-place-toggle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border-radius: 16px;
+  padding: 11px 13px;
+  cursor: pointer;
+}
+
+body[data-section="peladas"] .bagrecup-third-place-toggle > span {
+  display: grid;
+  gap: 2px;
+}
+
+body[data-section="peladas"] .bagrecup-third-place-toggle strong {
+  color: #dedede;
+  font-size: 0.74rem;
+}
+
+body[data-section="peladas"] .bagrecup-third-place-toggle small {
+  color: #777;
+  font-size: 0.61rem;
+}
+
+body[data-section="peladas"] .bagrecup-third-place-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+body[data-section="peladas"] .bagrecup-third-place-toggle > i {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  background: #282828;
+}
+
+body[data-section="peladas"] .bagrecup-third-place-toggle > i::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #888;
+  transition: 160ms ease;
+}
+
+body[data-section="peladas"] .bagrecup-third-place-toggle:has(input:checked) > i {
+  background: rgba(255, 90, 0, 0.28);
+}
+
+body[data-section="peladas"] .bagrecup-third-place-toggle:has(input:checked) > i::after {
+  left: 19px;
+  background: var(--orange);
+}
+
+body[data-section="peladas"] .bagrecup-third-place-toggle.is-locked {
+  cursor: default;
+  opacity: 0.72;
+}
+
+body[data-section="peladas"] .bagrecup-standings-card,
+body[data-section="peladas"] .bagrecup-fixtures-board {
+  display: grid;
+  gap: 10px;
+  border-radius: 19px;
+  padding: 14px;
+}
+
+body[data-section="peladas"] .bagrecup-standings-card > header,
+body[data-section="peladas"] .bagrecup-fixtures-board > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+body[data-section="peladas"] .bagrecup-standings-card > header > strong,
+body[data-section="peladas"] .bagrecup-fixtures-board > header > strong {
+  color: #8a8a8a;
+  font-size: 0.65rem;
+}
+
+body[data-section="peladas"] .bagrecup-table {
+  display: grid;
+}
+
+body[data-section="peladas"] .bagrecup-table-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 28px 34px 36px;
+  align-items: center;
+  gap: 5px;
+  min-height: 40px;
+  border-top: 1px solid rgba(255, 255, 255, 0.065);
+  color: #aaa;
+  font-size: 0.68rem;
+  text-align: center;
+}
+
+body[data-section="peladas"] .bagrecup-table-row.is-heading {
+  min-height: 26px;
+  border: 0;
+  color: #616161;
+  font-size: 0.55rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+body[data-section="peladas"] .bagrecup-table-row > strong:first-child,
+body[data-section="peladas"] .bagrecup-table-row > strong:last-child {
+  color: #f0f0f0;
+}
+
+body[data-section="peladas"] .bagrecup-table-team {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  text-align: left;
+}
+
+body[data-section="peladas"] .bagrecup-table-team > i,
+body[data-section="peladas"] .bagrecup-fixture-card div span > i {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--team-color);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--team-color), transparent 45%);
+}
+
+body[data-section="peladas"] .bagrecup-table-team > b {
+  overflow: hidden;
+  color: #d1d1d1;
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-section="peladas"] .bagrecup-next-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+body[data-section="peladas"] .bagrecup-next-heading > span {
+  display: grid;
+  gap: 3px;
+}
+
+body[data-section="peladas"] .bagrecup-next-heading small {
+  color: #777;
+  font-size: 0.58rem;
+  font-weight: 850;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+body[data-section="peladas"] .bagrecup-next-heading strong {
+  color: #eee;
+  font-size: 0.83rem;
+}
+
+body[data-section="peladas"] .bagrecup-next-heading > em {
+  border: 1px solid rgba(255, 90, 0, 0.25);
+  border-radius: 999px;
+  padding: 5px 8px;
+  color: #ff8240;
+  background: rgba(255, 90, 0, 0.07);
+  font-size: 0.62rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
+body[data-section="peladas"] .bagrecup-next-match.is-live {
+  display: grid;
+  gap: 8px;
+  border-color: rgba(75, 220, 117, 0.3);
+  border-radius: 19px;
+  padding: 15px;
+}
+
+body[data-section="peladas"] .bagrecup-next-match.is-live h3 {
+  margin: 0;
+  color: #eee;
+  font-size: 1rem;
+}
+
+body[data-section="peladas"] .bagrecup-fixtures-list {
+  display: grid;
+  gap: 7px;
+}
+
+body[data-section="peladas"] .bagrecup-fixture-card {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 13px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+body[data-section="peladas"] .bagrecup-fixture-card > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #777;
+  font-size: 0.56rem;
+  font-weight: 850;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+body[data-section="peladas"] .bagrecup-fixture-card.is-live > header small {
+  color: #56dc7e;
+}
+
+body[data-section="peladas"] .bagrecup-fixture-card > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+body[data-section="peladas"] .bagrecup-fixture-card > div > span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+body[data-section="peladas"] .bagrecup-fixture-card > div > span:last-child {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+body[data-section="peladas"] .bagrecup-fixture-card > div strong {
+  overflow: hidden;
+  color: #c9c9c9;
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-section="peladas"] .bagrecup-fixture-card > div > b {
+  color: #f3f3f3;
+  font-size: 0.82rem;
+}
+
+body[data-section="peladas"] .bagrecup-fixture-card > button {
+  justify-self: end;
+  border: 0;
+  padding: 2px 0;
+  color: #ff8140;
+  background: none;
+  font-size: 0.61rem;
+  font-weight: 900;
+}
+
+body[data-section="peladas"] .bagrecup-champion {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  border-color: color-mix(in srgb, var(--team-color), transparent 55%);
+  border-radius: 18px;
+  padding: 14px;
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--team-color), transparent 78%), transparent 10rem),
+    linear-gradient(145deg, rgba(16, 17, 16, 0.99), rgba(5, 6, 5, 0.99));
+}
+
+body[data-section="peladas"] .bagrecup-champion small {
+  color: #858585;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+body[data-section="peladas"] .bagrecup-champion strong {
+  color: var(--team-color);
+  font-size: 1.15rem;
+}
+
+body[data-section="peladas"] .bagrecup-team-limit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.075);
+  padding-top: 11px;
+  color: #777;
+  font-size: 0.64rem;
+}
+
+body[data-section="peladas"] .bagrecup-team-limit strong {
+  color: #ff8240;
+}
+
+body[data-section="ranking"] .ranking-competition-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+body[data-section="ranking"] .ranking-competition-tabs button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 10px;
+  padding: 7px 5px;
+  color: #777;
+  background: transparent;
+  font-size: 0.62rem;
+  font-weight: 900;
+}
+
+body[data-section="ranking"] .ranking-competition-tabs button.active {
+  color: #fff;
+  background: linear-gradient(135deg, #ff6a13, #ef4d00);
+  box-shadow: 0 7px 16px rgba(255, 90, 0, 0.17);
+}
+
+@media (max-width: 560px) {
+  body[data-section="peladas"] .game-mode-options {
+    grid-template-columns: 1fr;
+  }
+
+  body[data-section="peladas"] .game-mode-options > button {
+    min-height: 78px;
+  }
+}
+
+@media (max-width: 380px) {
+  body[data-section="peladas"] .bagrecup-hero,
+  body[data-section="peladas"] .game-mode-selector-card,
+  body[data-section="peladas"] .bagrecup-standings-card,
+  body[data-section="peladas"] .bagrecup-fixtures-board {
+    padding: 12px;
+  }
+
+  body[data-section="peladas"] .bagrecup-logo {
+    width: 46px;
+    height: 46px;
+  }
+
+  body[data-section="ranking"] .ranking-competition-tabs button {
+    font-size: 0.56rem;
+  }
+}
+
 body[data-section="peladas"] .selection-modal-intro.is-lineup {
   grid-template-columns: minmax(0, 1fr) auto;
 }

@@ -427,6 +427,19 @@ Não é necessário atualizar o `Code.gs` para a versão 1.3.27.
 
 Não é necessário atualizar o `Code.gs` para a versão 1.3.28.
 
+## Atualização 1.4.0 — modos de jogo e BagreCup
+
+- A pelada continua sendo marcada normalmente e o modo é escolhido dentro dela antes do primeiro jogo.
+- O modo atual passou a se chamar **Pelada Clássica**.
+- A **BagreCup** utiliza 4 times fixos de 5 jogadores (4 de linha e 1 goleiro), partidas de 10 minutos e permite editar os jogadores entre os jogos.
+- A fase inicial tem 6 confrontos, com vitória valendo 3 pontos, empate 1 e desempate por saldo de gols, gols marcados e confronto direto.
+- As semifinais são 1º × 4º e 2º × 3º. Empates no mata-mata seguem direto para os pênaltis.
+- A disputa de terceiro lugar é opcional e deve ser definida antes do primeiro jogo.
+- O ranking ganhou filtros para Geral, Pelada Clássica, BagreCup e uma edição específica.
+- Peladas antigas continuam sendo tratadas como Pelada Clássica, sem migração manual.
+
+Esta versão altera o `Code.gs` para impedir que jogos da BagreCup sejam encerrados automaticamente ao atingir 2 gols. Atualize o Apps Script e publique uma **nova versão da implantação**. A URL `/exec` pode continuar a mesma.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.

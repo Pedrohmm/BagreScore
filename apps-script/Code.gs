@@ -1,4 +1,4 @@
-var BAGRESCORE_API_VERSION = "1.6.0";
+var BAGRESCORE_API_VERSION = "1.6.1";
 var BAGRESCORE_DB_PROPERTY = "BAGRESCORE_SPREADSHEET_ID";
 var BAGRESCORE_SECRET_PROPERTY = "BAGRESCORE_AUTH_SECRET";
 var BAGRESCORE_REVISION_PROPERTY = "BAGRESCORE_GLOBAL_REVISION";
@@ -894,7 +894,9 @@ function bagreScoreRecalculateGameScore_(spreadsheet, gameId) {
   var gamePayload = bagreScoreParseEntityPayload_(gameFound.record);
   var scoreChanged = Number(gamePayload.placarA || 0) !== scoreA || Number(gamePayload.placarB || 0) !== scoreB;
   var isFinal = bagreScoreNormalizeToken_(gamePayload.status) === "finalizado";
-  var shouldFinalize = !isFinal && (scoreA >= BAGRESCORE_GOALS_TO_END_GAME || scoreB >= BAGRESCORE_GOALS_TO_END_GAME);
+  var timeOnlyGame = bagreScoreNormalizeToken_(gamePayload.regraEncerramento) === "tempo" ||
+    bagreScoreNormalizeToken_(gamePayload.modoJogo) === "bagrecup";
+  var shouldFinalize = !isFinal && !timeOnlyGame && (scoreA >= BAGRESCORE_GOALS_TO_END_GAME || scoreB >= BAGRESCORE_GOALS_TO_END_GAME);
 
   if (!scoreChanged && !shouldFinalize) return;
 

@@ -1,8 +1,8 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.3.28";
-  const MIN_SYNC_API_VERSION = "1.6.0";
+  const APP_VERSION = "1.4.0";
+  const MIN_SYNC_API_VERSION = "1.6.1";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 5000;
@@ -241,6 +241,8 @@
       "valor",
       "observacoes",
       "tipoRegistro",
+      "modoJogo",
+      "bagreCup",
       "proximoConfronto",
       "presencas",
       "timeDaVez",
@@ -273,6 +275,11 @@
       "presetBId",
       "filaTimes",
       "filaJogadores",
+      "modoJogo",
+      "faseTorneio",
+      "rodadaTorneio",
+      "confrontoTorneioId",
+      "regraEncerramento",
       "fase",
       "decididoNosPenaltis",
       "penaltisA",
@@ -539,6 +546,14 @@
   };
   const GAME_DURATION_SECONDS = DEFAULT_RULES.duracaoJogoMinutos * 60;
   const GOALS_TO_END_GAME = DEFAULT_RULES.golsParaEncerrar;
+  const BAGRECUP_GROUP_PAIRINGS = Object.freeze([
+    [0, 1],
+    [2, 3],
+    [0, 2],
+    [1, 3],
+    [0, 3],
+    [1, 2],
+  ]);
   const pendingGoalGameIds = new Set();
   const finalizingGameIds = new Set();
   const openingPeladaFinishIds = new Set();
@@ -705,6 +720,7 @@
     rankingMode: "geral",
     rankingCategory: "overall",
     rankingPeladaId: "",
+    rankingCompetitionMode: "todos",
     evolutionMessage: "",
     gameDraft: {
       A: { nome: "Time A", cor: "#ff5a00", linha: [], goleiro: "", goleiroReservaOperadorId: "" },
@@ -1203,6 +1219,7 @@
   }
 
   function getWinningTeamKey(jogo) {
+    if (!jogo) return "";
     const placarA = Number(jogo.placarA || 0);
     const placarB = Number(jogo.placarB || 0);
 
@@ -1242,7 +1259,8 @@
   }
 
   function getRemainingGameSeconds(jogo) {
-    return Math.max(0, GAME_DURATION_SECONDS - getElapsedGameSeconds(jogo));
+    const duration = Math.max(1, Number(jogo?.duracaoSegundos || GAME_DURATION_SECONDS));
+    return Math.max(0, duration - getElapsedGameSeconds(jogo));
   }
 
   function getGameStatusLabel(jogo) {
@@ -2195,6 +2213,211 @@
     return getPeladaRecordType(pelada) === "teste";
   }
 
+  function normalizeGameMode(value) {
+    const mode = normalizeToken(value);
+    if (["bagrecup", "bagre_cup", "bagre cup"].includes(mode)) return "bagrecup";
+    if (["classica", "pelada_classica", "pelada classica"].includes(mode)) return "classica";
+    return "";
+  }
+
+  function getPeladaGameMode(pelada, games = []) {
+    const explicitMode = normalizeGameMode(pelada?.modoJogo);
+    if (explicitMode) return explicitMode;
+    if (games.some((game) => normalizeGameMode(game?.modoJogo) === "bagrecup")) return "bagrecup";
+    return games.length ? "classica" : "";
+  }
+
+  function getGameCompetitionMode(jogo, pelada = null) {
+    return normalizeGameMode(jogo?.modoJogo) || normalizeGameMode(pelada?.modoJogo) || "classica";
+  }
+
+  function isBagreCupGame(jogo, pelada = null) {
+    return getGameCompetitionMode(jogo, pelada) === "bagrecup";
+  }
+
+  function getBagreCupSettings(pelada) {
+    return {
+      terceiroLugar: pelada?.bagreCup?.terceiroLugar !== false,
+      duracaoMinutos: 10,
+    };
+  }
+
+  function getTournamentPhaseLabel(phase) {
+    const labels = {
+      grupo: "Fase de grupos",
+      semifinal: "Semifinal",
+      terceiro: "3º lugar",
+      final: "Final",
+    };
+    return labels[normalizeToken(phase)] || "BagreCup";
+  }
+
+  function getTournamentPresetIdForSide(jogo, teamKey) {
+    return teamKey === "B" ? jogo?.presetBId || "" : jogo?.presetAId || "";
+  }
+
+  function buildBagreCupStandings(presets = [], games = []) {
+    const table = new Map(
+      presets.slice(0, 4).map((preset) => [preset.id, {
+        preset,
+        presetId: preset.id,
+        jogos: 0,
+        vitorias: 0,
+        empates: 0,
+        derrotas: 0,
+        golsPro: 0,
+        golsContra: 0,
+        saldo: 0,
+        pontos: 0,
+      }])
+    );
+    const groupGames = games.filter((game) =>
+      isBagreCupGame(game) &&
+      normalizeToken(game.faseTorneio) === "grupo" &&
+      normalizeToken(game.status) === "finalizado"
+    );
+
+    groupGames.forEach((game) => {
+      const entryA = table.get(game.presetAId);
+      const entryB = table.get(game.presetBId);
+      if (!entryA || !entryB) return;
+      const scoreA = Number(game.placarA || 0);
+      const scoreB = Number(game.placarB || 0);
+      entryA.jogos += 1;
+      entryB.jogos += 1;
+      entryA.golsPro += scoreA;
+      entryA.golsContra += scoreB;
+      entryB.golsPro += scoreB;
+      entryB.golsContra += scoreA;
+      if (scoreA > scoreB) {
+        entryA.vitorias += 1;
+        entryA.pontos += 3;
+        entryB.derrotas += 1;
+      } else if (scoreB > scoreA) {
+        entryB.vitorias += 1;
+        entryB.pontos += 3;
+        entryA.derrotas += 1;
+      } else {
+        entryA.empates += 1;
+        entryB.empates += 1;
+        entryA.pontos += 1;
+        entryB.pontos += 1;
+      }
+    });
+
+    const headToHeadPoints = (presetAId, presetBId) => {
+      const directGame = groupGames.find((game) =>
+        new Set([game.presetAId, game.presetBId]).size === 2 &&
+        [game.presetAId, game.presetBId].includes(presetAId) &&
+        [game.presetAId, game.presetBId].includes(presetBId)
+      );
+      if (!directGame) return 0;
+      const winnerKey = getWinningTeamKey(directGame);
+      if (!winnerKey) return 0;
+      return getTournamentPresetIdForSide(directGame, winnerKey) === presetAId ? 1 : -1;
+    };
+
+    return [...table.values()]
+      .map((entry) => ({ ...entry, saldo: entry.golsPro - entry.golsContra }))
+      .sort((a, b) =>
+        b.pontos - a.pontos ||
+        b.saldo - a.saldo ||
+        b.golsPro - a.golsPro ||
+        headToHeadPoints(b.presetId, a.presetId) ||
+        b.vitorias - a.vitorias ||
+        String(a.preset?.nome || "").localeCompare(String(b.preset?.nome || ""), "pt-BR")
+      )
+      .map((entry, index) => ({ ...entry, posicao: index + 1 }));
+  }
+
+  function buildBagreCupProgress(pelada, games = [], presets = []) {
+    const teams = [...presets]
+      .sort((a, b) => Number(a.ordem || 0) - Number(b.ordem || 0))
+      .slice(0, 4);
+    const tournamentGames = games.filter((game) => isBagreCupGame(game, pelada));
+    const gameByFixtureId = new Map();
+    tournamentGames
+      .sort((a, b) => String(a.createdAt || a.inicio || "").localeCompare(String(b.createdAt || b.inicio || "")))
+      .forEach((game) => {
+        if (game.confrontoTorneioId) gameByFixtureId.set(game.confrontoTorneioId, game);
+      });
+    const createFixture = (id, phase, order, presetAId, presetBId, label) => ({
+      id,
+      phase,
+      order,
+      label,
+      presetAId: presetAId || "",
+      presetBId: presetBId || "",
+      game: gameByFixtureId.get(id) || null,
+    });
+    const groupFixtures = teams.length === 4
+      ? BAGRECUP_GROUP_PAIRINGS.map(([a, b], index) =>
+          createFixture(`grupo-${index + 1}`, "grupo", index + 1, teams[a].id, teams[b].id, `Rodada ${Math.floor(index / 2) + 1}`)
+        )
+      : [];
+    const standings = buildBagreCupStandings(teams, tournamentGames);
+    const groupComplete = groupFixtures.length === 6 && groupFixtures.every((fixture) => normalizeToken(fixture.game?.status) === "finalizado");
+    const semifinalFixtures = groupComplete
+      ? [
+          createFixture("semifinal-1", "semifinal", 1, standings[0]?.presetId, standings[3]?.presetId, "1º × 4º"),
+          createFixture("semifinal-2", "semifinal", 2, standings[1]?.presetId, standings[2]?.presetId, "2º × 3º"),
+        ]
+      : [];
+    const semifinalsComplete = semifinalFixtures.length === 2 && semifinalFixtures.every((fixture) => normalizeToken(fixture.game?.status) === "finalizado");
+    const semifinalResult = (fixture, winner) => {
+      const winnerKey = getWinningTeamKey(fixture?.game);
+      if (!winnerKey) return "";
+      const winnerId = getTournamentPresetIdForSide(fixture.game, winnerKey);
+      if (winner) return winnerId;
+      return winnerId === fixture.presetAId ? fixture.presetBId : fixture.presetAId;
+    };
+    const finalFixtures = semifinalsComplete
+      ? [
+          ...(getBagreCupSettings(pelada).terceiroLugar
+            ? [createFixture(
+                "terceiro-lugar",
+                "terceiro",
+                1,
+                semifinalResult(semifinalFixtures[0], false),
+                semifinalResult(semifinalFixtures[1], false),
+                "Disputa de 3º lugar"
+              )]
+            : []),
+          createFixture(
+            "final",
+            "final",
+            1,
+            semifinalResult(semifinalFixtures[0], true),
+            semifinalResult(semifinalFixtures[1], true),
+            "Grande final"
+          ),
+        ]
+      : [];
+    const fixtures = [...groupFixtures, ...semifinalFixtures, ...finalFixtures];
+    const nextFixture = fixtures.find((fixture) => normalizeToken(fixture.game?.status) !== "finalizado") || null;
+    const finalFixture = finalFixtures.find((fixture) => fixture.phase === "final") || null;
+    const thirdFixture = finalFixtures.find((fixture) => fixture.phase === "terceiro") || null;
+    const complete = Boolean(finalFixture && normalizeToken(finalFixture.game?.status) === "finalizado") &&
+      (!thirdFixture || normalizeToken(thirdFixture.game?.status) === "finalizado");
+    const finalWinnerKey = finalFixture?.game ? getWinningTeamKey(finalFixture.game) : "";
+    const championPresetId = finalWinnerKey ? getTournamentPresetIdForSide(finalFixture.game, finalWinnerKey) : "";
+
+    return {
+      teams,
+      tournamentGames,
+      standings,
+      fixtures,
+      groupFixtures,
+      semifinalFixtures,
+      finalFixtures,
+      groupComplete,
+      semifinalsComplete,
+      nextFixture,
+      complete,
+      champion: teams.find((team) => team.id === championPresetId) || null,
+    };
+  }
+
   function isReserveGoalkeeperPlayer(player) {
     if (!player || !isGoalkeeperCandidate(player)) return false;
     const identity = normalizeToken(`${player.nome || ""} ${player.apelido || ""}`);
@@ -2375,13 +2598,13 @@
     state.matchPersist[teamKey] = false;
   }
 
-  function getPresetCompleteness(preset) {
+  function getPresetCompleteness(preset, requiredLineCount = 5) {
     const lineCount = uniqueIds(preset?.linha || []).length;
     return {
       lineCount,
       hasGoalkeeper: false,
       total: lineCount,
-      complete: lineCount === 5,
+      complete: lineCount === requiredLineCount,
     };
   }
 
@@ -2443,14 +2666,14 @@
     return draft;
   }
 
-  function getGameDraftReadiness(draft) {
+  function getGameDraftReadiness(draft, requiredLineCount = 5) {
     const buildTeam = (team) => {
       const lineCount = uniqueIds(team?.linha || []).length;
       const hasGoalkeeper = Boolean(team?.goleiro);
       return {
         lineCount,
         hasGoalkeeper,
-        complete: lineCount === 5 && hasGoalkeeper,
+        complete: lineCount === requiredLineCount && hasGoalkeeper,
       };
     };
     const A = buildTeam(draft?.A);
@@ -2459,9 +2682,9 @@
     const nameA = String(draft?.A?.nome || "Time A").trim() || "Time A";
     const nameB = String(draft?.B?.nome || "Time B").trim() || "Time B";
 
-    if (A.lineCount !== 5) missing.push(`${nameA}: ${A.lineCount}/5 linha`);
+    if (A.lineCount !== requiredLineCount) missing.push(`${nameA}: ${A.lineCount}/${requiredLineCount} linha`);
     if (!A.hasGoalkeeper) missing.push(`${nameA}: sem goleiro`);
-    if (B.lineCount !== 5) missing.push(`${nameB}: ${B.lineCount}/5 linha`);
+    if (B.lineCount !== requiredLineCount) missing.push(`${nameB}: ${B.lineCount}/${requiredLineCount} linha`);
     if (!B.hasGoalkeeper) missing.push(`${nameB}: sem goleiro`);
 
     return {
@@ -3425,14 +3648,18 @@
     };
 
     const peladaFinalizada = isFinalizedPelada(pelada);
-    summary.canFinalize = summary.totals.jogosRealizados > 0 && !summary.hasActiveGames && !peladaFinalizada;
+    const bagreCupPending = getPeladaGameMode(pelada, jogos) === "bagrecup" &&
+      !finalizedGames.some((jogo) => normalizeToken(jogo.faseTorneio) === "final");
+    summary.canFinalize = summary.totals.jogosRealizados > 0 && !summary.hasActiveGames && !peladaFinalizada && !bagreCupPending;
     summary.finishDisabledReason = peladaFinalizada
       ? "Pelada já finalizada."
       : summary.hasActiveGames
         ? "Finalize os jogos em andamento antes de encerrar a pelada."
         : summary.totals.jogosRealizados === 0
           ? "É preciso ter pelo menos um jogo finalizado."
-          : "";
+          : bagreCupPending
+            ? "Conclua a final da BagreCup antes de encerrar a pelada."
+            : "";
 
     return summary;
   }
@@ -3511,6 +3738,7 @@
       temporadaId: filters.temporadaId || "",
       jogadorId: filters.jogadorId || "",
       posicao: filters.posicao || "",
+      modoJogo: normalizeGameMode(filters.modoJogo) || "todos",
       includeTests: Boolean(filters.includeTests),
     });
   }
@@ -3775,9 +4003,7 @@
       const tipoDefesa = normalizeToken(evento.tipoDefesaGoleiro);
       return eventType === "defesa_goleiro" && ["dificil", "penalti", "cara_a_cara", "reflexo"].includes(tipoDefesa);
     }).length;
-    const eligiblePeladas = filters.includeTests
-      ? peladas
-      : peladas.filter((pelada) => !isTestPelada(pelada));
+    const eligiblePeladas = peladas.filter((pelada) => peladaMatchesStatsFilters(pelada, filters));
 
     const result = {
       filters,
@@ -3821,6 +4047,11 @@
       return false;
     }
 
+    const competitionMode = normalizeGameMode(filters.modoJogo);
+    if (competitionMode && getGameCompetitionMode(jogo, pelada) !== competitionMode) {
+      return false;
+    }
+
     if (filters.month && !String(referenceDate).startsWith(filters.month)) {
       return false;
     }
@@ -3833,6 +4064,11 @@
       return false;
     }
     if (filters.peladaId && pelada.id !== filters.peladaId) {
+      return false;
+    }
+
+    const competitionMode = normalizeGameMode(filters.modoJogo);
+    if (competitionMode && (normalizeGameMode(pelada.modoJogo) || "classica") !== competitionMode) {
       return false;
     }
 
@@ -5613,6 +5849,7 @@
     }
 
     const jogos = await readGamesForPelada(selectedPelada.id);
+    const gameMode = getPeladaGameMode(selectedPelada, jogos);
     const teamPresets = allTimes
       .filter((time) => isTeamPreset(time) && time.peladaId === selectedPelada.id)
       .sort((a, b) => Number(a.ordem || 0) - Number(b.ordem || 0));
@@ -5664,16 +5901,24 @@
 
     $("#section-content").innerHTML = `
       <div class="pelada-detail-flow">
-        ${renderPeladaDetailNav(detailView, teamPresets, selectedPelada, jogadores)}
+        ${gameMode ? renderPeladaGameModeBar(selectedPelada, jogos, gameMode) : ""}
+        ${renderPeladaDetailNav(detailView, teamPresets, selectedPelada, jogadores, gameMode)}
         <div class="pelada-detail-view" data-pelada-detail-view="${escapeHtml(detailView)}">
           ${detailView === "times"
-            ? renderTeamPresetsPanel(selectedPelada, teamPresets, jogadores)
+            ? renderTeamPresetsPanel(selectedPelada, teamPresets, jogadores, gameMode)
             : detailView === "presencas"
-              ? renderPeladaPresencePanel(selectedPelada, jogadores, activePresenceBundle)
-              : `
-                ${renderGameSetup(selectedPelada, jogadores, teamPresets)}
-                ${renderGameHistory(selectedPelada, jogos, eventsByGameId, playerById, peladaSummary)}
-              `}
+              ? renderPeladaPresencePanel(selectedPelada, jogadores, activePresenceBundle, gameMode)
+              : !gameMode
+                ? renderPeladaGameModeSelector(selectedPelada)
+                : gameMode === "bagrecup"
+                  ? `
+                    ${renderBagreCupDashboard(selectedPelada, jogos, teamPresets, jogadores)}
+                    ${renderGameHistory(selectedPelada, jogos, eventsByGameId, playerById, peladaSummary)}
+                  `
+                  : `
+                    ${renderGameSetup(selectedPelada, jogadores, teamPresets)}
+                    ${renderGameHistory(selectedPelada, jogos, eventsByGameId, playerById, peladaSummary)}
+                  `}
         </div>
       </div>
     `;
@@ -5719,8 +5964,46 @@
     `;
   }
 
-  function renderPeladaDetailNav(activeView, presets = [], pelada = null, jogadores = []) {
-    const incomplete = presets.filter((preset) => !getPresetCompleteness(preset).complete).length;
+  function renderPeladaGameModeSelector(pelada) {
+    const canManage = hasPermission("times:montar") && !isFinalizedPelada(pelada);
+
+    return `
+      <section class="game-mode-selector-card">
+        <header>
+          <span class="panel-kicker">Formato do dia</span>
+          <h3>Escolha o modo de jogo</h3>
+        </header>
+        <div class="game-mode-options">
+          <button type="button" data-pelada-action="set-game-mode" data-game-mode="classica" ${canManage ? "" : "disabled"}>
+            <span class="game-mode-option-mark is-classic">PC</span>
+            <span><strong>Pelada Clássica</strong><small>Times na hora e Time da vez.</small></span>
+            <i aria-hidden="true">›</i>
+          </button>
+          <button type="button" data-pelada-action="set-game-mode" data-game-mode="bagrecup" ${canManage ? "" : "disabled"}>
+            <span class="game-mode-option-mark is-cup">BC</span>
+            <span><strong>BagreCup</strong><small>4 times, grupos e mata-mata.</small></span>
+            <i aria-hidden="true">›</i>
+          </button>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderPeladaGameModeBar(pelada, games = [], gameMode = "classica") {
+    const isCup = gameMode === "bagrecup";
+    const canChange = hasPermission("times:montar") && !games.length && !isFinalizedPelada(pelada);
+    return `
+      <section class="pelada-game-mode-bar is-${escapeHtml(gameMode)}">
+        <span class="game-mode-option-mark ${isCup ? "is-cup" : "is-classic"}">${isCup ? "BC" : "PC"}</span>
+        <span><small>Modo de jogo</small><strong>${isCup ? "BagreCup" : "Pelada Clássica"}</strong></span>
+        ${canChange ? `<button type="button" data-pelada-action="clear-game-mode">Trocar</button>` : ""}
+      </section>
+    `;
+  }
+
+  function renderPeladaDetailNav(activeView, presets = [], pelada = null, jogadores = [], gameMode = "") {
+    const requiredLineCount = gameMode === "bagrecup" ? 4 : 5;
+    const incomplete = presets.filter((preset) => !getPresetCompleteness(preset, requiredLineCount).complete).length;
     const presentCount = jogadores.filter(
       (player) => !isReserveGoalkeeperPlayer(player) && isPlayerPresentAtPelada(pelada, player)
     ).length;
@@ -5733,7 +6016,7 @@
           data-pelada-action="show-detail-confrontos"
           aria-current="${activeView === "confrontos" ? "page" : "false"}"
         >
-          <span>Confrontos</span>
+          <span>${gameMode === "bagrecup" ? "Torneio" : "Confrontos"}</span>
         </button>
         <button
           class="${activeView === "times" ? "active" : ""}"
@@ -5757,7 +6040,7 @@
     `;
   }
 
-  function renderPeladaPresencePanel(pelada, jogadores = [], activeBundle = null) {
+  function renderPeladaPresencePanel(pelada, jogadores = [], activeBundle = null, gameMode = "") {
     const regularPlayers = jogadores.filter((player) => !isReserveGoalkeeperPlayer(player));
     const goalkeepers = regularPlayers.filter(isGoalkeeperCandidate);
     const linePlayers = regularPlayers.filter(isLineupPlayer);
@@ -5772,16 +6055,16 @@
     return `
       <section class="pelada-presence-panel">
         <header class="presence-summary-header">
-          <div><span class="panel-kicker">Organização</span><h3>Presenças e Time da vez</h3></div>
+          <div><span class="panel-kicker">Organização</span><h3>${gameMode === "bagrecup" ? "Presenças da BagreCup" : "Presenças e Time da vez"}</h3></div>
           <div class="presence-summary-metrics">
             <span><strong>${escapeHtml(presentCount)}</strong><small>Presentes</small></span>
             <span><strong>${escapeHtml(lateCount)}</strong><small>Atrasados</small></span>
             <span><strong>${escapeHtml(absentCount)}</strong><small>Inativos</small></span>
-            <span><strong>${escapeHtml(queue.length)}</strong><small>Time da vez</small></span>
+            ${gameMode === "bagrecup" ? "" : `<span><strong>${escapeHtml(queue.length)}</strong><small>Time da vez</small></span>`}
           </div>
         </header>
 
-        ${renderTimeDaVezCard(pelada, jogadores)}
+        ${gameMode === "bagrecup" ? "" : renderTimeDaVezCard(pelada, jogadores)}
 
         <section class="presence-group is-goalkeepers">
           <header><span>Goleiros da rodada</span><strong>${escapeHtml(goalkeepers.filter((player) => isPlayerPresentAtPelada(pelada, player)).length)} disponíveis</strong></header>
@@ -6184,18 +6467,20 @@
     `;
   }
 
-  function renderTeamPresetsPanel(pelada, presets, jogadores) {
+  function renderTeamPresetsPanel(pelada, presets, jogadores, gameMode = "") {
     const canManage = hasPermission("times:montar") && !isFinalizedPelada(pelada);
+    const isCup = gameMode === "bagrecup";
+    const canAdd = canManage && (!isCup || presets.length < 4);
     const playerById = new Map(jogadores.map((player) => [player.id, player]));
 
     return `
       <section class="team-presets-section">
         <header class="team-presets-heading">
           <div>
-            <span class="panel-kicker">Preparação</span>
-            <h3>Times da pelada</h3>
+            <span class="panel-kicker">${isCup ? "BagreCup" : "Preparação"}</span>
+            <h3>${isCup ? "Times do torneio" : "Times da pelada"}</h3>
           </div>
-          ${canManage && presets.length ? `
+          ${canAdd && presets.length ? `
             <button class="primary-button compact-button" type="button" data-pelada-action="add-team-preset">
               <span aria-hidden="true">+</span> Criar time
             </button>
@@ -6203,32 +6488,33 @@
         </header>
         ${presets.length
           ? `<div class="team-presets-grid">
-              ${presets.map((preset, index) => renderTeamPresetCard(preset, index, playerById, canManage)).join("")}
+              ${presets.map((preset, index) => renderTeamPresetCard(preset, index, playerById, canManage, isCup ? 4 : 5)).join("")}
             </div>`
           : `<div class="team-presets-empty">
               <span aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM16 10a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM3 19c0-3 2.1-5 5-5s5 2 5 5M13 15c.8-.7 1.8-1 3-1 2.8 0 4.5 1.9 4.5 4.5"/></svg>
               </span>
-              <div><h3>Nenhum time salvo</h3><p>Times salvos são opcionais. Você pode montar cada confronto diretamente na aba Confrontos.</p></div>
-              ${canManage ? `<button class="primary-button" type="button" data-pelada-action="add-team-preset">Criar time reutilizável</button>` : ""}
+              <div><h3>Nenhum time salvo</h3><p>${isCup ? "Crie os 4 times com 5 jogadores para iniciar o torneio." : "Times salvos são opcionais. Você pode montar cada confronto diretamente na aba Confrontos."}</p></div>
+              ${canAdd ? `<button class="primary-button" type="button" data-pelada-action="add-team-preset">${isCup ? "Criar primeiro time" : "Criar time reutilizável"}</button>` : ""}
             </div>`}
+        ${isCup ? `<footer class="bagrecup-team-limit"><strong>${escapeHtml(Math.min(presets.length, 4))}/4 times</strong><span>${presets.length === 4 ? "Chave completa" : "Complete os times para gerar os confrontos"}</span></footer>` : ""}
       </section>
     `;
   }
 
-  function renderTeamPresetCard(preset, index, playerById, canManage) {
-    const completeness = getPresetCompleteness(preset);
+  function renderTeamPresetCard(preset, index, playerById, canManage, requiredLineCount = 5) {
+    const completeness = getPresetCompleteness(preset, requiredLineCount);
     const linePlayers = uniqueIds(preset.linha || []).map((id) => playerById.get(id)).filter(Boolean);
 
     return `
       <article class="team-preset-card ${completeness.complete ? "is-complete" : "is-incomplete"}" style="--team-color:${escapeHtml(preset.cor || "#ff5a00")}">
         <div class="team-preset-top">
           <span class="team-preset-index">${String(index + 1).padStart(2, "0")}</span>
-          <span class="team-preset-status"><i></i>${completeness.complete ? "Completo" : `${completeness.total}/5`}</span>
+          <span class="team-preset-status"><i></i>${completeness.complete ? "Completo" : `${completeness.total}/${requiredLineCount}`}</span>
         </div>
         <div class="team-preset-identity">
           <span class="team-preset-monogram">${escapeHtml(getLiveTeamInitials(preset.nome, "T"))}</span>
-          <span><strong>${escapeHtml(preset.nome || "Time")}</strong><small>${escapeHtml(completeness.lineCount)}/5 jogadores de linha</small></span>
+          <span><strong>${escapeHtml(preset.nome || "Time")}</strong><small>${requiredLineCount === 4 ? `${escapeHtml(completeness.lineCount + 1)}/5 jogadores com o goleiro` : `${escapeHtml(completeness.lineCount)}/5 jogadores de linha`}</small></span>
         </div>
         <div class="team-preset-roster">
           <div class="team-preset-line">
@@ -6326,6 +6612,170 @@
     `;
   }
 
+  function ensureBagreCupDraft(pelada, fixture, presets = []) {
+    if (!fixture) return null;
+    const presetById = new Map(presets.map((preset) => [preset.id, preset]));
+    const presetA = presetById.get(fixture.presetAId) || null;
+    const presetB = presetById.get(fixture.presetBId) || null;
+    const setupKey = `${pelada?.id || ""}:bagrecup:${fixture.id}:${fixture.game?.id || "novo"}`;
+
+    if (state.matchSetupKey !== setupKey) {
+      hydrateMatchDraft(presetA, presetB, null);
+      state.matchPresetIds = { A: presetA?.id || "", B: presetB?.id || "" };
+      state.matchPersist = { A: true, B: true };
+      state.matchSetupKey = setupKey;
+    }
+
+    return { presetA, presetB };
+  }
+
+  function renderBagreCupStandings(progress) {
+    return `
+      <section class="bagrecup-standings-card">
+        <header><span class="panel-kicker">Classificação</span><strong>${escapeHtml(progress.groupFixtures.filter((fixture) => normalizeToken(fixture.game?.status) === "finalizado").length)}/6 jogos</strong></header>
+        <div class="bagrecup-table" role="table" aria-label="Classificação da BagreCup">
+          <div class="bagrecup-table-row is-heading" role="row"><span>#</span><span>Time</span><span>J</span><span>SG</span><span>PTS</span></div>
+          ${progress.standings.map((entry) => `
+            <div class="bagrecup-table-row" role="row" style="--team-color:${escapeHtml(entry.preset?.cor || "#ff5a00")}">
+              <strong>${escapeHtml(entry.posicao)}º</strong>
+              <span class="bagrecup-table-team"><i></i><b>${escapeHtml(entry.preset?.nome || "Time")}</b></span>
+              <span>${escapeHtml(entry.jogos)}</span>
+              <span>${entry.saldo > 0 ? "+" : ""}${escapeHtml(entry.saldo)}</span>
+              <strong>${escapeHtml(entry.pontos)}</strong>
+            </div>
+          `).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderBagreCupFixtureCard(fixture, presetById) {
+    const teamA = presetById.get(fixture.presetAId);
+    const teamB = presetById.get(fixture.presetBId);
+    const game = fixture.game;
+    const finalized = normalizeToken(game?.status) === "finalizado";
+    const active = normalizeToken(game?.status) === "em andamento";
+    const score = game ? `${game.placarA ?? 0} × ${game.placarB ?? 0}` : "×";
+
+    return `
+      <article class="bagrecup-fixture-card ${finalized ? "is-finished" : active ? "is-live" : "is-pending"}">
+        <header><span>${escapeHtml(fixture.label)}</span><small>${active ? "AO VIVO" : finalized ? "FINALIZADO" : getTournamentPhaseLabel(fixture.phase)}</small></header>
+        <div>
+          <span style="--team-color:${escapeHtml(teamA?.cor || "#ff5a00")}"><i></i><strong>${escapeHtml(teamA?.nome || "A definir")}</strong></span>
+          <b>${escapeHtml(score)}</b>
+          <span style="--team-color:${escapeHtml(teamB?.cor || "#4aa3df")}"><i></i><strong>${escapeHtml(teamB?.nome || "A definir")}</strong></span>
+        </div>
+        ${game ? `<button type="button" data-pelada-action="${active ? "open-live" : "view-game"}" data-game-id="${escapeHtml(game.id)}">${active ? "Abrir placar" : "Ver jogo"}</button>` : ""}
+      </article>
+    `;
+  }
+
+  function renderBagreCupNextMatch(pelada, fixture, presets, jogadores) {
+    if (!fixture) return "";
+    const presetById = new Map(presets.map((preset) => [preset.id, preset]));
+    const teamA = presetById.get(fixture.presetAId);
+    const teamB = presetById.get(fixture.presetBId);
+    if (!teamA || !teamB) return "";
+
+    if (normalizeToken(fixture.game?.status) === "em andamento") {
+      return `
+        <section class="bagrecup-next-match is-live">
+          <span class="panel-kicker">${escapeHtml(getTournamentPhaseLabel(fixture.phase))}</span>
+          <h3>${escapeHtml(teamA.nome)} × ${escapeHtml(teamB.nome)}</h3>
+          <button class="primary-button big-touch" type="button" data-pelada-action="open-live" data-game-id="${escapeHtml(fixture.game.id)}">Abrir partida ao vivo</button>
+        </section>
+      `;
+    }
+
+    ensureBagreCupDraft(pelada, fixture, presets);
+    const presentPlayers = getPresentPlayersForPelada(pelada, jogadores);
+    const draft = normalizeGameDraft(presentPlayers);
+    const readiness = getGameDraftReadiness(draft, 4);
+
+    return `
+      <section class="data-card game-setup-card next-match-card bagrecup-next-match ${readiness.complete ? "is-ready" : "is-incomplete"}">
+        <div class="bagrecup-next-heading">
+          <span><small>Próximo jogo · ${escapeHtml(getTournamentPhaseLabel(fixture.phase))}</small><strong>${escapeHtml(fixture.label)}</strong></span>
+          <em>10 min</em>
+        </div>
+        <form class="game-form" id="game-form" novalidate>
+          <input type="hidden" name="presetAId" value="${escapeHtml(fixture.presetAId)}" />
+          <input type="hidden" name="presetBId" value="${escapeHtml(fixture.presetBId)}" />
+          <input type="hidden" name="confrontoTorneioId" value="${escapeHtml(fixture.id)}" />
+          <div class="form-errors" id="game-form-errors" hidden></div>
+          <div class="matchup-selectors matchup-identity-editors" aria-label="Próximo confronto">
+            ${renderMatchIdentityDisplay(draft.A)}
+            <span class="matchup-versus">VS</span>
+            ${renderMatchIdentityDisplay(draft.B)}
+          </div>
+          <div class="match-lineup-grid">
+            ${renderMatchLineupCard("A", draft.A, presentPlayers, true, true, 4)}
+            ${renderMatchLineupCard("B", draft.B, presentPlayers, true, true, 4)}
+          </div>
+          <div class="form-actions">
+            <button class="primary-button big-touch start-next-game-button" type="submit" ${readiness.complete ? "" : "disabled"}>
+              <span>${readiness.complete ? "INICIAR JOGO" : "COMPLETE OS TIMES"}</span>
+            </button>
+          </div>
+        </form>
+      </section>
+    `;
+  }
+
+  function renderBagreCupDashboard(pelada, games = [], presets = [], jogadores = []) {
+    const progress = buildBagreCupProgress(pelada, games, presets);
+    const settings = getBagreCupSettings(pelada);
+    const completeTeams = progress.teams.filter((team) => getPresetCompleteness(team, 4).complete).length;
+    const ready = progress.teams.length === 4 && completeTeams === 4;
+    const presetById = new Map(progress.teams.map((team) => [team.id, team]));
+    const canConfigure = hasPermission("times:montar") && !games.length && !isFinalizedPelada(pelada);
+
+    if (!ready) {
+      return `
+        <section class="bagrecup-dashboard">
+          <header class="bagrecup-hero">
+            <span class="bagrecup-logo">BC</span>
+            <span><small>Mini torneio</small><h2>BagreCup</h2></span>
+            <em>10 min</em>
+          </header>
+          <section class="bagrecup-readiness-card">
+            <div><span class="panel-kicker">Preparação</span><h3>${escapeHtml(completeTeams)}/4 times completos</h3></div>
+            <div class="bagrecup-readiness-track"><i style="width:${escapeHtml((completeTeams / 4) * 100)}%"></i></div>
+            <button class="primary-button big-touch" type="button" data-pelada-action="show-detail-times">Organizar times</button>
+          </section>
+        </section>
+      `;
+    }
+
+    return `
+      <section class="bagrecup-dashboard">
+        <header class="bagrecup-hero">
+          <span class="bagrecup-logo">BC</span>
+          <span><small>Mini torneio</small><h2>BagreCup</h2></span>
+          <em>${progress.complete ? "Encerrada" : "Em disputa"}</em>
+        </header>
+        ${progress.champion ? `
+          <section class="bagrecup-champion" style="--team-color:${escapeHtml(progress.champion.cor || "#ff5a00")}">
+            <small>Campeão</small><strong>${escapeHtml(progress.champion.nome || "BagreCup")}</strong>
+          </section>
+        ` : ""}
+        <label class="bagrecup-third-place-toggle ${canConfigure ? "" : "is-locked"}">
+          <span><strong>Disputa de 3º lugar</strong><small>Após as semifinais</small></span>
+          <input type="checkbox" data-bagrecup-third-place ${settings.terceiroLugar ? "checked" : ""} ${canConfigure ? "" : "disabled"} />
+          <i aria-hidden="true"></i>
+        </label>
+        ${renderBagreCupStandings(progress)}
+        ${!progress.complete ? renderBagreCupNextMatch(pelada, progress.nextFixture, presets, jogadores) : ""}
+        <section class="bagrecup-fixtures-board">
+          <header><span class="panel-kicker">Tabela</span><strong>${escapeHtml(progress.fixtures.filter((fixture) => normalizeToken(fixture.game?.status) === "finalizado").length)}/${escapeHtml(progress.fixtures.length)} jogos</strong></header>
+          <div class="bagrecup-fixtures-list">
+            ${progress.fixtures.map((fixture) => renderBagreCupFixtureCard(fixture, presetById)).join("")}
+          </div>
+        </section>
+      </section>
+    `;
+  }
+
   function renderPresetOptions(presets, selectedId, blockedId) {
     return `
       <option value="" ${selectedId ? "" : "selected"}>Montar manualmente</option>
@@ -6345,16 +6795,16 @@
     `;
   }
 
-  function renderMatchLineupCard(teamKey, draft, jogadores, persistChanges, canPersist = false) {
+  function renderMatchLineupCard(teamKey, draft, jogadores, persistChanges, canPersist = false, requiredLineCount = 5) {
     const playerById = new Map(jogadores.map((player) => [player.id, player]));
     const goalkeeper = playerById.get(draft.goleiro);
     const reserveOperator = playerById.get(draft.goleiroReservaOperadorId);
     const linePlayers = uniqueIds(draft.linha).map((id) => playerById.get(id)).filter(Boolean);
-    const complete = linePlayers.length === 5 && Boolean(goalkeeper);
+    const complete = linePlayers.length === requiredLineCount && Boolean(goalkeeper);
 
     return `
       <article class="match-lineup-card is-${teamKey.toLowerCase()} ${complete ? "is-complete" : "is-incomplete"}" data-match-lineup-card="${teamKey}" style="--team-color:${escapeHtml(draft.cor)}">
-        <header><strong>${escapeHtml(draft.nome)}</strong><small>${complete ? "6 jogadores" : `${linePlayers.length + (goalkeeper ? 1 : 0)}/6 · incompleto`}</small></header>
+        <header><strong>${escapeHtml(draft.nome)}</strong><small>${complete ? `${requiredLineCount + 1} jogadores` : `${linePlayers.length + (goalkeeper ? 1 : 0)}/${requiredLineCount + 1} · incompleto`}</small></header>
         <div class="match-lineup-goalkeeper">
           <small>GK</small>
           ${goalkeeper ? renderPlayerAvatar(goalkeeper, "player-avatar match-lineup-avatar") : `<i>—</i>`}
@@ -6363,7 +6813,7 @@
         </div>
         <div class="match-lineup-players">
           ${linePlayers.map((player) => `<span>${renderPlayerAvatar(player, "player-avatar match-lineup-avatar")}<small>${escapeHtml(shortPlayerName(player))}</small></span>`).join("")}
-          ${Array.from({ length: Math.max(0, 5 - linePlayers.length) }, () => `<span class="is-empty"><i>+</i><small>Vaga</small></span>`).join("")}
+          ${Array.from({ length: Math.max(0, requiredLineCount - linePlayers.length) }, () => `<span class="is-empty"><i>+</i><small>Vaga</small></span>`).join("")}
         </div>
         <div class="match-lineup-actions">
           <button type="button" data-pelada-action="open-lineup" data-team="${teamKey}">Editar escalação</button>
@@ -6409,7 +6859,7 @@
     return false;
   }
 
-  function renderTeamSelectionModal(teamKey, selectionType, jogadores) {
+  function renderTeamSelectionModal(teamKey, selectionType, jogadores, requiredLineCount = 5) {
     const isGoalkeeperSelection = selectionType === "goleiro";
     const teamDraft = state.gameDraft[teamKey] || createEmptyGameDraft()[teamKey];
     const candidates = jogadores.filter(
@@ -6429,7 +6879,7 @@
         (!occupiedLineIds.has(player.id) || player.id === selectedReserveOperator)
     );
     const selectedCount = isGoalkeeperSelection ? (selectedGoalkeeper ? 1 : 0) : selectedLine.size;
-    const selectedLimit = isGoalkeeperSelection ? 1 : 5;
+    const selectedLimit = isGoalkeeperSelection ? 1 : requiredLineCount;
 
     return `
       <form class="team-selection-form team-selection-form-${escapeHtml(selectionType)}" id="team-selection-form" data-team="${escapeHtml(teamKey)}" data-selection-type="${escapeHtml(selectionType)}" novalidate>
@@ -6536,12 +6986,13 @@
       state.selectedPeladaId ? getRecord("peladas", state.selectedPeladaId) : Promise.resolve(null),
     ]);
     const jogadores = getPresentPlayersForPelada(pelada, allPlayers);
+    const requiredLineCount = getPeladaGameMode(pelada) === "bagrecup" ? 4 : 5;
     normalizeGameDraft(jogadores);
     const teamName = state.gameDraft[teamKey]?.nome || `Time ${teamKey}`;
 
     const modal = openLiveModal(
       selectionType === "goleiro" ? "Escolha o goleiro" : "Monte a escalação",
-      renderTeamSelectionModal(teamKey, selectionType, jogadores)
+      renderTeamSelectionModal(teamKey, selectionType, jogadores, requiredLineCount)
     );
     const form = modal.querySelector("#team-selection-form");
     const searchInput = form.elements.search;
@@ -6566,12 +7017,12 @@
       const checkedCount = lineInputs.filter((input) => input.checked).length;
       lineInputs.forEach((input) => {
         const blocked = input.dataset.blocked === "true";
-        input.disabled = blocked || (!input.checked && checkedCount >= 5);
+        input.disabled = blocked || (!input.checked && checkedCount >= requiredLineCount);
         const option = input.closest(".player-selection-option");
         option?.classList.toggle("is-selected", input.checked);
         option?.classList.toggle("is-disabled", input.disabled);
       });
-      if (countLabel) countLabel.textContent = `${checkedCount}/5 selecionado${checkedCount === 1 ? "" : "s"}`;
+      if (countLabel) countLabel.textContent = `${checkedCount}/${requiredLineCount} selecionado${checkedCount === 1 ? "" : "s"}`;
     };
 
     lineInputs.forEach((input) => input.addEventListener("change", refreshLineSelection));
@@ -6611,7 +7062,7 @@
         state.gameDraft[teamKey].linha = Array.from(form.querySelectorAll('input[name="playerIds"]:checked'))
           .filter((input) => !input.disabled)
           .map((input) => input.value)
-          .slice(0, 5);
+          .slice(0, requiredLineCount);
       }
 
       normalizeGameDraft(jogadores);
@@ -6620,7 +7071,7 @@
     });
   }
 
-  function renderTeamPresetEditor(preset, players, presets) {
+  function renderTeamPresetEditor(preset, players, presets, requiredLineCount = 5) {
     const linePlayers = players.filter((player) => isLineupPlayer(player) && !isReserveGoalkeeperPlayer(player));
     const assignedElsewhere = new Map();
     presets
@@ -6635,13 +7086,13 @@
         <div class="form-errors" id="team-preset-errors" hidden></div>
         <section class="team-preset-form-hero" style="--team-color:${escapeHtml(preset?.cor || "#ff5a00")}">
           <span class="team-preset-form-icon">${escapeHtml(getLiveTeamInitials(preset?.nome, "T"))}</span>
-          <div><span>Time da pelada</span><h3>${escapeHtml(preset?.nome || "Novo time")}</h3><p>Até 5 jogadores de linha. O goleiro será definido no confronto.</p></div>
+          <div><span>Time da pelada</span><h3>${escapeHtml(preset?.nome || "Novo time")}</h3><p>${requiredLineCount + 1} jogadores por time: ${requiredLineCount} de linha e 1 goleiro.</p></div>
         </section>
         <div class="team-preset-basics">
           <label class="field-label"><span>Nome do time</span><input name="nome" value="${escapeHtml(preset?.nome || "")}" maxlength="28" placeholder="Ex.: Time A" required /></label>
           <label class="field-label team-color-field"><span>Cor</span><input type="color" name="cor" value="${escapeHtml(preset?.cor || "#ff5a00")}" /></label>
         </div>
-        <div class="team-preset-player-heading"><span>Jogadores de linha</span><strong data-line-count>${selectedLine.size}/5</strong></div>
+        <div class="team-preset-player-heading"><span>Jogadores de linha</span><strong data-line-count>${selectedLine.size}/${escapeHtml(requiredLineCount)}</strong></div>
         <div class="team-preset-player-list">
           ${linePlayers.map((player) => {
             const assignedTeam = assignedElsewhere.get(player.id);
@@ -6668,12 +7119,20 @@
 
   async function openTeamPresetEditor(presetId = "") {
     if (!state.selectedPeladaId || !requirePermission("times:montar")) return;
-    const [players, presets] = await Promise.all([
+    const [allPlayers, presets, pelada] = await Promise.all([
       readActivePlayers(),
       readTeamPresets(state.selectedPeladaId),
+      getRecord("peladas", state.selectedPeladaId),
     ]);
     const preset = presets.find((item) => item.id === presetId) || null;
-    const modal = openLiveModal(preset ? "Editar time" : "Criar time", renderTeamPresetEditor(preset, players, presets));
+    const isCup = getPeladaGameMode(pelada) === "bagrecup";
+    if (isCup && !preset && presets.length >= 4) {
+      window.alert("A BagreCup já possui os 4 times.");
+      return;
+    }
+    const players = isCup ? getPresentPlayersForPelada(pelada, allPlayers) : allPlayers;
+    const requiredLineCount = isCup ? 4 : 5;
+    const modal = openLiveModal(preset ? "Editar time" : "Criar time", renderTeamPresetEditor(preset, players, presets, requiredLineCount));
     const form = modal.querySelector("#team-preset-form");
     const lineInputs = [...form.querySelectorAll('input[name="linhaIds"]')];
     const countLabel = form.querySelector("[data-line-count]");
@@ -6682,11 +7141,11 @@
       let checkedCount = lineInputs.filter((input) => input.checked).length;
       lineInputs.forEach((input) => {
         const option = input.closest("[data-player-option]");
-        input.disabled = input.dataset.assigned === "true" || (!input.checked && checkedCount >= 5);
+        input.disabled = input.dataset.assigned === "true" || (!input.checked && checkedCount >= requiredLineCount);
         option?.classList.toggle("is-selected", input.checked);
         option?.classList.toggle("is-disabled", input.disabled);
       });
-      countLabel.textContent = `${checkedCount}/5`;
+      countLabel.textContent = `${checkedCount}/${requiredLineCount}`;
     };
 
     lineInputs.forEach((input) => {
@@ -6701,7 +7160,7 @@
       const linha = lineInputs.filter((input) => input.checked && !input.disabled).map((input) => input.value);
       const errors = [];
       if (!nome) errors.push("Informe o nome do time.");
-      if (linha.length > 5) errors.push("Escolha no máximo 5 jogadores de linha.");
+      if (linha.length > requiredLineCount) errors.push(`Escolha no máximo ${requiredLineCount} jogadores de linha.`);
       showFormErrors("team-preset-errors", errors);
       if (errors.length) return;
 
@@ -6729,7 +7188,7 @@
         auditLog: [createAuditRecord("times", record.id, preset ? "editar-preset" : "criar-preset", preset, record)],
       });
       closeLiveModal();
-      state.matchPresetIds = { A: "", B: "" };
+      resetMatchSetupState();
       await renderCurrentSection();
       runBackgroundTask(syncNow, "Falha ao sincronizar time da pelada");
     });
@@ -6883,7 +7342,7 @@
       auditLog: [createAuditRecord("times", preset.id, "excluir-preset", preset, null)],
     });
     await deleteRecords({ times: [preset.id] });
-    state.matchPresetIds = { A: "", B: "" };
+    resetMatchSetupState();
     await renderCurrentSection();
     runBackgroundTask(syncNow, "Falha ao sincronizar exclusão do time");
   }
@@ -7265,7 +7724,7 @@
             </i>
           </span>
           <span class="game-history-content">
-            <span class="game-history-status">${escapeHtml(getGameStatusLabel(jogo))}</span>
+            <span class="game-history-status">${isBagreCupGame(jogo) ? `${escapeHtml(getTournamentPhaseLabel(jogo.faseTorneio))} · ` : ""}${escapeHtml(getGameStatusLabel(jogo))}</span>
             <span class="game-history-scoreboard">
               <span class="game-history-team" style="--team-color:${escapeHtml(teamColorFromGame(jogo, "A"))}">${escapeHtml(teamAName)}</span>
               <strong style="--team-color:${escapeHtml(teamColorFromGame(jogo, "A"))}">${escapeHtml(scoreA)}</strong>
@@ -7407,6 +7866,43 @@
     return updated;
   }
 
+  async function setPeladaGameMode(mode) {
+    if (!state.selectedPeladaId || !requirePermission("times:montar")) return;
+    const normalizedMode = normalizeGameMode(mode);
+    const [pelada, games] = await Promise.all([
+      getRecord("peladas", state.selectedPeladaId),
+      readGamesForPelada(state.selectedPeladaId),
+    ]);
+    if (!pelada || isFinalizedPelada(pelada)) return;
+    if (games.length) {
+      window.alert("O modo não pode ser alterado depois que o primeiro jogo começa.");
+      return;
+    }
+    await savePeladaOperationalState(pelada, {
+      modoJogo: normalizedMode,
+      bagreCup: normalizedMode === "bagrecup"
+        ? { ...getBagreCupSettings(pelada), ...(pelada.bagreCup || {}) }
+        : pelada.bagreCup || null,
+      proximoConfronto: normalizedMode === "bagrecup" ? null : pelada.proximoConfronto || null,
+    }, normalizedMode ? `definir-modo-${normalizedMode}` : "limpar-modo");
+    resetMatchSetupState();
+    state.peladaDetailView = "confrontos";
+    await renderCurrentSection();
+  }
+
+  async function setBagreCupThirdPlace(enabled) {
+    if (!state.selectedPeladaId || !requirePermission("times:montar")) return;
+    const [pelada, games] = await Promise.all([
+      getRecord("peladas", state.selectedPeladaId),
+      readGamesForPelada(state.selectedPeladaId),
+    ]);
+    if (!pelada || games.length || getPeladaGameMode(pelada, games) !== "bagrecup") return;
+    await savePeladaOperationalState(pelada, {
+      bagreCup: { ...(pelada.bagreCup || {}), terceiroLugar: Boolean(enabled), duracaoMinutos: 10 },
+    }, "configurar-terceiro-lugar");
+    await renderCurrentSection();
+  }
+
   async function setPeladaPlayerPresence(playerId, requestedStatus) {
     if (!state.selectedPeladaId || !playerId || !requirePermission("times:montar")) return;
     const [pelada, jogadores] = await Promise.all([
@@ -7508,6 +8004,12 @@
     layout.dataset.peladaActionsBound = "true";
 
     layout.addEventListener("change", async (event) => {
+      const thirdPlaceToggle = event.target.closest("[data-bagrecup-third-place]");
+      if (thirdPlaceToggle) {
+        thirdPlaceToggle.disabled = true;
+        await setBagreCupThirdPlace(thirdPlaceToggle.checked);
+        return;
+      }
       const presenceSelect = event.target.closest("[data-player-presence-id]");
       if (!presenceSelect) return;
       presenceSelect.disabled = true;
@@ -7522,6 +8024,16 @@
       }
 
       const action = actionButton.dataset.peladaAction;
+
+      if (action === "set-game-mode") {
+        await setPeladaGameMode(actionButton.dataset.gameMode || "");
+        return;
+      }
+
+      if (action === "clear-game-mode") {
+        await setPeladaGameMode("");
+        return;
+      }
 
       if (action === "add-team-preset") {
         state.peladaDetailView = "times";
@@ -8339,6 +8851,8 @@
       id: uid(),
       ...data,
       status: "Aberta",
+      modoJogo: "",
+      bagreCup: null,
       proximoConfronto: null,
       presencas: {},
       timeDaVez: { nome: "Time da vez", cor: "#ff5a00", linha: [] },
@@ -8374,6 +8888,7 @@
     return {
       presetAId: form.elements.presetAId?.value || state.matchPresetIds.A || "",
       presetBId: form.elements.presetBId?.value || state.matchPresetIds.B || "",
+      confrontoTorneioId: form.elements.confrontoTorneioId?.value || "",
       timeA: {
         nome: state.gameDraft.A.nome,
         cor: state.gameDraft.A.cor,
@@ -8478,6 +8993,7 @@
 
   function validateGameForm(data, selectedPelada, activeGame, jogadores = []) {
     const errors = [];
+    const requiredLineCount = getPeladaGameMode(selectedPelada) === "bagrecup" ? 4 : 5;
 
     if (!selectedPelada) errors.push("Selecione ou crie uma pelada.");
     if (activeGame) errors.push("Finalize o jogo em andamento antes de iniciar outro.");
@@ -8486,8 +9002,8 @@
     if (!data.timeB.jogadores.length) errors.push("Escolha os jogadores do Time B.");
     if (!data.timeA.goleiroId) errors.push("Defina o goleiro do Time A.");
     if (!data.timeB.goleiroId) errors.push("Defina o goleiro do Time B.");
-    if (data.timeA.linha.length !== 5) errors.push("Complete os 5 jogadores de linha do Time A.");
-    if (data.timeB.linha.length !== 5) errors.push("Complete os 5 jogadores de linha do Time B.");
+    if (data.timeA.linha.length !== requiredLineCount) errors.push(`Complete os ${requiredLineCount} jogadores de linha do Time A.`);
+    if (data.timeB.linha.length !== requiredLineCount) errors.push(`Complete os ${requiredLineCount} jogadores de linha do Time B.`);
 
     const duplicates = data.timeA.jogadores.filter((playerId) => data.timeB.jogadores.includes(playerId));
 
@@ -8541,6 +9057,16 @@
     const presentPlayers = getPresentPlayersForPelada(pelada, jogadores);
     const data = collectGameFormData(form, presentPlayers);
     const errors = validateGameForm(data, pelada, activeGame, presentPlayers);
+    const gameMode = getPeladaGameMode(pelada, peladaGames) || "classica";
+    const cupProgress = gameMode === "bagrecup" ? buildBagreCupProgress(pelada, peladaGames, presets) : null;
+    const cupFixture = cupProgress?.nextFixture || null;
+    if (gameMode === "bagrecup") {
+      if (!cupFixture) errors.push("A tabela da BagreCup não possui outro confronto disponível.");
+      if (cupFixture && data.confrontoTorneioId !== cupFixture.id) errors.push("Atualize a tela para iniciar o próximo confronto da BagreCup.");
+      if (cupFixture && (data.presetAId !== cupFixture.presetAId || data.presetBId !== cupFixture.presetBId)) {
+        errors.push("Os times escolhidos não correspondem ao próximo jogo da BagreCup.");
+      }
+    }
     showFormErrors("game-form-errors", errors);
 
     if (errors.length) {
@@ -8599,6 +9125,11 @@
       presetBId: data.presetBId,
       filaTimes: resolveMatchQueue(pelada, presets, data.presetAId, data.presetBId),
       filaJogadores: [],
+      modoJogo: gameMode,
+      faseTorneio: cupFixture?.phase || "",
+      rodadaTorneio: cupFixture?.order || "",
+      confrontoTorneioId: cupFixture?.id || "",
+      regraEncerramento: gameMode === "bagrecup" ? "tempo" : "gols_ou_tempo",
       timeA: { id: timeAId, nome: timeA.nome, cor: timeA.cor },
       timeB: { id: timeBId, nome: timeB.nome, cor: timeB.cor },
       placarA: 0,
@@ -8621,8 +9152,20 @@
       updatedAt: savedAt,
       revision: 1,
     };
-    const updatedPelada = buildPeladaGameStartUpdate(pelada, data, presentPlayers, savedAt);
-    jogoRecord.filaJogadores = [...updatedPelada.filaJogadores];
+    const updatedPelada = gameMode === "bagrecup"
+      ? {
+          ...pelada,
+          modoJogo: "bagrecup",
+          bagreCup: {
+            ...(pelada.bagreCup || {}),
+            ...getBagreCupSettings(pelada),
+            iniciadoEm: pelada.bagreCup?.iniciadoEm || savedAt,
+          },
+          updatedAt: savedAt,
+          revision: (pelada.revision || 0) + 1,
+        }
+      : buildPeladaGameStartUpdate(pelada, data, presentPlayers, savedAt);
+    jogoRecord.filaJogadores = [...(updatedPelada.filaJogadores || [])];
     const escalacoes = [
       ...data.timeA.jogadores.map((jogadorId) => ({
         id: `${jogoId}-${jogadorId}`,
@@ -10205,7 +10748,7 @@
       return false;
     }
 
-    if (getWinningTeamKey(jogo) === "" && normalizeToken(jogo.fase) !== "penaltis") {
+    if (!isBagreCupGame(jogo) && getWinningTeamKey(jogo) === "" && normalizeToken(jogo.fase) !== "penaltis") {
       const presets = await readTeamPresets(jogo.peladaId);
       if (getFourTeamDrawOutsidePresets(jogo, presets).length === 2) {
         return true;
@@ -10462,7 +11005,11 @@
 
       const playersToEvolve = [...new Set([jogadorId, assistenteId].filter(Boolean))];
 
-      if (Number(updatedJogo[placarField] || 0) >= GOALS_TO_END_GAME) {
+      if (
+        normalizeToken(updatedJogo.regraEncerramento) !== "tempo" &&
+        !isBagreCupGame(updatedJogo) &&
+        Number(updatedJogo[placarField] || 0) >= GOALS_TO_END_GAME
+      ) {
         await finalizeGame(jogo.id, "2 gols");
         return;
       }
@@ -11121,8 +11668,14 @@
 
     const presets = allTimes.filter((time) => isTeamPreset(time) && time.peladaId === jogo.peladaId);
     let rotateBothAfterDraw = false;
+    const bagreCupGame = isBagreCupGame(jogo);
+    const bagreCupGroupDraw = bagreCupGame && normalizeToken(jogo.faseTorneio) === "grupo";
 
-    if (getWinningTeamKey(jogo) === "" && normalizeToken(jogo.fase) !== "penaltis") {
+    if (getWinningTeamKey(jogo) === "" && normalizeToken(jogo.fase) !== "penaltis" && !bagreCupGroupDraw) {
+      if (bagreCupGame) {
+        await startPenaltyShootout(jogo, formaEncerramento);
+        return;
+      }
       if (getFourTeamDrawOutsidePresets(jogo, presets).length === 2) {
         const drawDecision = await requestFourTeamDrawDecision(jogo, presets);
         if (drawDecision === "penaltis") {
@@ -11158,7 +11711,7 @@
     ]);
     const escalacoes = allEscalacoes.filter((escalacao) => escalacao.jogoId === jogoId);
     const gameTeams = allTimes.filter((time) => time.jogoId === jogoId && normalizeToken(time.tipo) === "jogo");
-    const nextRotation = buildNextRotation(pelada, finalJogo, {
+    const nextRotation = bagreCupGame ? null : buildNextRotation(pelada, finalJogo, {
       presets,
       players: allPlayers,
       gameTeams,
@@ -11168,13 +11721,25 @@
     const nextTimeDaVezPatch = nextRotation
       ? buildPeladaTimeDaVezPatch(pelada, { linha: nextRotation.filaJogadores || [] })
       : null;
-    const updatedPelada = nextRotation ? {
-      ...pelada,
-      ...nextTimeDaVezPatch,
-      proximoConfronto: nextRotation,
-      updatedAt: savedAt,
-      revision: (pelada.revision || 0) + 1,
-    } : null;
+    const updatedPelada = bagreCupGame
+      ? {
+          ...pelada,
+          bagreCup: {
+            ...(pelada?.bagreCup || {}),
+            ...(normalizeToken(finalJogo.faseTorneio) === "final" ? { concluidaEm: savedAt } : {}),
+          },
+          updatedAt: savedAt,
+          revision: (pelada?.revision || 0) + 1,
+        }
+      : nextRotation
+        ? {
+            ...pelada,
+            ...nextTimeDaVezPatch,
+            proximoConfronto: nextRotation,
+            updatedAt: savedAt,
+            revision: (pelada.revision || 0) + 1,
+          }
+        : null;
     const statsRecords = await buildResultStats(finalJogo, escalacoes);
 
     await putRecords({
@@ -11598,7 +12163,11 @@
 
   async function renderRankingSection() {
     const officialPeladas = (await readPeladasSorted()).filter((pelada) => !isTestPelada(pelada));
-    if (state.rankingPeladaId && !officialPeladas.some((pelada) => pelada.id === state.rankingPeladaId)) {
+    const competitionMode = normalizeGameMode(state.rankingCompetitionMode);
+    const scopedPeladas = competitionMode
+      ? officialPeladas.filter((pelada) => (normalizeGameMode(pelada.modoJogo) || "classica") === competitionMode)
+      : officialPeladas;
+    if (state.rankingPeladaId && !scopedPeladas.some((pelada) => pelada.id === state.rankingPeladaId)) {
       state.rankingPeladaId = "";
     }
     const statsResult = await calcularEstatisticasJogadores({
@@ -11608,11 +12177,12 @@
       temporadaId: "",
       jogadorId: "",
       posicao: "",
+      modoJogo: competitionMode,
       sortBy: "gols",
     });
 
     setSectionTitle("Ranking", "Ranking");
-    $("#section-content").innerHTML = renderRankingPremiumOverview(statsResult, officialPeladas);
+    $("#section-content").innerHTML = renderRankingPremiumOverview(statsResult, scopedPeladas);
     bindRankingSectionEvents();
   }
 
@@ -11626,9 +12196,18 @@
           <div class="ranking-leaderboard-top">
             <h2>Ranking</h2>
           </div>
+          <div class="ranking-competition-tabs" role="tablist" aria-label="Filtrar ranking por modo de jogo">
+            ${[
+              ["todos", "Geral"],
+              ["classica", "Pelada Clássica"],
+              ["bagrecup", "BagreCup"],
+            ].map(([mode, label]) => `
+              <button type="button" role="tab" data-ranking-competition="${escapeHtml(mode)}" aria-selected="${state.rankingCompetitionMode === mode}" class="${state.rankingCompetitionMode === mode ? "active" : ""}">${escapeHtml(label)}</button>
+            `).join("")}
+          </div>
           <label class="ranking-pelada-filter">
             <select data-ranking-pelada-filter aria-label="Selecionar período do ranking">
-              <option value="">Todas as peladas</option>
+              <option value="">${state.rankingCompetitionMode === "bagrecup" ? "Todas as BagreCups" : state.rankingCompetitionMode === "classica" ? "Todas as Peladas Clássicas" : "Todas as peladas"}</option>
               ${officialPeladas.map((pelada) => `
                 <option value="${escapeHtml(pelada.id)}" ${pelada.id === state.rankingPeladaId ? "selected" : ""}>
                   ${escapeHtml(formatDateLabel(pelada.data))} · ${escapeHtml(pelada.local || "Pelada")}
@@ -11964,6 +12543,7 @@
         temporadaId: "",
         jogadorId: "",
         posicao: "",
+        modoJogo: normalizeGameMode(state.rankingCompetitionMode),
         sortBy: "gols",
       });
       const viewModel = getRankingViewModel(statsResult);
@@ -12008,8 +12588,15 @@
   }
 
   function getOverallRankingEntries(statsResult, limit = 3) {
+    const scopedRanking = Boolean(
+      normalizeGameMode(statsResult?.filters?.modoJogo) || statsResult?.filters?.peladaId
+    );
     return statsResult.playersStats
-      .filter((stats) => stats.jogador && !isReserveGoalkeeperPlayer(stats.jogador))
+      .filter((stats) =>
+        stats.jogador &&
+        !isReserveGoalkeeperPlayer(stats.jogador) &&
+        (!scopedRanking || Number(stats.jogos || 0) > 0)
+      )
       .sort((a, b) =>
         Number(b.jogador.overall || 0) - Number(a.jogador.overall || 0) ||
         playerDisplayName(a.jogador).localeCompare(playerDisplayName(b.jogador), "pt-BR")
@@ -12083,8 +12670,19 @@
 
     root.onclick = async (event) => {
       const modeButton = event.target.closest("[data-ranking-mode]");
+      const competitionButton = event.target.closest("[data-ranking-competition]");
       const categoryButton = event.target.closest("[data-ranking-category]");
       const actionButton = event.target.closest("[data-ranking-action]");
+
+      if (competitionButton) {
+        const nextCompetition = competitionButton.dataset.rankingCompetition || "todos";
+        if (nextCompetition === state.rankingCompetitionMode) return;
+        state.rankingCompetitionMode = nextCompetition;
+        state.rankingPeladaId = "";
+        state.rankingCategory = "overall";
+        await renderRankingSection();
+        return;
+      }
 
       if (modeButton) {
         const nextMode = modeButton.dataset.rankingMode || "geral";
