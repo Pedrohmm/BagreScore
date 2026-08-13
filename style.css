@@ -5350,7 +5350,284 @@ body[data-section="peladas"] .selection-modal-intro {
     rgba(255, 255, 255, 0.04);
 }
 
-/* BagreCup and game-mode selection v1.4.0 */
+/* BagreCup flow and navigation v1.4.1 */
+body[data-section="peladas"] .bagrecup-control-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(62px, 0.58fr) minmax(94px, 0.9fr);
+  gap: 7px;
+}
+
+body[data-section="peladas"] .bagrecup-mode-compact,
+body[data-section="peladas"] .bagrecup-teams-shortcut,
+body[data-section="peladas"] .bagrecup-third-place-compact,
+body[data-section="peladas"] .bagrecup-section-tabs,
+body[data-section="peladas"] .bagrecup-bracket-locked {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 0, 0.09), transparent 9rem),
+    linear-gradient(145deg, rgba(16, 17, 16, 0.99), rgba(5, 6, 5, 0.99));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+body[data-section="peladas"] .bagrecup-mode-compact {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 62px;
+  border-radius: 16px;
+  padding: 8px 9px;
+}
+
+body[data-section="peladas"] .bagrecup-mode-compact .game-mode-option-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  font-size: 0.58rem;
+}
+
+body[data-section="peladas"] .bagrecup-mode-compact > span:nth-child(2),
+body[data-section="peladas"] .bagrecup-third-place-compact > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+body[data-section="peladas"] .bagrecup-mode-compact small,
+body[data-section="peladas"] .bagrecup-teams-shortcut small,
+body[data-section="peladas"] .bagrecup-third-place-compact small {
+  color: #707070;
+  font-size: 0.5rem;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+body[data-section="peladas"] .bagrecup-mode-compact strong,
+body[data-section="peladas"] .bagrecup-teams-shortcut strong,
+body[data-section="peladas"] .bagrecup-third-place-compact strong {
+  overflow: hidden;
+  color: #ededed;
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-section="peladas"] .bagrecup-mode-compact > button {
+  border: 0;
+  padding: 4px 0;
+  color: #ff7b34;
+  background: transparent;
+  font-size: 0.54rem;
+  font-weight: 900;
+}
+
+body[data-section="peladas"] .bagrecup-teams-shortcut {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 3px;
+  min-height: 62px;
+  border-radius: 16px;
+  padding: 8px 5px;
+}
+
+body[data-section="peladas"] .bagrecup-teams-shortcut.active {
+  border-color: rgba(255, 90, 0, 0.48);
+  background: linear-gradient(145deg, rgba(255, 90, 0, 0.13), rgba(7, 7, 7, 0.99));
+}
+
+body[data-section="peladas"] .bagrecup-teams-shortcut strong {
+  color: #ff7b34;
+  font-size: 0.82rem;
+}
+
+body[data-section="peladas"] .bagrecup-third-place-compact {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 62px;
+  border-radius: 16px;
+  padding: 8px;
+  cursor: pointer;
+}
+
+body[data-section="peladas"] .bagrecup-third-place-compact input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+body[data-section="peladas"] .bagrecup-third-place-compact > i {
+  position: relative;
+  width: 30px;
+  height: 18px;
+  border-radius: 999px;
+  background: #292929;
+}
+
+body[data-section="peladas"] .bagrecup-third-place-compact > i::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #858585;
+  transition: 160ms ease;
+}
+
+body[data-section="peladas"] .bagrecup-third-place-compact:has(input:checked) > i {
+  background: rgba(255, 90, 0, 0.28);
+}
+
+body[data-section="peladas"] .bagrecup-third-place-compact:has(input:checked) > i::after {
+  left: 15px;
+  background: var(--orange);
+}
+
+body[data-section="peladas"] .bagrecup-third-place-compact.is-locked {
+  cursor: default;
+  opacity: 0.7;
+}
+
+body[data-section="peladas"] .bagrecup-section-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  border-radius: 15px;
+  padding: 4px;
+}
+
+body[data-section="peladas"] .bagrecup-section-tabs button {
+  min-height: 40px;
+  border: 0;
+  border-radius: 11px;
+  padding: 7px 4px;
+  color: #757575;
+  background: transparent;
+  font-size: 0.62rem;
+  font-weight: 900;
+}
+
+body[data-section="peladas"] .bagrecup-section-tabs button.active {
+  color: #fff;
+  background: linear-gradient(135deg, #ff6810, #ef4d00);
+  box-shadow: 0 7px 16px rgba(255, 90, 0, 0.16);
+}
+
+body[data-section="peladas"] .bagrecup-bracket-grid {
+  display: grid;
+  gap: 8px;
+}
+
+body[data-section="peladas"] .bagrecup-bracket-locked {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  border-radius: 18px;
+  padding: 15px;
+}
+
+body[data-section="peladas"] .bagrecup-bracket-locked > span {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(255, 90, 0, 0.34);
+  border-radius: 13px;
+  color: #ff7b34;
+  background: rgba(255, 90, 0, 0.08);
+  font-size: 0.65rem;
+  font-weight: 950;
+}
+
+body[data-section="peladas"] .bagrecup-bracket-locked > div {
+  display: grid;
+  gap: 3px;
+}
+
+body[data-section="peladas"] .bagrecup-bracket-locked strong {
+  color: #ededed;
+  font-size: 0.82rem;
+}
+
+body[data-section="peladas"] .bagrecup-bracket-locked small {
+  color: #777;
+  font-size: 0.63rem;
+  line-height: 1.4;
+}
+
+body[data-section="peladas"] .team-preset-goalkeeper {
+  display: grid;
+  grid-template-columns: 30px 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  margin-top: 9px;
+  padding-top: 9px;
+}
+
+body[data-section="peladas"] .team-preset-goalkeeper > small {
+  color: #ff7c34;
+  font-size: 0.58rem;
+  font-weight: 950;
+}
+
+body[data-section="peladas"] .team-preset-goalkeeper > strong {
+  overflow: hidden;
+  color: #d7d7d7;
+  font-size: 0.67rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-section="peladas"] .team-preset-goalkeeper.is-empty > i {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  border-radius: 50%;
+  color: #777;
+  font-style: normal;
+}
+
+body[data-section="peladas"] .team-preset-player-list.is-goalkeepers {
+  max-height: 250px;
+}
+
+@media (max-width: 370px) {
+  body[data-section="peladas"] .bagrecup-control-bar {
+    grid-template-columns: minmax(0, 1.42fr) 58px minmax(88px, 0.9fr);
+    gap: 5px;
+  }
+
+  body[data-section="peladas"] .bagrecup-mode-compact {
+    gap: 6px;
+    padding-inline: 7px;
+  }
+
+  body[data-section="peladas"] .bagrecup-mode-compact .game-mode-option-mark {
+    width: 30px;
+    height: 30px;
+  }
+
+  body[data-section="peladas"] .bagrecup-mode-compact > button {
+    display: none;
+  }
+
+  body[data-section="peladas"] .bagrecup-section-tabs button {
+    font-size: 0.56rem;
+  }
+}
+
+/* BagreCup and game-mode selection v1.4.1 */
 body[data-section="peladas"] .game-mode-selector-card,
 body[data-section="peladas"] .pelada-game-mode-bar,
 body[data-section="peladas"] .bagrecup-hero,

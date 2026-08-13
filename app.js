@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.0";
+  const APP_VERSION = "1.4.1";
   const MIN_SYNC_API_VERSION = "1.6.1";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -2552,8 +2552,8 @@
       nome: savedName || preset?.nome || `Time ${fallbackKey}`,
       cor: savedColor || preset?.cor || (fallbackKey === "A" ? "#ff5a00" : "#4aa3df"),
       linha: savedLineup === null || savedLineupIsCorrupted ? presetLineup : savedLineup,
-      goleiro: preservedDraft?.goleiro || savedGoalkeeper.goleiro || "",
-      goleiroReservaOperadorId: preservedDraft?.goleiroReservaOperadorId || savedGoalkeeper.goleiroReservaOperadorId || "",
+      goleiro: preservedDraft?.goleiro || savedGoalkeeper.goleiro || preset?.goleiroId || "",
+      goleiroReservaOperadorId: preservedDraft?.goleiroReservaOperadorId || savedGoalkeeper.goleiroReservaOperadorId || preset?.goleiroReservaOperadorId || "",
     };
   }
 
@@ -2598,13 +2598,14 @@
     state.matchPersist[teamKey] = false;
   }
 
-  function getPresetCompleteness(preset, requiredLineCount = 5) {
+  function getPresetCompleteness(preset, requiredLineCount = 5, requireGoalkeeper = false) {
     const lineCount = uniqueIds(preset?.linha || []).length;
+    const hasGoalkeeper = Boolean(preset?.goleiroId);
     return {
       lineCount,
-      hasGoalkeeper: false,
-      total: lineCount,
-      complete: lineCount === requiredLineCount,
+      hasGoalkeeper,
+      total: lineCount + (hasGoalkeeper ? 1 : 0),
+      complete: lineCount === requiredLineCount && (!requireGoalkeeper || hasGoalkeeper),
     };
   }
 
@@ -5892,33 +5893,49 @@
 
     setSectionTitle("Pelada", selectedPelada.local || "Detalhes da pelada");
     state.selectedGameSummaryId = null;
-    const detailView = ["confrontos", "times", "presencas"].includes(state.peladaDetailView)
-      ? state.peladaDetailView
-      : "confrontos";
+    const cupTeamsReady = gameMode === "bagrecup" && teamPresets.length === 4 &&
+      teamPresets.every((preset) => getPresetCompleteness(preset, 5, true).complete);
+    const cupViews = ["torneio", "classificacao", "chaveamento", "times"];
+    const classicViews = ["confrontos", "times", "presencas"];
+    const detailView = gameMode === "bagrecup"
+      ? cupViews.includes(state.peladaDetailView)
+        ? state.peladaDetailView
+        : cupTeamsReady
+          ? "torneio"
+          : "times"
+      : classicViews.includes(state.peladaDetailView)
+        ? state.peladaDetailView
+        : "confrontos";
+    state.peladaDetailView = detailView;
 
-    const activeGame = detailView === "presencas" ? await findActiveGame() : null;
+    const activeGame = gameMode !== "bagrecup" && detailView === "presencas" ? await findActiveGame() : null;
     const activePresenceBundle = activeGame?.peladaId === selectedPelada.id ? await readGameBundle(activeGame.id) : null;
 
     $("#section-content").innerHTML = `
       <div class="pelada-detail-flow">
-        ${gameMode ? renderPeladaGameModeBar(selectedPelada, jogos, gameMode) : ""}
-        ${renderPeladaDetailNav(detailView, teamPresets, selectedPelada, jogadores, gameMode)}
+        ${gameMode === "bagrecup"
+          ? renderBagreCupControlBar(selectedPelada, jogos, teamPresets, detailView)
+          : gameMode
+            ? renderPeladaGameModeBar(selectedPelada, jogos, gameMode)
+            : ""}
+        ${gameMode === "bagrecup"
+          ? renderBagreCupSectionNav(detailView)
+          : gameMode
+            ? renderPeladaDetailNav(detailView, teamPresets, selectedPelada, jogadores, gameMode)
+            : ""}
         <div class="pelada-detail-view" data-pelada-detail-view="${escapeHtml(detailView)}">
-          ${detailView === "times"
-            ? renderTeamPresetsPanel(selectedPelada, teamPresets, jogadores, gameMode)
-            : detailView === "presencas"
+          ${!gameMode
+            ? renderPeladaGameModeSelector(selectedPelada)
+            : detailView === "times"
+              ? renderTeamPresetsPanel(selectedPelada, teamPresets, jogadores, gameMode)
+            : gameMode !== "bagrecup" && detailView === "presencas"
               ? renderPeladaPresencePanel(selectedPelada, jogadores, activePresenceBundle, gameMode)
-              : !gameMode
-                ? renderPeladaGameModeSelector(selectedPelada)
-                : gameMode === "bagrecup"
-                  ? `
-                    ${renderBagreCupDashboard(selectedPelada, jogos, teamPresets, jogadores)}
-                    ${renderGameHistory(selectedPelada, jogos, eventsByGameId, playerById, peladaSummary)}
-                  `
-                  : `
-                    ${renderGameSetup(selectedPelada, jogadores, teamPresets)}
-                    ${renderGameHistory(selectedPelada, jogos, eventsByGameId, playerById, peladaSummary)}
-                  `}
+            : gameMode === "bagrecup"
+              ? renderBagreCupView(detailView, selectedPelada, jogos, teamPresets, jogadores, eventsByGameId, playerById, peladaSummary)
+              : `
+                ${renderGameSetup(selectedPelada, jogadores, teamPresets)}
+                ${renderGameHistory(selectedPelada, jogos, eventsByGameId, playerById, peladaSummary)}
+              `}
         </div>
       </div>
     `;
@@ -6001,8 +6018,51 @@
     `;
   }
 
+  function renderBagreCupControlBar(pelada, games = [], presets = [], activeView = "torneio") {
+    const canChange = hasPermission("times:montar") && !games.length && !isFinalizedPelada(pelada);
+    const canConfigure = canChange;
+    const settings = getBagreCupSettings(pelada);
+    const completeTeams = presets
+      .slice(0, 4)
+      .filter((preset) => getPresetCompleteness(preset, 5, true).complete).length;
+
+    return `
+      <section class="bagrecup-control-bar" aria-label="Configurações da BagreCup">
+        <div class="bagrecup-mode-compact">
+          <span class="game-mode-option-mark is-cup">BC</span>
+          <span><small>Modo</small><strong>BagreCup</strong></span>
+          ${canChange ? `<button type="button" data-pelada-action="clear-game-mode" aria-label="Trocar modo de jogo">Trocar</button>` : ""}
+        </div>
+        <button class="bagrecup-teams-shortcut ${activeView === "times" ? "active" : ""}" type="button" data-pelada-action="show-detail-times">
+          <small>Times</small><strong>${escapeHtml(completeTeams)}/4</strong>
+        </button>
+        <label class="bagrecup-third-place-compact ${canConfigure ? "" : "is-locked"}">
+          <span><small>Disputa</small><strong>3º lugar</strong></span>
+          <input type="checkbox" data-bagrecup-third-place ${settings.terceiroLugar ? "checked" : ""} ${canConfigure ? "" : "disabled"} />
+          <i aria-hidden="true"></i>
+        </label>
+      </section>
+    `;
+  }
+
+  function renderBagreCupSectionNav(activeView = "torneio") {
+    return `
+      <nav class="bagrecup-section-tabs" aria-label="Área do torneio">
+        ${[
+          ["torneio", "Torneio", "show-bagrecup-tournament"],
+          ["classificacao", "Classificação", "show-bagrecup-standings"],
+          ["chaveamento", "Chaveamento", "show-bagrecup-bracket"],
+        ].map(([view, label, action]) => `
+          <button class="${activeView === view ? "active" : ""}" type="button" data-pelada-action="${action}" aria-current="${activeView === view ? "page" : "false"}">
+            ${label}
+          </button>
+        `).join("")}
+      </nav>
+    `;
+  }
+
   function renderPeladaDetailNav(activeView, presets = [], pelada = null, jogadores = [], gameMode = "") {
-    const requiredLineCount = gameMode === "bagrecup" ? 4 : 5;
+    const requiredLineCount = 5;
     const incomplete = presets.filter((preset) => !getPresetCompleteness(preset, requiredLineCount).complete).length;
     const presentCount = jogadores.filter(
       (player) => !isReserveGoalkeeperPlayer(player) && isPlayerPresentAtPelada(pelada, player)
@@ -6055,16 +6115,16 @@
     return `
       <section class="pelada-presence-panel">
         <header class="presence-summary-header">
-          <div><span class="panel-kicker">Organização</span><h3>${gameMode === "bagrecup" ? "Presenças da BagreCup" : "Presenças e Time da vez"}</h3></div>
+          <div><span class="panel-kicker">Organização</span><h3>Presenças e Time da vez</h3></div>
           <div class="presence-summary-metrics">
             <span><strong>${escapeHtml(presentCount)}</strong><small>Presentes</small></span>
             <span><strong>${escapeHtml(lateCount)}</strong><small>Atrasados</small></span>
             <span><strong>${escapeHtml(absentCount)}</strong><small>Inativos</small></span>
-            ${gameMode === "bagrecup" ? "" : `<span><strong>${escapeHtml(queue.length)}</strong><small>Time da vez</small></span>`}
+            <span><strong>${escapeHtml(queue.length)}</strong><small>Time da vez</small></span>
           </div>
         </header>
 
-        ${gameMode === "bagrecup" ? "" : renderTimeDaVezCard(pelada, jogadores)}
+        ${renderTimeDaVezCard(pelada, jogadores)}
 
         <section class="presence-group is-goalkeepers">
           <header><span>Goleiros da rodada</span><strong>${escapeHtml(goalkeepers.filter((player) => isPlayerPresentAtPelada(pelada, player)).length)} disponíveis</strong></header>
@@ -6488,13 +6548,13 @@
         </header>
         ${presets.length
           ? `<div class="team-presets-grid">
-              ${presets.map((preset, index) => renderTeamPresetCard(preset, index, playerById, canManage, isCup ? 4 : 5)).join("")}
+              ${presets.map((preset, index) => renderTeamPresetCard(preset, index, playerById, canManage, 5, isCup)).join("")}
             </div>`
           : `<div class="team-presets-empty">
               <span aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM16 10a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM3 19c0-3 2.1-5 5-5s5 2 5 5M13 15c.8-.7 1.8-1 3-1 2.8 0 4.5 1.9 4.5 4.5"/></svg>
               </span>
-              <div><h3>Nenhum time salvo</h3><p>${isCup ? "Crie os 4 times com 5 jogadores para iniciar o torneio." : "Times salvos são opcionais. Você pode montar cada confronto diretamente na aba Confrontos."}</p></div>
+              <div><h3>Nenhum time salvo</h3><p>${isCup ? "Crie os 4 times com 5 jogadores de linha e 1 goleiro." : "Times salvos são opcionais. Você pode montar cada confronto diretamente na aba Confrontos."}</p></div>
               ${canAdd ? `<button class="primary-button" type="button" data-pelada-action="add-team-preset">${isCup ? "Criar primeiro time" : "Criar time reutilizável"}</button>` : ""}
             </div>`}
         ${isCup ? `<footer class="bagrecup-team-limit"><strong>${escapeHtml(Math.min(presets.length, 4))}/4 times</strong><span>${presets.length === 4 ? "Chave completa" : "Complete os times para gerar os confrontos"}</span></footer>` : ""}
@@ -6502,19 +6562,20 @@
     `;
   }
 
-  function renderTeamPresetCard(preset, index, playerById, canManage, requiredLineCount = 5) {
-    const completeness = getPresetCompleteness(preset, requiredLineCount);
+  function renderTeamPresetCard(preset, index, playerById, canManage, requiredLineCount = 5, requireGoalkeeper = false) {
+    const completeness = getPresetCompleteness(preset, requiredLineCount, requireGoalkeeper);
     const linePlayers = uniqueIds(preset.linha || []).map((id) => playerById.get(id)).filter(Boolean);
+    const goalkeeper = playerById.get(preset.goleiroId) || null;
 
     return `
       <article class="team-preset-card ${completeness.complete ? "is-complete" : "is-incomplete"}" style="--team-color:${escapeHtml(preset.cor || "#ff5a00")}">
         <div class="team-preset-top">
           <span class="team-preset-index">${String(index + 1).padStart(2, "0")}</span>
-          <span class="team-preset-status"><i></i>${completeness.complete ? "Completo" : `${completeness.total}/${requiredLineCount}`}</span>
+          <span class="team-preset-status"><i></i>${completeness.complete ? "Completo" : `${completeness.total}/${requiredLineCount + (requireGoalkeeper ? 1 : 0)}`}</span>
         </div>
         <div class="team-preset-identity">
           <span class="team-preset-monogram">${escapeHtml(getLiveTeamInitials(preset.nome, "T"))}</span>
-          <span><strong>${escapeHtml(preset.nome || "Time")}</strong><small>${requiredLineCount === 4 ? `${escapeHtml(completeness.lineCount + 1)}/5 jogadores com o goleiro` : `${escapeHtml(completeness.lineCount)}/5 jogadores de linha`}</small></span>
+          <span><strong>${escapeHtml(preset.nome || "Time")}</strong><small>${requireGoalkeeper ? `${escapeHtml(completeness.total)}/6 jogadores` : `${escapeHtml(completeness.lineCount)}/5 jogadores de linha`}</small></span>
         </div>
         <div class="team-preset-roster">
           <div class="team-preset-line">
@@ -6522,6 +6583,13 @@
               ? linePlayers.map((player) => `<span>${renderPlayerAvatar(player, "player-avatar team-preset-avatar")}<small>${escapeHtml(shortPlayerName(player))}</small></span>`).join("")
               : `<small class="team-preset-no-line">Nenhum jogador de linha</small>`}
           </div>
+          ${requireGoalkeeper ? `
+            <div class="team-preset-goalkeeper ${goalkeeper ? "" : "is-empty"}">
+              <small>GK</small>
+              ${goalkeeper ? renderPlayerAvatar(goalkeeper, "player-avatar team-preset-avatar") : `<i>+</i>`}
+              <strong>${goalkeeper ? escapeHtml(shortPlayerName(goalkeeper)) : "Sem goleiro"}</strong>
+            </div>
+          ` : ""}
         </div>
         ${canManage ? `
           <div class="team-preset-actions">
@@ -6688,9 +6756,9 @@
     }
 
     ensureBagreCupDraft(pelada, fixture, presets);
-    const presentPlayers = getPresentPlayersForPelada(pelada, jogadores);
-    const draft = normalizeGameDraft(presentPlayers);
-    const readiness = getGameDraftReadiness(draft, 4);
+    const availablePlayers = jogadores;
+    const draft = normalizeGameDraft(availablePlayers);
+    const readiness = getGameDraftReadiness(draft, 5);
 
     return `
       <section class="data-card game-setup-card next-match-card bagrecup-next-match ${readiness.complete ? "is-ready" : "is-incomplete"}">
@@ -6709,8 +6777,8 @@
             ${renderMatchIdentityDisplay(draft.B)}
           </div>
           <div class="match-lineup-grid">
-            ${renderMatchLineupCard("A", draft.A, presentPlayers, true, true, 4)}
-            ${renderMatchLineupCard("B", draft.B, presentPlayers, true, true, 4)}
+            ${renderMatchLineupCard("A", draft.A, availablePlayers, true, true, 5)}
+            ${renderMatchLineupCard("B", draft.B, availablePlayers, true, true, 5)}
           </div>
           <div class="form-actions">
             <button class="primary-button big-touch start-next-game-button" type="submit" ${readiness.complete ? "" : "disabled"}>
@@ -6722,58 +6790,91 @@
     `;
   }
 
-  function renderBagreCupDashboard(pelada, games = [], presets = [], jogadores = []) {
-    const progress = buildBagreCupProgress(pelada, games, presets);
-    const settings = getBagreCupSettings(pelada);
-    const completeTeams = progress.teams.filter((team) => getPresetCompleteness(team, 4).complete).length;
-    const ready = progress.teams.length === 4 && completeTeams === 4;
-    const presetById = new Map(progress.teams.map((team) => [team.id, team]));
-    const canConfigure = hasPermission("times:montar") && !games.length && !isFinalizedPelada(pelada);
-
-    if (!ready) {
-      return `
-        <section class="bagrecup-dashboard">
-          <header class="bagrecup-hero">
-            <span class="bagrecup-logo">BC</span>
-            <span><small>Mini torneio</small><h2>BagreCup</h2></span>
-            <em>10 min</em>
-          </header>
-          <section class="bagrecup-readiness-card">
-            <div><span class="panel-kicker">Preparação</span><h3>${escapeHtml(completeTeams)}/4 times completos</h3></div>
-            <div class="bagrecup-readiness-track"><i style="width:${escapeHtml((completeTeams / 4) * 100)}%"></i></div>
-            <button class="primary-button big-touch" type="button" data-pelada-action="show-detail-times">Organizar times</button>
-          </section>
-        </section>
-      `;
-    }
-
+  function renderBagreCupReadiness(presets = []) {
+    const completeTeams = presets
+      .slice(0, 4)
+      .filter((team) => getPresetCompleteness(team, 5, true).complete).length;
     return `
-      <section class="bagrecup-dashboard">
-        <header class="bagrecup-hero">
-          <span class="bagrecup-logo">BC</span>
-          <span><small>Mini torneio</small><h2>BagreCup</h2></span>
-          <em>${progress.complete ? "Encerrada" : "Em disputa"}</em>
-        </header>
+      <section class="bagrecup-readiness-card">
+        <div><span class="panel-kicker">Formação dos times</span><h3>${escapeHtml(completeTeams)}/4 completos</h3></div>
+        <div class="bagrecup-readiness-track"><i style="width:${escapeHtml((completeTeams / 4) * 100)}%"></i></div>
+        <button class="primary-button big-touch" type="button" data-pelada-action="show-detail-times">Organizar times</button>
+      </section>
+    `;
+  }
+
+  function renderBagreCupTournamentView(pelada, progress, presets, jogadores, eventsByGameId, playerById, peladaSummary) {
+    const presetById = new Map(progress.teams.map((team) => [team.id, team]));
+    return `
+      <section class="bagrecup-dashboard bagrecup-tournament-view">
         ${progress.champion ? `
           <section class="bagrecup-champion" style="--team-color:${escapeHtml(progress.champion.cor || "#ff5a00")}">
             <small>Campeão</small><strong>${escapeHtml(progress.champion.nome || "BagreCup")}</strong>
           </section>
         ` : ""}
-        <label class="bagrecup-third-place-toggle ${canConfigure ? "" : "is-locked"}">
-          <span><strong>Disputa de 3º lugar</strong><small>Após as semifinais</small></span>
-          <input type="checkbox" data-bagrecup-third-place ${settings.terceiroLugar ? "checked" : ""} ${canConfigure ? "" : "disabled"} />
-          <i aria-hidden="true"></i>
-        </label>
-        ${renderBagreCupStandings(progress)}
         ${!progress.complete ? renderBagreCupNextMatch(pelada, progress.nextFixture, presets, jogadores) : ""}
         <section class="bagrecup-fixtures-board">
-          <header><span class="panel-kicker">Tabela</span><strong>${escapeHtml(progress.fixtures.filter((fixture) => normalizeToken(fixture.game?.status) === "finalizado").length)}/${escapeHtml(progress.fixtures.length)} jogos</strong></header>
+          <header><span class="panel-kicker">Jogos do torneio</span><strong>${escapeHtml(progress.fixtures.filter((fixture) => normalizeToken(fixture.game?.status) === "finalizado").length)}/${escapeHtml(progress.fixtures.length)} jogos</strong></header>
           <div class="bagrecup-fixtures-list">
             ${progress.fixtures.map((fixture) => renderBagreCupFixtureCard(fixture, presetById)).join("")}
           </div>
         </section>
+        ${renderGameHistory(pelada, progress.tournamentGames, eventsByGameId, playerById, peladaSummary)}
       </section>
     `;
+  }
+
+  function renderBagreCupClassificationView(progress) {
+    const presetById = new Map(progress.teams.map((team) => [team.id, team]));
+    return `
+      <section class="bagrecup-dashboard bagrecup-classification-view">
+        ${renderBagreCupStandings(progress)}
+        <section class="bagrecup-fixtures-board">
+          <header><span class="panel-kicker">Tabela da fase de grupos</span><strong>6 jogos</strong></header>
+          <div class="bagrecup-fixtures-list">
+            ${progress.groupFixtures.map((fixture) => renderBagreCupFixtureCard(fixture, presetById)).join("")}
+          </div>
+        </section>
+      </section>
+    `;
+  }
+
+  function renderBagreCupBracketView(progress) {
+    const presetById = new Map(progress.teams.map((team) => [team.id, team]));
+    const knockoutFixtures = [...progress.semifinalFixtures, ...progress.finalFixtures];
+    return `
+      <section class="bagrecup-dashboard bagrecup-bracket-view">
+        ${progress.champion ? `
+          <section class="bagrecup-champion" style="--team-color:${escapeHtml(progress.champion.cor || "#ff5a00")}">
+            <small>Campeão</small><strong>${escapeHtml(progress.champion.nome || "BagreCup")}</strong>
+          </section>
+        ` : ""}
+        ${knockoutFixtures.length ? `
+          <section class="bagrecup-fixtures-board">
+            <header><span class="panel-kicker">Mata-mata</span><strong>Semifinais e final</strong></header>
+            <div class="bagrecup-bracket-grid">
+              ${knockoutFixtures.map((fixture) => renderBagreCupFixtureCard(fixture, presetById)).join("")}
+            </div>
+          </section>
+        ` : `
+          <section class="bagrecup-bracket-locked">
+            <span aria-hidden="true">BC</span>
+            <div><strong>Chaveamento aguardando</strong><small>Os confrontos serão definidos após os 6 jogos da fase de grupos.</small></div>
+          </section>
+        `}
+      </section>
+    `;
+  }
+
+  function renderBagreCupView(activeView, pelada, games = [], presets = [], jogadores = [], eventsByGameId = new Map(), playerById = new Map(), peladaSummary = null) {
+    const progress = buildBagreCupProgress(pelada, games, presets);
+    const completeTeams = progress.teams.filter((team) => getPresetCompleteness(team, 5, true).complete).length;
+    const ready = progress.teams.length === 4 && completeTeams === 4;
+
+    if (!ready) return renderBagreCupReadiness(presets);
+    if (activeView === "classificacao") return renderBagreCupClassificationView(progress);
+    if (activeView === "chaveamento") return renderBagreCupBracketView(progress);
+    return renderBagreCupTournamentView(pelada, progress, presets, jogadores, eventsByGameId, playerById, peladaSummary);
   }
 
   function renderPresetOptions(presets, selectedId, blockedId) {
@@ -6985,8 +7086,10 @@
       readActivePlayers(),
       state.selectedPeladaId ? getRecord("peladas", state.selectedPeladaId) : Promise.resolve(null),
     ]);
-    const jogadores = getPresentPlayersForPelada(pelada, allPlayers);
-    const requiredLineCount = getPeladaGameMode(pelada) === "bagrecup" ? 4 : 5;
+    const jogadores = getPeladaGameMode(pelada) === "bagrecup"
+      ? allPlayers
+      : getPresentPlayersForPelada(pelada, allPlayers);
+    const requiredLineCount = 5;
     normalizeGameDraft(jogadores);
     const teamName = state.gameDraft[teamKey]?.nome || `Time ${teamKey}`;
 
@@ -7071,22 +7174,30 @@
     });
   }
 
-  function renderTeamPresetEditor(preset, players, presets, requiredLineCount = 5) {
+  function renderTeamPresetEditor(preset, players, presets, requiredLineCount = 5, requireGoalkeeper = false) {
     const linePlayers = players.filter((player) => isLineupPlayer(player) && !isReserveGoalkeeperPlayer(player));
+    const goalkeepers = players.filter(isGoalkeeperCandidate);
     const assignedElsewhere = new Map();
     presets
       .filter((item) => item.id !== preset?.id)
       .forEach((item) => {
         uniqueIds(item.linha || []).forEach((playerId) => assignedElsewhere.set(playerId, item.nome || "Outro time"));
+        if (item.goleiroId) assignedElsewhere.set(item.goleiroId, item.nome || "Outro time");
+        if (item.goleiroReservaOperadorId) assignedElsewhere.set(item.goleiroReservaOperadorId, item.nome || "Outro time");
       });
     const selectedLine = new Set(preset?.linha || []);
+    const selectedGoalkeeperId = preset?.goleiroId || "";
+    const selectedGoalkeeper = players.find((player) => player.id === selectedGoalkeeperId) || null;
+    const reserveOperatorCandidates = players.filter((player) =>
+      !isReserveGoalkeeperPlayer(player) && !assignedElsewhere.has(player.id)
+    );
 
     return `
       <form class="team-preset-form" id="team-preset-form" data-preset-id="${escapeHtml(preset?.id || "")}" novalidate>
         <div class="form-errors" id="team-preset-errors" hidden></div>
         <section class="team-preset-form-hero" style="--team-color:${escapeHtml(preset?.cor || "#ff5a00")}">
           <span class="team-preset-form-icon">${escapeHtml(getLiveTeamInitials(preset?.nome, "T"))}</span>
-          <div><span>Time da pelada</span><h3>${escapeHtml(preset?.nome || "Novo time")}</h3><p>${requiredLineCount + 1} jogadores por time: ${requiredLineCount} de linha e 1 goleiro.</p></div>
+          <div><span>Time da pelada</span><h3>${escapeHtml(preset?.nome || "Novo time")}</h3><p>${requireGoalkeeper ? `${requiredLineCount} de linha e 1 goleiro.` : `${requiredLineCount} jogadores de linha.`}</p></div>
         </section>
         <div class="team-preset-basics">
           <label class="field-label"><span>Nome do time</span><input name="nome" value="${escapeHtml(preset?.nome || "")}" maxlength="28" placeholder="Ex.: Time A" required /></label>
@@ -7108,6 +7219,30 @@
             `;
           }).join("")}
         </div>
+        ${requireGoalkeeper ? `
+          <div class="team-preset-player-heading"><span>Goleiro</span><strong data-goalkeeper-count>${selectedGoalkeeperId ? "1/1" : "0/1"}</strong></div>
+          <div class="team-preset-player-list is-goalkeepers">
+            ${goalkeepers.map((player) => {
+              const assignedTeam = assignedElsewhere.get(player.id);
+              const checked = selectedGoalkeeperId === player.id;
+              const blocked = Boolean(assignedTeam) || selectedLine.has(player.id);
+              return `
+                <label class="team-preset-player-option ${checked ? "is-selected" : ""} ${blocked ? "is-disabled" : ""}" data-goalkeeper-option>
+                  <input type="radio" name="goleiroId" value="${escapeHtml(player.id)}" ${checked ? "checked" : ""} ${blocked ? "disabled" : ""} data-reserve-goalkeeper="${isReserveGoalkeeperPlayer(player)}" />
+                  ${renderPlayerAvatar(player, "player-avatar small")}
+                  <span><strong>${escapeHtml(playerDisplayName(player))}</strong><small>${escapeHtml(isReserveGoalkeeperPlayer(player) ? "Carta reserva" : player.posicaoPrincipal || "Goleiro")}${assignedTeam ? ` · ${escapeHtml(assignedTeam)}` : ""}</small></span>
+                  <i aria-hidden="true">✓</i>
+                </label>
+              `;
+            }).join("") || `<p class="presence-empty">Nenhum goleiro cadastrado.</p>`}
+          </div>
+          <label class="field-label team-preset-reserve-operator" data-team-preset-reserve-field ${isReserveGoalkeeperPlayer(selectedGoalkeeper) ? "" : "hidden"}>
+            <span>Quem vai usar a carta Goleiro Reserva?</span>
+            <select name="goleiroReservaOperadorId">
+              ${renderPlayerOptions(reserveOperatorCandidates, preset?.goleiroReservaOperadorId || "", "Escolha quem vai agarrar")}
+            </select>
+          </label>
+        ` : ""}
         <div class="team-preset-form-note"><strong>Time incompleto?</strong><span>Você pode salvar agora e completar antes de iniciar a partida.</span></div>
         <div class="form-actions">
           <button class="primary-button big-touch" type="submit">Salvar time</button>
@@ -7130,25 +7265,43 @@
       window.alert("A BagreCup já possui os 4 times.");
       return;
     }
-    const players = isCup ? getPresentPlayersForPelada(pelada, allPlayers) : allPlayers;
-    const requiredLineCount = isCup ? 4 : 5;
-    const modal = openLiveModal(preset ? "Editar time" : "Criar time", renderTeamPresetEditor(preset, players, presets, requiredLineCount));
+    const players = allPlayers;
+    const requiredLineCount = 5;
+    const modal = openLiveModal(preset ? "Editar time" : "Criar time", renderTeamPresetEditor(preset, players, presets, requiredLineCount, isCup));
     const form = modal.querySelector("#team-preset-form");
     const lineInputs = [...form.querySelectorAll('input[name="linhaIds"]')];
+    const goalkeeperInputs = [...form.querySelectorAll('input[name="goleiroId"]')];
     const countLabel = form.querySelector("[data-line-count]");
+    const goalkeeperCountLabel = form.querySelector("[data-goalkeeper-count]");
+    const reserveField = form.querySelector("[data-team-preset-reserve-field]");
 
     const refreshOptions = () => {
-      let checkedCount = lineInputs.filter((input) => input.checked).length;
+      const selectedGoalkeeperInput = goalkeeperInputs.find((input) => input.checked) || null;
+      const selectedGoalkeeperId = selectedGoalkeeperInput?.value || "";
+      const checkedCount = lineInputs.filter((input) => input.checked).length;
       lineInputs.forEach((input) => {
         const option = input.closest("[data-player-option]");
-        input.disabled = input.dataset.assigned === "true" || (!input.checked && checkedCount >= requiredLineCount);
+        input.disabled = input.dataset.assigned === "true" || input.value === selectedGoalkeeperId || (!input.checked && checkedCount >= requiredLineCount);
+        option?.classList.toggle("is-selected", input.checked);
+        option?.classList.toggle("is-disabled", input.disabled);
+      });
+      const selectedLineIds = new Set(lineInputs.filter((input) => input.checked).map((input) => input.value));
+      goalkeeperInputs.forEach((input) => {
+        const option = input.closest("[data-goalkeeper-option]");
+        input.disabled = input.dataset.assigned === "true" || selectedLineIds.has(input.value);
         option?.classList.toggle("is-selected", input.checked);
         option?.classList.toggle("is-disabled", input.disabled);
       });
       countLabel.textContent = `${checkedCount}/${requiredLineCount}`;
+      if (goalkeeperCountLabel) goalkeeperCountLabel.textContent = selectedGoalkeeperId ? "1/1" : "0/1";
+      if (reserveField) reserveField.hidden = selectedGoalkeeperInput?.dataset.reserveGoalkeeper !== "true";
     };
 
     lineInputs.forEach((input) => {
+      if (input.disabled) input.dataset.assigned = "true";
+      input.addEventListener("change", refreshOptions);
+    });
+    goalkeeperInputs.forEach((input) => {
       if (input.disabled) input.dataset.assigned = "true";
       input.addEventListener("change", refreshOptions);
     });
@@ -7158,9 +7311,20 @@
       event.preventDefault();
       const nome = String(form.elements.nome?.value || "").trim();
       const linha = lineInputs.filter((input) => input.checked && !input.disabled).map((input) => input.value);
+      const goleiroId = form.querySelector('input[name="goleiroId"]:checked:not(:disabled)')?.value || "";
+      const selectedGoalkeeper = players.find((player) => player.id === goleiroId) || null;
+      const goleiroReservaOperadorId = isReserveGoalkeeperPlayer(selectedGoalkeeper)
+        ? form.elements.goleiroReservaOperadorId?.value || ""
+        : "";
       const errors = [];
       if (!nome) errors.push("Informe o nome do time.");
       if (linha.length > requiredLineCount) errors.push(`Escolha no máximo ${requiredLineCount} jogadores de linha.`);
+      if (isCup && isReserveGoalkeeperPlayer(selectedGoalkeeper) && !goleiroReservaOperadorId) {
+        errors.push("Escolha quem vai usar a carta Goleiro Reserva.");
+      }
+      if (goleiroReservaOperadorId && linha.includes(goleiroReservaOperadorId)) {
+        errors.push("Quem usa a carta Goleiro Reserva não pode estar na linha.");
+      }
       showFormErrors("team-preset-errors", errors);
       if (errors.length) return;
 
@@ -7175,8 +7339,9 @@
         nome,
         cor: form.elements.cor?.value || "#ff5a00",
         linha: uniqueIds(linha),
-        goleiroId: "",
-        jogadores: uniqueIds(linha),
+        goleiroId,
+        goleiroReservaOperadorId,
+        jogadores: uniqueIds([goleiroId, ...linha]),
         status: "Ativo",
         createdAt: preset?.createdAt || savedAt,
         updatedAt: savedAt,
@@ -7189,6 +7354,14 @@
       });
       closeLiveModal();
       resetMatchSetupState();
+      const nextPresets = preset
+        ? presets.map((item) => item.id === record.id ? record : item)
+        : [...presets, record];
+      const cupWasReady = presets.length === 4 && presets.every((item) => getPresetCompleteness(item, 5, true).complete);
+      const cupIsReady = nextPresets.length === 4 && nextPresets.every((item) => getPresetCompleteness(item, 5, true).complete);
+      if (isCup && !cupWasReady && cupIsReady) {
+        state.peladaDetailView = "torneio";
+      }
       await renderCurrentSection();
       runBackgroundTask(syncNow, "Falha ao sincronizar time da pelada");
     });
@@ -7886,7 +8059,7 @@
       proximoConfronto: normalizedMode === "bagrecup" ? null : pelada.proximoConfronto || null,
     }, normalizedMode ? `definir-modo-${normalizedMode}` : "limpar-modo");
     resetMatchSetupState();
-    state.peladaDetailView = "confrontos";
+    state.peladaDetailView = normalizedMode === "bagrecup" ? "times" : "confrontos";
     await renderCurrentSection();
   }
 
@@ -8090,6 +8263,16 @@
         state.selectedGameSummaryId = null;
         state.peladasView = "finalizadas";
         await switchSection("peladas", { peladasView: "finalizadas", historyMode: "replace" });
+        return;
+      }
+
+      if (["show-bagrecup-tournament", "show-bagrecup-standings", "show-bagrecup-bracket"].includes(action)) {
+        state.peladaDetailView = action === "show-bagrecup-standings"
+          ? "classificacao"
+          : action === "show-bagrecup-bracket"
+            ? "chaveamento"
+            : "torneio";
+        await renderCurrentSection();
         return;
       }
 
@@ -8870,12 +9053,13 @@
       auditLog: [createAuditRecord("peladas", peladaRecord.id, "criar", null, peladaRecord)],
     });
 
-    state.selectedPeladaId = null;
+    state.selectedPeladaId = peladaRecord.id;
     state.selectedGameSummaryId = null;
-    state.peladasView = "gerenciar";
+    state.peladasView = "detalhe";
+    state.peladaDetailView = "confrontos";
     resetMatchSetupState();
     form.reset();
-    await switchSection("peladas", { historyMode: "replace", peladasView: "gerenciar" });
+    await switchSection("peladas", { historyMode: "replace", peladaId: peladaRecord.id });
     await syncNow();
   }
 
@@ -8959,32 +9143,46 @@
         nome: team.nome,
         cor: team.cor,
         linha: uniqueIds(team.linha).slice(0, 5),
+        goleiroId: team.goleiroId || "",
+        goleiroReservaOperadorId: team.goleiroReservaOperadorId || "",
       });
     });
 
     if (!desiredByPresetId.size) return [];
 
     const claimedPlayerIds = new Set(
-      [...desiredByPresetId.values()].flatMap((desired) => desired.linha)
+      [...desiredByPresetId.values()].flatMap((desired) => [desired.goleiroId, ...desired.linha].filter(Boolean))
     );
 
     return presets.flatMap((preset) => {
       const desired = desiredByPresetId.get(preset.id) || null;
       const currentLine = uniqueIds(preset.linha || []).slice(0, 5);
+      const currentGoalkeeperId = preset.goleiroId || "";
       const nextLine = desired
         ? desired.linha
         : currentLine.filter((playerId) => !claimedPlayerIds.has(playerId));
+      const nextGoalkeeperId = desired
+        ? desired.goleiroId
+        : claimedPlayerIds.has(currentGoalkeeperId)
+          ? ""
+          : currentGoalkeeperId;
       const lineupChanged = currentLine.length !== nextLine.length ||
-        currentLine.some((playerId, index) => playerId !== nextLine[index]);
+        currentLine.some((playerId, index) => playerId !== nextLine[index]) ||
+        currentGoalkeeperId !== nextGoalkeeperId;
 
       if (!desired && !lineupChanged) return [];
 
       return [{
         ...preset,
         ...(desired ? { nome: desired.nome, cor: desired.cor } : {}),
-        jogadores: [...nextLine],
+        jogadores: uniqueIds([nextGoalkeeperId, ...nextLine]),
         linha: [...nextLine],
-        goleiroId: "",
+        goleiroId: nextGoalkeeperId,
+        goleiroReservaOperadorId: desired
+          ? desired.goleiroReservaOperadorId
+          : nextGoalkeeperId
+            ? preset.goleiroReservaOperadorId || ""
+            : "",
         updatedAt: savedAt,
         revision: (preset.revision || 0) + 1,
       }];
@@ -8993,7 +9191,7 @@
 
   function validateGameForm(data, selectedPelada, activeGame, jogadores = []) {
     const errors = [];
-    const requiredLineCount = getPeladaGameMode(selectedPelada) === "bagrecup" ? 4 : 5;
+    const requiredLineCount = 5;
 
     if (!selectedPelada) errors.push("Selecione ou crie uma pelada.");
     if (activeGame) errors.push("Finalize o jogo em andamento antes de iniciar outro.");
@@ -9054,10 +9252,10 @@
       state.selectedPeladaId ? readGamesForPelada(state.selectedPeladaId) : Promise.resolve([]),
       state.selectedPeladaId ? readTeamPresets(state.selectedPeladaId) : Promise.resolve([]),
     ]);
-    const presentPlayers = getPresentPlayersForPelada(pelada, jogadores);
-    const data = collectGameFormData(form, presentPlayers);
-    const errors = validateGameForm(data, pelada, activeGame, presentPlayers);
     const gameMode = getPeladaGameMode(pelada, peladaGames) || "classica";
+    const availablePlayers = gameMode === "bagrecup" ? jogadores : getPresentPlayersForPelada(pelada, jogadores);
+    const data = collectGameFormData(form, availablePlayers);
+    const errors = validateGameForm(data, pelada, activeGame, availablePlayers);
     const cupProgress = gameMode === "bagrecup" ? buildBagreCupProgress(pelada, peladaGames, presets) : null;
     const cupFixture = cupProgress?.nextFixture || null;
     if (gameMode === "bagrecup") {
@@ -9164,7 +9362,7 @@
           updatedAt: savedAt,
           revision: (pelada.revision || 0) + 1,
         }
-      : buildPeladaGameStartUpdate(pelada, data, presentPlayers, savedAt);
+      : buildPeladaGameStartUpdate(pelada, data, availablePlayers, savedAt);
     jogoRecord.filaJogadores = [...(updatedPelada.filaJogadores || [])];
     const escalacoes = [
       ...data.timeA.jogadores.map((jogadorId) => ({
@@ -9994,7 +10192,9 @@
     const activeOnField = new Set(
       [...(bundle.playersA || []), ...(bundle.playersB || [])].map((player) => player.id)
     );
-    const presentPlayers = getPresentPlayersForPelada(bundle.pelada, activePlayers);
+    const presentPlayers = isBagreCupGame(bundle.jogo, bundle.pelada)
+      ? activePlayers
+      : getPresentPlayersForPelada(bundle.pelada, activePlayers);
     const outgoingIsGoalkeeper = isGoalkeeperCandidate(outgoingPlayer);
     const candidates = presentPlayers
       .filter((player) => !activeOnField.has(player.id) && !isReserveGoalkeeperPlayer(player))

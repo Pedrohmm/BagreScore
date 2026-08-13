@@ -440,6 +440,16 @@ Não é necessário atualizar o `Code.gs` para a versão 1.3.28.
 
 Esta versão altera o `Code.gs` para impedir que jogos da BagreCup sejam encerrados automaticamente ao atingir 2 gols. Atualize o Apps Script e publique uma **nova versão da implantação**. A URL `/exec` pode continuar a mesma.
 
+## Atualização 1.4.1 — fluxo e organização da BagreCup
+
+- A escolha da BagreCup direciona diretamente para a formação dos 4 times.
+- Cada time possui 5 jogadores de linha e 1 goleiro.
+- A tela do torneio foi dividida em **Torneio**, **Classificação** e **Chaveamento**.
+- Times e disputa de 3º lugar ficam na barra compacta superior; Presenças permanece apenas na Pelada Clássica.
+- Ao concluir os 4 times, o app abre automaticamente o gerenciamento do torneio.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.4.1.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.
