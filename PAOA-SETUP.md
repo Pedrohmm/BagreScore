@@ -467,6 +467,13 @@ Não é necessário atualizar o `Code.gs` para a versão 1.4.2.
 
 Não é necessário atualizar o `Code.gs` para a versão 1.4.3. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.4.4 — acabamento do histórico e próximo time
+
+- O botão **Editar** foi removido do painel **Próximo desafiante**; os próprios jogadores e vagas continuam abrindo a escalação.
+- O símbolo verde dos gols no histórico foi substituído por uma bola de futebol em SVG, com desenho branco e preto mais reconhecível e profissional.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.4.4. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.

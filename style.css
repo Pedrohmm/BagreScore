@@ -23328,19 +23328,39 @@ body[data-section="peladas"] .game-history-goal-row {
 }
 
 body[data-section="peladas"] .game-history-goal-icon {
-  display: grid;
+  display: inline-grid;
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
   place-items: center;
-  color: #56dc7e;
+  border-radius: 50%;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
 }
 
 body[data-section="peladas"] .game-history-goal-icon svg {
-  width: 15px;
-  height: 15px;
+  display: block;
+  width: 18px;
+  height: 18px;
+  overflow: visible;
+}
+
+body[data-section="peladas"] .game-history-goal-icon .soccer-ball-shell {
+  fill: #f4f5f5;
+  stroke: #aeb6b2;
+  stroke-width: 0.75;
+}
+
+body[data-section="peladas"] .game-history-goal-icon .soccer-ball-panel {
+  fill: #151817;
+  stroke: none;
+}
+
+body[data-section="peladas"] .game-history-goal-icon .soccer-ball-seam {
   fill: none;
-  stroke: currentColor;
+  stroke: #242826;
+  stroke-width: 0.72;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.55;
 }
 
 body[data-section="peladas"] .game-history-goal-row strong {
@@ -24348,7 +24368,7 @@ body[data-section="ao-vivo"] .live-next-team-card {
 
 body[data-section="ao-vivo"] .live-next-team-card header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   min-height: 30px;
   align-items: center;
   gap: 8px;
@@ -24404,33 +24424,6 @@ body[data-section="ao-vivo"] .live-next-team-status i {
 body[data-section="ao-vivo"] .live-next-team-status.is-complete i {
   background: #22c55e;
   box-shadow: 0 0 8px rgba(34, 197, 94, 0.55);
-}
-
-body[data-section="ao-vivo"] .live-next-team-edit {
-  display: inline-flex;
-  min-width: 0;
-  min-height: 30px;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  border: 1px solid rgba(255, 90, 0, 0.2);
-  border-radius: 9px;
-  padding: 5px 8px;
-  color: #ff9a5e;
-  background: rgba(255, 90, 0, 0.055);
-  font: inherit;
-  font-size: 0.56rem;
-  font-weight: 900;
-}
-
-body[data-section="ao-vivo"] .live-next-team-edit svg {
-  width: 13px;
-  height: 13px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
 body[data-section="ao-vivo"] .live-next-team-list {
@@ -24525,7 +24518,7 @@ body.auth-required .live-next-team-card {
   }
 
   body[data-section="ao-vivo"] .live-next-team-card header {
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 5px;
   }
 
@@ -24548,11 +24541,6 @@ body.auth-required .live-next-team-card {
     font-size: 0.49rem;
   }
 
-  body[data-section="ao-vivo"] .live-next-team-edit {
-    min-height: 29px;
-    padding-inline: 7px;
-  }
-
   body[data-section="ao-vivo"] .live-next-team-slot > .player-avatar.small,
   body[data-section="ao-vivo"] .live-next-team-slot > span:not(.player-avatar) {
     width: 36px;
@@ -24566,15 +24554,6 @@ body.auth-required .live-next-team-card {
 }
 
 @media (max-width: 350px) {
-  body[data-section="ao-vivo"] .live-next-team-edit {
-    width: 30px;
-    padding: 0;
-  }
-
-  body[data-section="ao-vivo"] .live-next-team-edit span {
-    display: none;
-  }
-
   body[data-section="ao-vivo"] .live-next-team-slot > .player-avatar.small,
   body[data-section="ao-vivo"] .live-next-team-slot > span:not(.player-avatar) {
     width: 33px;

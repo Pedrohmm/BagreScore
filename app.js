@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.3";
+  const APP_VERSION = "1.4.4";
   const MIN_SYNC_API_VERSION = "1.6.1";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -7518,7 +7518,12 @@
   function renderHistoryBallIcon() {
     return `
       <span class="game-history-goal-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m9.5 9 2.5-2 2.5 2-.9 3h-3.2ZM10.4 12l-3 2.2M13.6 12l3 2.2M9.5 9 7 7.5M14.5 9 17 7.5M9.4 17.6 10.4 12M14.6 17.6 13.6 12"/></svg>
+        <svg class="soccer-ball-icon" viewBox="0 0 24 24">
+          <circle class="soccer-ball-shell" cx="12" cy="12" r="9.35"/>
+          <path class="soccer-ball-panel" d="m12 7.05 3.35 2.43-1.28 3.94h-4.14L8.65 9.48Z"/>
+          <path class="soccer-ball-panel" d="m9.05 3.16 2.95-.51 2.95.51-1.12 3.02h-3.66ZM3.1 9.02l1.67-2.48 3.2.35-.64 3.47-3.04 1.06Zm3.55 8.92-1.95-2.27 1.32-3.03 3.17 1.23-.16 3.31Zm10.7 0-2.38-.76-.16-3.31 3.17-1.23 1.32 3.03Zm3.55-8.92-1.19 2.4-3.04-1.06-.64-3.47 3.2-.35Z"/>
+          <path class="soccer-ball-seam" d="m10.17 6.18-2.2.71m6.06-.71 2 .71M7.33 10.36l-1.31 2.28m2.63-3.16 1.28 3.94m5.42-3.94-1.28 3.94m2.6-3.06 1.31 2.28m-3.01 4.54-.9-3.76m-4.88.45-.16 3.31M6.65 17.94l2.38-.76m5.94 0 2.38.76"/>
+        </svg>
       </span>
     `;
   }
@@ -9623,16 +9628,6 @@
           <span class="live-next-team-status ${missing ? "has-vacancies" : "is-complete"}">
             <i aria-hidden="true"></i>${escapeHtml(statusLabel)}
           </span>
-          <button
-            class="live-next-team-edit"
-            type="button"
-            data-live-action="edit-next-team"
-            data-pelada-id="${escapeHtml(pelada.id)}"
-            aria-label="Editar próximo desafiante"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16-.7 4.7L8 20l10.8-10.8a2.1 2.1 0 0 0-3-3Z"/><path d="m14.5 7.5 2 2"/></svg>
-            <span>Editar</span>
-          </button>
         </header>
         <div class="live-next-team-list" aria-label="Escalação do próximo desafiante">
           ${slots.map((player) => `
