@@ -474,6 +474,16 @@ Não é necessário atualizar o `Code.gs` para a versão 1.4.3. Publique os arqu
 
 Não é necessário atualizar o `Code.gs` para a versão 1.4.4. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.4.5 — nomes automáticos dos times
+
+- Times novos recebem automaticamente nomes em sequência: **Time A**, **Time B**, **Time C**, **Time D** e assim por diante.
+- No primeiro confronto manual, o próximo desafiante começa como **Time C**.
+- A cada nova formação da fila, o nome avança para a próxima letra.
+- O nome continua editável; um nome personalizado é preservado até aquele time entrar no confronto.
+- Peladas antigas que ainda exibiam **Time da vez** passam a usar a sequência automaticamente.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.4.5. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.

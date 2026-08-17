@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.4";
+  const APP_VERSION = "1.4.5";
   const MIN_SYNC_API_VERSION = "1.6.1";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -2448,23 +2448,76 @@
     );
   }
 
+  function teamSequenceLabel(position) {
+    let index = Math.max(1, Math.floor(Number(position) || 1));
+    let label = "";
+
+    while (index > 0) {
+      index -= 1;
+      label = String.fromCharCode(65 + (index % 26)) + label;
+      index = Math.floor(index / 26);
+    }
+
+    return label;
+  }
+
+  function getSequentialTeamName(position) {
+    return `Time ${teamSequenceLabel(position)}`;
+  }
+
+  function parseSequentialTeamPosition(name) {
+    const match = String(name || "").trim().match(/^time\s+([a-z]+)$/i);
+    if (!match) return 0;
+
+    return [...match[1].toUpperCase()].reduce(
+      (total, letter) => total * 26 + letter.charCodeAt(0) - 64,
+      0
+    );
+  }
+
   function getPeladaTimeDaVez(pelada) {
     const source = pelada?.timeDaVez || {};
     const linha = uniqueIds(source.linha || pelada?.filaJogadores || []).slice(0, 5);
+    const rawName = String(source.nome || "").trim();
+    const parsedPosition = parseSequentialTeamPosition(rawName);
+    const sequencePosition = Math.max(
+      3,
+      Math.floor(Number(source.sequencia) || parsedPosition || 3)
+    );
+    const legacyGenericName = !rawName || normalizeToken(rawName) === "time da vez";
+    const inferredCustomName = !legacyGenericName && !parsedPosition;
+    const customName = typeof source.nomePersonalizado === "boolean"
+      ? source.nomePersonalizado && Boolean(rawName)
+      : inferredCustomName;
 
     return {
-      nome: String(source.nome || "").trim() || "Time da vez",
+      nome: customName ? rawName : getSequentialTeamName(sequencePosition),
       cor: source.cor || "#ff5a00",
       linha,
+      sequencia: sequencePosition,
+      nomePersonalizado: customName,
     };
   }
 
   function buildPeladaTimeDaVezPatch(pelada, patch = {}) {
     const current = getPeladaTimeDaVez(pelada);
+    const advanceSequence = Boolean(patch.avancarSequencia);
+    const sequencePosition = advanceSequence
+      ? current.sequencia + 1
+      : Math.max(3, Math.floor(Number(patch.sequencia) || current.sequencia));
+    const hasNamePatch = Object.prototype.hasOwnProperty.call(patch, "nome");
+    const patchedName = hasNamePatch ? String(patch.nome || "").trim() : current.nome;
+    const customName = advanceSequence
+      ? false
+      : Object.prototype.hasOwnProperty.call(patch, "nomePersonalizado")
+        ? Boolean(patch.nomePersonalizado && patchedName)
+        : current.nomePersonalizado;
     const next = {
-      nome: String(patch.nome ?? current.nome ?? "").trim() || "Time da vez",
+      nome: customName ? patchedName : getSequentialTeamName(sequencePosition),
       cor: patch.cor || current.cor || "#ff5a00",
       linha: uniqueIds(patch.linha ?? current.linha).slice(0, 5),
+      sequencia: sequencePosition,
+      nomePersonalizado: customName,
     };
 
     return {
@@ -7167,6 +7220,8 @@
 
   function renderTeamPresetEditor(preset, players, presets, requiredLineCount = 5) {
     const linePlayers = players.filter((player) => isLineupPlayer(player) && !isReserveGoalkeeperPlayer(player));
+    const suggestedOrder = preset?.ordem || Math.max(0, ...presets.map((item) => Number(item.ordem || 0))) + 1;
+    const suggestedName = String(preset?.nome || "").trim() || getSequentialTeamName(suggestedOrder);
     const assignedElsewhere = new Map();
     presets
       .filter((item) => item.id !== preset?.id)
@@ -7179,11 +7234,11 @@
       <form class="team-preset-form" id="team-preset-form" data-preset-id="${escapeHtml(preset?.id || "")}" novalidate>
         <div class="form-errors" id="team-preset-errors" hidden></div>
         <section class="team-preset-form-hero" style="--team-color:${escapeHtml(preset?.cor || "#ff5a00")}">
-          <span class="team-preset-form-icon">${escapeHtml(getLiveTeamInitials(preset?.nome, "T"))}</span>
-          <div><span>Time da pelada</span><h3>${escapeHtml(preset?.nome || "Novo time")}</h3><p>${requiredLineCount} jogadores de linha. O goleiro será escolhido antes de cada jogo.</p></div>
+          <span class="team-preset-form-icon">${escapeHtml(getLiveTeamInitials(suggestedName, "T"))}</span>
+          <div><span>Time da pelada</span><h3>${escapeHtml(suggestedName)}</h3><p>${requiredLineCount} jogadores de linha. O goleiro será escolhido antes de cada jogo.</p></div>
         </section>
         <div class="team-preset-basics">
-          <label class="field-label"><span>Nome do time</span><input name="nome" value="${escapeHtml(preset?.nome || "")}" maxlength="28" placeholder="Ex.: Time A" required /></label>
+          <label class="field-label"><span>Nome do time</span><input name="nome" value="${escapeHtml(suggestedName)}" maxlength="28" placeholder="Ex.: Time A" required /></label>
           <label class="field-label team-color-field"><span>Cor</span><input type="color" name="cor" value="${escapeHtml(preset?.cor || "#ff5a00")}" /></label>
         </div>
         <div class="team-preset-player-heading"><span>Jogadores de linha</span><strong data-line-count>${selectedLine.size}/${escapeHtml(requiredLineCount)}</strong></div>
@@ -7219,6 +7274,7 @@
       getRecord("peladas", state.selectedPeladaId),
     ]);
     const preset = presets.find((item) => item.id === presetId) || null;
+    const suggestedOrder = preset?.ordem || Math.max(0, ...presets.map((item) => Number(item.ordem || 0))) + 1;
     const isCup = getPeladaGameMode(pelada) === "bagrecup";
     if (isCup && !preset && presets.length >= 4) {
       window.alert("A BagreCup já possui os 4 times.");
@@ -7265,7 +7321,7 @@
         tipo: "preset",
         peladaId: state.selectedPeladaId,
         jogoId: "",
-        ordem: preset?.ordem || presets.length + 1,
+        ordem: suggestedOrder,
         nome,
         cor: form.elements.cor?.value || "#ff5a00",
         linha: uniqueIds(linha),
@@ -7425,7 +7481,12 @@
       if (!currentPelada) return;
       await savePeladaOperationalState(
         currentPelada,
-        buildPeladaTimeDaVezPatch(currentPelada, { nome, cor, linha }),
+        buildPeladaTimeDaVezPatch(currentPelada, {
+          nome,
+          cor,
+          linha,
+          nomePersonalizado: true,
+        }),
         "editar-time-da-vez"
       );
       closeLiveModal();
@@ -8973,7 +9034,13 @@
       bagreCup: null,
       proximoConfronto: null,
       presencas: {},
-      timeDaVez: { nome: "Time da vez", cor: "#ff5a00", linha: [] },
+      timeDaVez: {
+        nome: "Time C",
+        cor: "#ff5a00",
+        linha: [],
+        sequencia: 3,
+        nomePersonalizado: false,
+      },
       filaJogadores: [],
       goleirosPresentes: [],
       goleiroReservaAtualId: "",
@@ -11849,7 +11916,10 @@
       rotateBothAfterDraw,
     });
     const nextTimeDaVezPatch = nextRotation
-      ? buildPeladaTimeDaVezPatch(pelada, { linha: nextRotation.filaJogadores || [] })
+      ? buildPeladaTimeDaVezPatch(pelada, {
+          linha: nextRotation.filaJogadores || [],
+          avancarSequencia: nextRotation.modo === "fila",
+        })
       : null;
     const updatedPelada = bagreCupGame
       ? {
