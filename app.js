@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.2";
+  const APP_VERSION = "1.4.3";
   const MIN_SYNC_API_VERSION = "1.6.1";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -9397,7 +9397,6 @@
           </p>
         ` : `<p class="live-message-bar" id="live-message" hidden></p>`}
         ${renderLiveEventsCard(bundle)}
-        ${renderLiveControlBar(jogo)}
       </div>
     `;
 
@@ -9493,6 +9492,7 @@
             </div>
             ${renderLiveTeamBadge(bundle, "B")}
           </div>
+          ${renderLiveScoreControls(jogo)}
         </div>
       </section>
     `;
@@ -9610,11 +9610,29 @@
     const nextTeamIds = uniqueIds(time.linha).filter((id) => playerById.has(id)).slice(0, 5);
     const nextPlayers = nextTeamIds.map((id) => playerById.get(id)).filter(Boolean);
     const slots = Array.from({ length: 5 }, (_, index) => nextPlayers[index] || null);
+    const missing = Math.max(0, 5 - nextPlayers.length);
+    const statusLabel = missing ? `${missing} ${missing === 1 ? "vaga" : "vagas"}` : "Completo";
 
     return `
       <section class="live-next-team-card ${nextPlayers.length ? "" : "is-empty"}" style="--team-color:${escapeHtml(time.cor)}">
         <header>
-          <span class="panel-kicker">Próximo desafiante</span>
+          <span class="live-next-team-heading">
+            <span class="panel-kicker">Próximo desafiante</span>
+            <h3>${escapeHtml(time.nome)}</h3>
+          </span>
+          <span class="live-next-team-status ${missing ? "has-vacancies" : "is-complete"}">
+            <i aria-hidden="true"></i>${escapeHtml(statusLabel)}
+          </span>
+          <button
+            class="live-next-team-edit"
+            type="button"
+            data-live-action="edit-next-team"
+            data-pelada-id="${escapeHtml(pelada.id)}"
+            aria-label="Editar próximo desafiante"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16-.7 4.7L8 20l10.8-10.8a2.1 2.1 0 0 0-3-3Z"/><path d="m14.5 7.5 2 2"/></svg>
+            <span>Editar</span>
+          </button>
         </header>
         <div class="live-next-team-list" aria-label="Escalação do próximo desafiante">
           ${slots.map((player) => `
@@ -9892,27 +9910,27 @@
     `;
   }
 
-  function renderLiveControlBar(jogo) {
+  function renderLiveScoreControls(jogo) {
     if (!hasPermission("jogos:alterar")) return "";
 
     const paused = Boolean(jogo.pausadoEm);
 
     return `
-      <div class="live-control-bar" role="toolbar" aria-label="Controles da partida">
-        <button class="ghost-button big-touch live-control-button" type="button" data-live-action="${paused ? "resume" : "pause"}" aria-label="${paused ? "Retomar partida" : "Pausar partida"}">
-          <span class="live-control-icon" aria-hidden="true">
+      <div class="live-score-controls" role="toolbar" aria-label="Controles da partida">
+        <button class="live-score-control-button" type="button" data-live-action="${paused ? "resume" : "pause"}" aria-label="${paused ? "Continuar partida" : "Pausar partida"}">
+          <span class="live-score-control-icon" aria-hidden="true">
             ${paused
               ? `<svg viewBox="0 0 24 24"><path d="m9 6 9 6-9 6z"/></svg>`
               : `<svg viewBox="0 0 24 24"><path d="M8 6v12M16 6v12"/></svg>`}
           </span>
-          <span>${paused ? "Retomar" : "Pausar"}</span>
+          <span>${paused ? "Continuar" : "Pausar"}</span>
         </button>
-        <button class="ghost-button big-touch live-control-button" type="button" data-live-action="undo" aria-label="Desfazer último evento">
-          <span class="live-control-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 7 4 12l5 5M5 12h8a6 6 0 0 1 6 6"/></svg></span>
+        <button class="live-score-control-button" type="button" data-live-action="undo" aria-label="Desfazer último evento">
+          <span class="live-score-control-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 7 4 12l5 5M5 12h8a6 6 0 0 1 6 6"/></svg></span>
           <span>Desfazer</span>
         </button>
-        <button class="danger-button big-touch live-control-button is-finish" type="button" data-live-action="finish" aria-label="Finalizar jogo">
-          <span class="live-control-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 4v16M7 5h10l-2 3 2 3H7"/></svg></span>
+        <button class="live-score-control-button is-finish" type="button" data-live-action="finish" aria-label="Finalizar jogo">
+          <span class="live-score-control-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 4v16M7 5h10l-2 3 2 3H7"/></svg></span>
           <span>Finalizar</span>
         </button>
       </div>
@@ -13888,13 +13906,22 @@
     const gate = $("#auth-gate");
     const errorBox = $("#auth-error");
     if (!gate) return;
+    const wasHidden = gate.hidden;
     gate.hidden = false;
     document.body.classList.add("auth-required");
-    if (errorBox) {
+    if (errorBox && (wasHidden || message)) {
       errorBox.hidden = !message;
       errorBox.textContent = message;
     }
-    window.setTimeout(() => gate.querySelector('input[name="login"]')?.focus(), 20);
+    if (wasHidden) {
+      window.setTimeout(() => {
+        if (gate.hidden || gate.contains(document.activeElement)) return;
+        const loginInput = gate.querySelector('input[name="login"]');
+        const pinInput = gate.querySelector('input[name="pin"]');
+        const target = loginInput?.value ? pinInput : loginInput;
+        target?.focus({ preventScroll: true });
+      }, 20);
+    }
   }
 
   function closeAuthGate() {

@@ -458,6 +458,15 @@ Não é necessário atualizar o `Code.gs` para a versão 1.4.1.
 
 Não é necessário atualizar o `Code.gs` para a versão 1.4.2.
 
+## Atualização 1.4.3 — operação ao vivo mais prática
+
+- Os controles **Pausar/Continuar**, **Desfazer** e **Finalizar** foram incorporados ao placar e ficaram compactos, preservando a hierarquia da partida.
+- O **Próximo desafiante** permanece fixo acima da navegação, mostra nome, vagas e atalho de edição sem cobrir o conteúdo.
+- As fotos dos jogadores agora preenchem corretamente os avatares circulares, inclusive no próximo time.
+- A tela de login deixou de reposicionar o foco enquanto o usuário digita o PIN.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.4.3. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.
