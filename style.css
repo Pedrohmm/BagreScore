@@ -2055,6 +2055,250 @@ body.settings-open .settings-drawer-backdrop {
   object-position: center;
 }
 
+/* BagreScore 1.4.6 — confirmação do último lance e ranking mensal */
+body[data-section="ranking"] .ranking-period-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+body[data-section="ranking"] .ranking-period-filters .ranking-pelada-filter {
+  min-width: 0;
+  margin: 0;
+}
+
+body[data-section="ranking"] .ranking-period-filters select {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#live-modal:has(.time-expired-decision) .modal-panel {
+  width: min(570px, 100%);
+  padding-bottom: 16px;
+}
+
+#live-modal:has(.time-expired-decision) .modal-header {
+  justify-content: center;
+  text-align: center;
+}
+
+#live-modal:has(.time-expired-decision) .modal-header h3 {
+  width: 100%;
+}
+
+.time-expired-decision {
+  display: grid;
+  gap: 14px;
+  padding-top: 8px;
+}
+
+.time-expired-hero {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  text-align: center;
+}
+
+.time-expired-hero > span {
+  color: #ff6a17;
+  font-size: 0.63rem;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.time-expired-hero h3 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(1.2rem, 5.6vw, 1.65rem);
+  letter-spacing: -0.035em;
+}
+
+.time-expired-hero p {
+  max-width: 420px;
+  margin: 0;
+  color: #919191;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.time-expired-score {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 20px;
+  padding: 14px;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 90, 0, 0.1), transparent 11rem),
+    rgba(255, 255, 255, 0.025);
+}
+
+.time-expired-score > span {
+  display: grid;
+  min-width: 0;
+  justify-items: center;
+  gap: 7px;
+  text-align: center;
+}
+
+.time-expired-score > span > i {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border: 1px solid rgba(255, 90, 0, 0.68);
+  border-radius: 50%;
+  color: #fff;
+  background: #090909;
+  box-shadow: 0 0 18px rgba(255, 90, 0, 0.15);
+  font-size: 0.74rem;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.time-expired-score > span:last-child > i {
+  border-color: rgba(74, 163, 223, 0.76);
+  box-shadow: 0 0 18px rgba(74, 163, 223, 0.14);
+}
+
+.time-expired-score > span > strong {
+  width: 100%;
+  overflow: hidden;
+  color: #e8e8e8;
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time-expired-score > em {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  font-style: normal;
+}
+
+.time-expired-score > em b {
+  color: #fff;
+  font-size: 1.55rem;
+  letter-spacing: -0.05em;
+}
+
+.time-expired-score > em small {
+  color: #858585;
+  font-size: 0.53rem;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.time-expired-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.time-expired-options > button {
+  display: grid;
+  min-height: 118px;
+  justify-items: center;
+  align-content: center;
+  gap: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  padding: 13px 10px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.025);
+  text-align: center;
+  cursor: pointer;
+}
+
+.time-expired-options > button.is-goal {
+  border-color: rgba(255, 90, 0, 0.42);
+  background: radial-gradient(circle at 50% 0, rgba(255, 90, 0, 0.17), transparent 9rem), #0b0b0b;
+}
+
+.time-expired-options > button > span {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 13px;
+  color: #ff6a17;
+  background: rgba(255, 90, 0, 0.11);
+  font-size: 1.05rem;
+  font-weight: 950;
+}
+
+.time-expired-options > button > span svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+.time-expired-options > button.is-no-goal > span {
+  color: #cfcfcf;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.time-expired-options strong {
+  font-size: 0.82rem;
+}
+
+.time-expired-options small {
+  color: #8c8c8c;
+  font-size: 0.63rem;
+  line-height: 1.35;
+}
+
+.time-expired-goal-form {
+  display: grid;
+  gap: 12px;
+  max-height: min(68vh, 650px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.time-expired-goal-form[hidden],
+.time-expired-options[hidden] {
+  display: none;
+}
+
+.time-expired-goal-form .quick-question,
+.time-expired-goal-form .goal-method-fieldset {
+  margin: 0;
+}
+
+@media (max-width: 430px) {
+  body[data-section="ranking"] .ranking-period-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .time-expired-options {
+    grid-template-columns: 1fr;
+  }
+
+  .time-expired-options > button {
+    min-height: 86px;
+    grid-template-columns: 42px minmax(0, 1fr);
+    justify-items: start;
+    align-content: center;
+    text-align: left;
+  }
+
+  .time-expired-options > button small {
+    grid-column: 2;
+  }
+}
+
 .player-card-info {
   display: grid;
   min-width: 0;

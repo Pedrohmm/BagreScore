@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.5";
+  const APP_VERSION = "1.4.6";
   const MIN_SYNC_API_VERSION = "1.6.1";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -556,6 +556,7 @@
   ]);
   const pendingGoalGameIds = new Set();
   const finalizingGameIds = new Set();
+  const resolvingTimeExpiredGameIds = new Set();
   const openingPeladaFinishIds = new Set();
   const finalizingPeladaIds = new Set();
   let sectionSwitchInProgress = false;
@@ -720,6 +721,7 @@
     rankingMode: "geral",
     rankingCategory: "overall",
     rankingPeladaId: "",
+    rankingMonth: "",
     rankingCompetitionMode: "todos",
     evolutionMessage: "",
     gameDraft: {
@@ -9417,11 +9419,6 @@
     setSectionTitle("Jogo", "Partida ao Vivo");
     const activeGame = await findActiveGame();
 
-    if (activeGame && normalizeToken(activeGame.fase) !== "penaltis" && getRemainingGameSeconds(activeGame) <= 0) {
-      await finalizeGame(activeGame.id, "Tempo");
-      return;
-    }
-
     const bundle = activeGame ? await readGameBundle(activeGame.id) : null;
 
     if (!bundle) {
@@ -9473,7 +9470,11 @@
     `;
 
     bindLiveSectionEvents();
-    startLiveTimer(jogo.id);
+    if (remaining <= 0) {
+      resolveTimeExpiredGame(jogo.id);
+    } else {
+      startLiveTimer(jogo.id);
+    }
   }
 
   function renderLiveIdleCard(bundle, gameNumber = 0) {
@@ -11041,6 +11042,180 @@
     });
   }
 
+  function requestTimeExpiredDecision(bundle) {
+    const { jogo } = bundle;
+    const playersA = getLineupPlayers(bundle, "A");
+    const playersB = getLineupPlayers(bundle, "B");
+    const renderScorerOptions = (players, teamKey) => players.map((player) => `
+      <option value="${escapeHtml(player.id)}" data-team="${escapeHtml(teamKey)}">
+        ${escapeHtml(playerDisplayName(player))} · ${escapeHtml(teamNameFromGame(jogo, teamKey))}
+      </option>
+    `).join("");
+    const modal = openLiveModal(
+      "Tempo encerrado",
+      `
+        <section class="time-expired-decision" aria-label="Confirmar o último lance da partida">
+          <header class="time-expired-hero">
+            <span>00:00 · último lance</span>
+            <h3>Teve gol antes da bola sair?</h3>
+            <p>Confirme o último lance antes de fechar o placar e atualizar as estatísticas.</p>
+          </header>
+          <div class="time-expired-score">
+            <span><i>${escapeHtml(getLiveTeamInitials(teamNameFromGame(jogo, "A"), "A"))}</i><strong>${escapeHtml(teamNameFromGame(jogo, "A"))}</strong></span>
+            <em><b>${escapeHtml(jogo.placarA ?? 0)} – ${escapeHtml(jogo.placarB ?? 0)}</b><small>fim do tempo</small></em>
+            <span><i>${escapeHtml(getLiveTeamInitials(teamNameFromGame(jogo, "B"), "B"))}</i><strong>${escapeHtml(teamNameFromGame(jogo, "B"))}</strong></span>
+          </div>
+          <div class="time-expired-options" data-time-expired-options>
+            <button class="is-goal" type="button" data-time-expired-choice="goal">
+              <span aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m9 9 3-2 3 2-1 4h-4zM6 5l3 4M18 5l-3 4M3.5 14l6.5-1M20.5 14 14 13M7 20l3-7M17 20l-3-7"/></svg></span>
+              <strong>Sim, registrar gol</strong>
+              <small>Escolher jogador, assistência e tipo do gol.</small>
+            </button>
+            <button class="is-no-goal" type="button" data-time-expired-choice="no-goal">
+              <span aria-hidden="true">✓</span>
+              <strong>Não teve gol</strong>
+              <small>Encerrar a partida com o placar atual.</small>
+            </button>
+          </div>
+          <form class="time-expired-goal-form" id="time-expired-goal-form" hidden novalidate>
+            <div class="form-errors" id="time-expired-goal-errors" hidden></div>
+            <label class="field-label">
+              <span>Quem marcou?</span>
+              <select name="jogadorId" required>
+                <option value="">Escolha o jogador</option>
+                <optgroup label="${escapeHtml(teamNameFromGame(jogo, "A"))}">${renderScorerOptions(playersA, "A")}</optgroup>
+                <optgroup label="${escapeHtml(teamNameFromGame(jogo, "B"))}">${renderScorerOptions(playersB, "B")}</optgroup>
+              </select>
+            </label>
+            <label class="quick-question">
+              <span>Teve assistência?</span>
+              ${renderYesNoRadios("hasAssist", "nao")}
+            </label>
+            <label class="field-label" data-time-expired-assist hidden>
+              <span>Quem deu a assistência?</span>
+              <select name="assistenteId"><option value="">Escolha o assistente</option></select>
+            </label>
+            ${renderQuickGoalTypeOptions("normal")}
+            <label class="field-label">
+              <span>Observação</span>
+              <textarea name="observacoes" rows="2" placeholder="Opcional"></textarea>
+            </label>
+            <div class="form-actions">
+              <button class="primary-button big-touch" type="submit">Salvar gol e encerrar</button>
+              <button class="ghost-button big-touch" type="button" data-time-expired-back>Voltar</button>
+            </div>
+          </form>
+        </section>
+      `,
+      { dismissible: false }
+    );
+    const options = modal.querySelector("[data-time-expired-options]");
+    const form = modal.querySelector("#time-expired-goal-form");
+    const assistWrap = modal.querySelector("[data-time-expired-assist]");
+    const scorerSelect = form.elements.jogadorId;
+    const assistSelect = form.elements.assistenteId;
+
+    const refreshAssistOptions = () => {
+      const scorerId = scorerSelect.value || "";
+      const teamKey = scorerSelect.selectedOptions[0]?.dataset.team || "";
+      const teammates = teamKey ? getLineupPlayers(bundle, teamKey).filter((player) => player.id !== scorerId) : [];
+      assistSelect.innerHTML = `<option value="">Escolha o assistente</option>${teammates.map((player) => `
+        <option value="${escapeHtml(player.id)}">${escapeHtml(playerDisplayName(player))}</option>
+      `).join("")}`;
+      assistWrap.hidden = form.elements.hasAssist?.value !== "sim";
+    };
+
+    scorerSelect.addEventListener("change", refreshAssistOptions);
+    form.addEventListener("change", refreshAssistOptions);
+    modal.querySelector("[data-time-expired-choice='goal']")?.addEventListener("click", () => {
+      options.hidden = true;
+      form.hidden = false;
+      scorerSelect.focus({ preventScroll: true });
+    });
+
+    return new Promise((resolve) => {
+      modal.querySelector("[data-time-expired-choice='no-goal']")?.addEventListener("click", () => {
+        closeLiveModal({ flush: false });
+        resolve({ type: "no-goal" });
+      }, { once: true });
+
+      modal.querySelector("[data-time-expired-back]")?.addEventListener("click", () => {
+        form.hidden = true;
+        options.hidden = false;
+      });
+
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const jogadorId = scorerSelect.value || "";
+        const teamKey = scorerSelect.selectedOptions[0]?.dataset.team || "";
+        const hasAssist = form.elements.hasAssist?.value === "sim";
+        const assistenteId = hasAssist ? assistSelect.value || "" : "";
+        const tipoGol = goalTypeFromQuickForm(form);
+        const errors = [];
+
+        if (!jogadorId || !["A", "B"].includes(teamKey)) errors.push("Escolha quem marcou o gol.");
+        if (hasAssist && !assistenteId) errors.push("Escolha quem deu a assistência.");
+        showFormErrors("time-expired-goal-errors", errors);
+        if (errors.length) return;
+
+        form.querySelectorAll("button, input, select, textarea").forEach((field) => {
+          field.disabled = true;
+        });
+        closeLiveModal({ flush: false });
+        resolve({
+          type: "goal",
+          teamKey,
+          jogadorId,
+          assistenteId,
+          tipoGol,
+          observacoes: String(form.elements.observacoes?.value || "").trim(),
+        });
+      });
+    });
+  }
+
+  function resolveTimeExpiredGame(jogoId) {
+    if (!jogoId || resolvingTimeExpiredGameIds.has(jogoId) || finalizingGameIds.has(jogoId)) return;
+    if (!hasPermission("jogos:finalizar")) {
+      stopLiveTimer();
+      return;
+    }
+    if (pendingGoalGameIds.has(jogoId)) {
+      stopLiveTimer();
+      window.setTimeout(() => resolveTimeExpiredGame(jogoId), 250);
+      return;
+    }
+
+    resolvingTimeExpiredGameIds.add(jogoId);
+    stopLiveTimer();
+
+    void (async () => {
+      try {
+        const bundle = await readGameBundle(jogoId);
+        if (!bundle || bundle.jogo.status === "Finalizado" || normalizeToken(bundle.jogo.fase) === "penaltis") return;
+
+        const decision = await requestTimeExpiredDecision(bundle);
+        if (decision.type === "goal") {
+          await saveGoalEvent({
+            jogo: bundle.jogo,
+            teamKey: decision.teamKey,
+            jogadorId: decision.jogadorId,
+            assistenteId: decision.assistenteId,
+            tipoGol: decision.tipoGol,
+            golContra: false,
+            observacoes: decision.observacoes,
+            finalizarAposSalvar: "Tempo",
+          });
+          return;
+        }
+
+        await finalizeGame(jogoId, "Tempo");
+      } finally {
+        resolvingTimeExpiredGameIds.delete(jogoId);
+      }
+    })();
+  }
+
   function stopLiveTimer() {
     if (state.liveTimerId) {
       window.clearInterval(state.liveTimerId);
@@ -11080,7 +11255,7 @@
     updateLiveMiniDockFromGame(jogo);
 
     if (remaining <= 0) {
-      await finalizeGame(jogoId, "Tempo");
+      resolveTimeExpiredGame(jogoId);
     }
   }
 
@@ -11137,7 +11312,16 @@
     }
   }
 
-  async function saveGoalEvent({ jogo, teamKey, jogadorId, assistenteId, tipoGol, golContra, observacoes }) {
+  async function saveGoalEvent({
+    jogo,
+    teamKey,
+    jogadorId,
+    assistenteId,
+    tipoGol,
+    golContra,
+    observacoes,
+    finalizarAposSalvar = "",
+  }) {
     if (!jogo?.id || pendingGoalGameIds.has(jogo.id)) {
       state.liveMessage = "Este gol jÃ¡ estÃ¡ sendo processado.";
       return;
@@ -11201,6 +11385,11 @@
       state.liveMessage = `Gol salvo para ${teamNameFromGame(updatedJogo, teamKey)}.`;
 
       const playersToEvolve = [...new Set([jogadorId, assistenteId].filter(Boolean))];
+
+      if (finalizarAposSalvar) {
+        await finalizeGame(jogo.id, finalizarAposSalvar);
+        return;
+      }
 
       if (
         normalizeToken(updatedJogo.regraEncerramento) !== "tempo" &&
@@ -12361,19 +12550,45 @@
     `;
   }
 
+  function getRankingMonthOptions(peladas = []) {
+    const months = new Set(
+      peladas
+        .map((pelada) => String(pelada.data || "").slice(0, 7))
+        .filter((month) => /^\d{4}-\d{2}$/.test(month))
+    );
+    return [...months].sort((a, b) => b.localeCompare(a));
+  }
+
+  function formatRankingMonthLabel(month) {
+    const [year, monthNumber] = String(month || "").split("-").map(Number);
+    if (!year || !monthNumber) return "Mês inválido";
+    const label = new Intl.DateTimeFormat("pt-BR", {
+      month: "long",
+      year: "numeric",
+    }).format(new Date(year, monthNumber - 1, 1));
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  }
+
   async function renderRankingSection() {
     const officialPeladas = (await readPeladasSorted()).filter((pelada) => !isTestPelada(pelada));
     const competitionMode = normalizeGameMode(state.rankingCompetitionMode);
     const scopedPeladas = competitionMode
       ? officialPeladas.filter((pelada) => (normalizeGameMode(pelada.modoJogo) || "classica") === competitionMode)
       : officialPeladas;
-    if (state.rankingPeladaId && !scopedPeladas.some((pelada) => pelada.id === state.rankingPeladaId)) {
+    const monthOptions = getRankingMonthOptions(scopedPeladas);
+    if (state.rankingMonth && !monthOptions.includes(state.rankingMonth)) {
+      state.rankingMonth = "";
+    }
+    const periodPeladas = state.rankingMonth
+      ? scopedPeladas.filter((pelada) => String(pelada.data || "").startsWith(state.rankingMonth))
+      : scopedPeladas;
+    if (state.rankingPeladaId && !periodPeladas.some((pelada) => pelada.id === state.rankingPeladaId)) {
       state.rankingPeladaId = "";
     }
     const statsResult = await calcularEstatisticasJogadores({
-      periodo: state.rankingPeladaId ? "pelada" : "all",
+      periodo: state.rankingPeladaId ? "pelada" : state.rankingMonth ? "month" : "all",
       peladaId: state.rankingPeladaId,
-      month: "",
+      month: state.rankingMonth,
       temporadaId: "",
       jogadorId: "",
       posicao: "",
@@ -12382,11 +12597,11 @@
     });
 
     setSectionTitle("Ranking", "Ranking");
-    $("#section-content").innerHTML = renderRankingPremiumOverview(statsResult, scopedPeladas);
+    $("#section-content").innerHTML = renderRankingPremiumOverview(statsResult, periodPeladas, monthOptions);
     bindRankingSectionEvents();
   }
 
-  function renderRankingPremiumOverview(statsResult, officialPeladas = []) {
+  function renderRankingPremiumOverview(statsResult, officialPeladas = [], monthOptions = []) {
     const viewModel = getRankingViewModel(statsResult);
     const { activeMode } = viewModel;
 
@@ -12405,16 +12620,26 @@
               <button type="button" role="tab" data-ranking-competition="${escapeHtml(mode)}" aria-selected="${state.rankingCompetitionMode === mode}" class="${state.rankingCompetitionMode === mode ? "active" : ""}">${escapeHtml(label)}</button>
             `).join("")}
           </div>
-          <label class="ranking-pelada-filter">
-            <select data-ranking-pelada-filter aria-label="Selecionar período do ranking">
-              <option value="">${state.rankingCompetitionMode === "bagrecup" ? "Todas as BagreCups" : state.rankingCompetitionMode === "classica" ? "Todas as Peladas Clássicas" : "Todas as peladas"}</option>
-              ${officialPeladas.map((pelada) => `
-                <option value="${escapeHtml(pelada.id)}" ${pelada.id === state.rankingPeladaId ? "selected" : ""}>
-                  ${escapeHtml(formatDateLabel(pelada.data))} · ${escapeHtml(pelada.local || "Pelada")}
-                </option>
-              `).join("")}
-            </select>
-          </label>
+          <div class="ranking-period-filters">
+            <label class="ranking-pelada-filter">
+              <select data-ranking-month-filter aria-label="Filtrar ranking por mês">
+                <option value="">Todos os meses</option>
+                ${monthOptions.map((month) => `
+                  <option value="${escapeHtml(month)}" ${month === state.rankingMonth ? "selected" : ""}>${escapeHtml(formatRankingMonthLabel(month))}</option>
+                `).join("")}
+              </select>
+            </label>
+            <label class="ranking-pelada-filter">
+              <select data-ranking-pelada-filter aria-label="Selecionar pelada do ranking">
+                <option value="">${state.rankingMonth ? "Todas deste mês" : state.rankingCompetitionMode === "bagrecup" ? "Todas as BagreCups" : state.rankingCompetitionMode === "classica" ? "Todas as Peladas Clássicas" : "Todas as peladas"}</option>
+                ${officialPeladas.map((pelada) => `
+                  <option value="${escapeHtml(pelada.id)}" ${pelada.id === state.rankingPeladaId ? "selected" : ""}>
+                    ${escapeHtml(formatDateLabel(pelada.data))} · ${escapeHtml(pelada.local || "Pelada")}
+                  </option>
+                `).join("")}
+              </select>
+            </label>
+          </div>
           ${renderRankingModeTabs(activeMode)}
           ${renderRankingViewContent(viewModel)}
         </section>
@@ -12737,9 +12962,9 @@
 
     try {
       const statsResult = await calcularEstatisticasJogadores({
-        periodo: state.rankingPeladaId ? "pelada" : "all",
+        periodo: state.rankingPeladaId ? "pelada" : state.rankingMonth ? "month" : "all",
         peladaId: state.rankingPeladaId,
-        month: "",
+        month: state.rankingMonth,
         temporadaId: "",
         jogadorId: "",
         posicao: "",
@@ -12789,7 +13014,9 @@
 
   function getOverallRankingEntries(statsResult, limit = 3) {
     const scopedRanking = Boolean(
-      normalizeGameMode(statsResult?.filters?.modoJogo) || statsResult?.filters?.peladaId
+      normalizeGameMode(statsResult?.filters?.modoJogo) ||
+      statsResult?.filters?.peladaId ||
+      statsResult?.filters?.month
     );
     return statsResult.playersStats
       .filter((stats) =>
@@ -12835,10 +13062,17 @@
   }
 
   function getAttributeRankingEntries(statsResult, attributeKey, limit = 3) {
+    const scopedRanking = Boolean(
+      normalizeGameMode(statsResult?.filters?.modoJogo) ||
+      statsResult?.filters?.peladaId ||
+      statsResult?.filters?.month
+    );
     return statsResult.playersStats
       .filter((stats) => {
         const jogador = stats.jogador;
-        return jogador && getActiveAttributeKeys(jogador.tipoJogador, jogador.posicaoPrincipal).includes(attributeKey);
+        return jogador &&
+          (!scopedRanking || Number(stats.jogos || 0) > 0) &&
+          getActiveAttributeKeys(jogador.tipoJogador, jogador.posicaoPrincipal).includes(attributeKey);
       })
       .sort((a, b) => {
         const aValue = normalizeAttributeValue(a.jogador.attributes?.[attributeKey]);
@@ -12861,6 +13095,14 @@
     }
 
     root.onchange = async (event) => {
+      const monthFilter = event.target.closest("[data-ranking-month-filter]");
+      if (monthFilter) {
+        state.rankingMonth = monthFilter.value || "";
+        state.rankingPeladaId = "";
+        state.rankingCategory = "overall";
+        await renderRankingSection();
+        return;
+      }
       const filter = event.target.closest("[data-ranking-pelada-filter]");
       if (!filter) return;
       state.rankingPeladaId = filter.value || "";
@@ -12879,6 +13121,7 @@
         if (nextCompetition === state.rankingCompetitionMode) return;
         state.rankingCompetitionMode = nextCompetition;
         state.rankingPeladaId = "";
+        state.rankingMonth = "";
         state.rankingCategory = "overall";
         await renderRankingSection();
         return;

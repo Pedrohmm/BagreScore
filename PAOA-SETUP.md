@@ -484,6 +484,16 @@ Não é necessário atualizar o `Code.gs` para a versão 1.4.4. Publique os arqu
 
 Não é necessário atualizar o `Code.gs` para a versão 1.4.5. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.4.6 — último lance e ranking mensal
+
+- Ao chegar a **00:00**, o jogo não é mais encerrado imediatamente: o aplicativo pergunta se houve gol no último lance.
+- Se houve gol, o organizador escolhe jogador, assistência e tipo do gol; o evento é salvo antes do encerramento e entra normalmente nas estatísticas.
+- Se não houve gol, a partida é encerrada com o placar atual.
+- O Ranking ganhou um filtro por mês, combinado com os filtros de modalidade e de pelada.
+- Pódios de overall e atributos filtrados mostram apenas jogadores que participaram no período escolhido.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.4.6. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.
