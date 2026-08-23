@@ -494,6 +494,15 @@ Não é necessário atualizar o `Code.gs` para a versão 1.4.5. Publique os arqu
 
 Não é necessário atualizar o `Code.gs` para a versão 1.4.6. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.4.7 — proteção contra sobrescrita antiga
+
+- Cada operação de sincronização informa a revisão em que a edição foi iniciada.
+- O Apps Script rejeita registros antigos ou fora de ordem quando já existe uma revisão mais nova no servidor.
+- Em caso de conflito, o servidor preserva o dado mais recente, registra a ocorrência na auditoria e devolve imediatamente a versão correta ao aparelho.
+- Operações antigas já presentes na fila também são protegidas pela revisão contida no próprio registro.
+
+Esta atualização exige o Apps Script `1.6.2`. Substitua o conteúdo publicado pelo novo `Code.gs`, crie uma nova versão da implantação mantendo a mesma URL `/exec` e use **Forçar atualização** uma vez no aplicativo.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.

@@ -1,8 +1,8 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.6";
-  const MIN_SYNC_API_VERSION = "1.6.1";
+  const APP_VERSION = "1.4.7";
+  const MIN_SYNC_API_VERSION = "1.6.2";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
   const SYNC_INTERVAL_MS = 5000;
@@ -3002,12 +3002,20 @@
   }
 
   function createSyncQueueRecord(storeName, operation, entityId, payload) {
+    const payloadRevision = Number(payload?.revision);
+    const baseRevision = Number.isFinite(payloadRevision) && payloadRevision >= 0
+      ? operation === "delete"
+        ? payloadRevision
+        : Math.max(0, payloadRevision - 1)
+      : "";
+
     return {
       id: uid(),
       storeName,
       operation,
       entityId,
       payload,
+      baseRevision,
       status: "pendente",
       attempts: 0,
       clientSequence: nextSyncSequence(),
@@ -5820,10 +5828,19 @@
 
     await putRecords({
       syncQueue: [
-        createSyncQueueRecord("jogadores", "delete", playerId, { id: playerId }),
-        createSyncQueueRecord("atributos", "delete", playerId, { jogadorId: playerId }),
+        createSyncQueueRecord("jogadores", "delete", playerId, {
+          id: playerId,
+          revision: existingPlayer.revision,
+        }),
+        createSyncQueueRecord("atributos", "delete", playerId, {
+          jogadorId: playerId,
+          revision: existingAttributes?.revision,
+        }),
         ...playerEvolucoes.map((item) =>
-          createSyncQueueRecord("evolucoes", "delete", item.id, { id: item.id })
+          createSyncQueueRecord("evolucoes", "delete", item.id, {
+            id: item.id,
+            revision: item.revision,
+          })
         ),
       ],
       auditLog: [createAuditRecord("jogadores", playerId, "excluir", before, null)],
@@ -7502,7 +7519,10 @@
     if (!preset || !isTeamPreset(preset)) return;
     if (!window.confirm(`Excluir ${preset.nome || "este time"}?\n\nOs jogos já finalizados continuarão preservados.`)) return;
 
-    const queueRecord = createSyncQueueRecord("times", "delete", preset.id, {});
+    const queueRecord = createSyncQueueRecord("times", "delete", preset.id, {
+      id: preset.id,
+      revision: preset.revision,
+    });
     await putRecords({
       syncQueue: [queueRecord],
       auditLog: [createAuditRecord("times", preset.id, "excluir-preset", preset, null)],
@@ -8567,6 +8587,7 @@
           createSyncQueueRecord(storeName, "delete", entityId, {
             id: entityId,
             jogadorId: record.jogadorId || "",
+            revision: record.revision,
           })
         );
       });
@@ -11693,6 +11714,7 @@
           createSyncQueueRecord("evolucoes", "delete", evolution.id, {
             id: evolution.id,
             jogadorId: evolution.jogadorId || "",
+            revision: evolution.revision,
           })
         ),
         ...rollback.playerUpdates.map((player) =>
@@ -14936,21 +14958,23 @@
       const acknowledgement = acknowledgements.get(String(item.id));
       if (!acknowledgement) return item;
 
-      if (acknowledgement.status !== "ok") {
+      const acknowledgementHandled = ["ok", "conflict"].includes(acknowledgement.status);
+
+      if (!acknowledgementHandled) {
         blockedEntities.add(`${item.storeName}:${item.entityId}`);
       }
 
       const attempts = Number(item.attempts || 0) + 1;
       return {
         ...item,
-        status: acknowledgement.status === "ok" ? "sincronizado" : "erro",
+        status: acknowledgementHandled ? "sincronizado" : "erro",
         attempts,
         lastAttemptAt: nowIso(),
-        nextAttemptAt: acknowledgement.status === "ok"
+        nextAttemptAt: acknowledgementHandled
           ? ""
           : new Date(Date.now() + Math.min(300000, attempts * 60000)).toISOString(),
         serverRevision: Number(acknowledgement.serverRevision || item.serverRevision || 0),
-        syncError: acknowledgement.error || "",
+        syncError: acknowledgementHandled ? "" : acknowledgement.error || "",
         updatedAt: nowIso(),
       };
     });

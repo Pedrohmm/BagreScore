@@ -1,4 +1,4 @@
-var BAGRESCORE_API_VERSION = "1.6.1";
+var BAGRESCORE_API_VERSION = "1.6.2";
 var BAGRESCORE_DB_PROPERTY = "BAGRESCORE_SPREADSHEET_ID";
 var BAGRESCORE_SECRET_PROPERTY = "BAGRESCORE_AUTH_SECRET";
 var BAGRESCORE_REVISION_PROPERTY = "BAGRESCORE_GLOBAL_REVISION";
@@ -669,6 +669,7 @@ function bagreScoreHandleSync_(request) {
 
     var acknowledgements = [];
     var affectedGames = {};
+    var forcedChanges = {};
 
     operations.forEach(function (operation) {
       var operationId = String(operation.id || "").trim();
@@ -682,6 +683,8 @@ function bagreScoreHandleSync_(request) {
       }
 
       if (operationMap[operationId]) {
+        var duplicateChange = bagreScoreGetCurrentEntityChange_(spreadsheet, storeName, entityId);
+        if (duplicateChange) forcedChanges[storeName + ":" + entityId] = duplicateChange;
         acknowledgements.push({
           id: operationId,
           status: "ok",
@@ -698,6 +701,39 @@ function bagreScoreHandleSync_(request) {
 
       try {
         var payload = operation.payload && typeof operation.payload === "object" ? operation.payload : {};
+        var currentEntity = bagreScoreFindRowByValue_(spreadsheet.getSheetByName(storeName), "entityId", entityId);
+        var revisionConflict = currentEntity
+          ? bagreScoreGetRevisionConflict_(
+              Number(currentEntity.record.entityRevision || 0),
+              operationType,
+              operation,
+              payload
+            )
+          : null;
+
+        if (revisionConflict) {
+          var currentChange = bagreScoreEntityRecordToChange_(storeName, currentEntity.record);
+          forcedChanges[storeName + ":" + entityId] = currentChange;
+          bagreScoreAppendObject_(operationSheet, {
+            operationId: operationId,
+            deviceId: deviceId,
+            storeName: storeName,
+            entityId: entityId,
+            serverRevision: currentChange.serverRevision,
+            processedAt: new Date().toISOString()
+          });
+          operationMap[operationId] = { serverRevision: currentChange.serverRevision };
+          acknowledgements.push({
+            id: operationId,
+            status: "ok",
+            conflict: true,
+            serverRevision: currentChange.serverRevision,
+            resolution: "Atualização antiga descartada; a versão mais recente foi mantida."
+          });
+          bagreScoreAppendAudit_(spreadsheet, auth.user.id, deviceId, "conflito-descartado", storeName, entityId, revisionConflict, currentChange.serverRevision);
+          return;
+        }
+
         if (storeName === "eventos" && operationType !== "delete") {
           payload = bagreScorePrepareIncomingEvent_(spreadsheet, entityId, payload);
         }
@@ -733,10 +769,19 @@ function bagreScoreHandleSync_(request) {
     });
 
     var pull = bagreScoreListChanges_(spreadsheet, sinceRevision, BAGRESCORE_MAX_PULL_CHANGES);
+    var responseChanges = {};
+    pull.changes.forEach(function (change) {
+      responseChanges[change.storeName + ":" + change.entityId] = change;
+    });
+    Object.keys(forcedChanges).forEach(function (key) {
+      responseChanges[key] = forcedChanges[key];
+    });
+    var mergedChanges = Object.keys(responseChanges).map(function (key) { return responseChanges[key]; });
+    mergedChanges.sort(function (left, right) { return left.serverRevision - right.serverRevision; });
     return {
       ok: true,
       acks: acknowledgements,
-      changes: pull.changes,
+      changes: mergedChanges,
       cursor: pull.cursor,
       hasMore: pull.hasMore,
       epoch: serverEpoch,
@@ -771,6 +816,50 @@ function bagreScorePrepareIncomingEvent_(spreadsheet, eventId, payload) {
   incoming.canceladoPor = "server";
   incoming.motivoCancelamento = "Partida ja finalizada em outro dispositivo.";
   return incoming;
+}
+
+function bagreScoreGetOperationBaseRevision_(operationType, operation, payload) {
+  var explicitBase = operation && operation.baseRevision;
+  if (explicitBase !== undefined && explicitBase !== null && explicitBase !== "") {
+    var parsedBase = Number(explicitBase);
+    return Number.isFinite(parsedBase) && parsedBase >= 0 ? parsedBase : null;
+  }
+
+  var payloadRevision = Number(payload && payload.revision);
+  if (!Number.isFinite(payloadRevision) || payloadRevision < 0) return null;
+  return operationType === "delete"
+    ? payloadRevision
+    : Math.max(0, payloadRevision - 1);
+}
+
+function bagreScoreGetRevisionConflict_(currentRevision, operationType, operation, payload) {
+  var baseRevision = bagreScoreGetOperationBaseRevision_(operationType, operation, payload);
+  if (baseRevision === null || baseRevision === currentRevision) return null;
+  return {
+    motivo: baseRevision < currentRevision ? "revisao-antiga" : "revisao-fora-de-ordem",
+    revisaoBase: baseRevision,
+    revisaoAtual: currentRevision
+  };
+}
+
+function bagreScoreEntityRecordToChange_(storeName, record) {
+  return {
+    storeName: String(storeName || ""),
+    entityId: String(record.entityId || ""),
+    deleted: bagreScoreBoolean_(record.deleted),
+    entityRevision: Number(record.entityRevision || 0),
+    serverRevision: Number(record.serverRevision || 0),
+    serverCreatedAt: String(record.serverCreatedAt || ""),
+    serverUpdatedAt: String(record.serverUpdatedAt || ""),
+    payload: bagreScoreParseEntityPayload_(record)
+  };
+}
+
+function bagreScoreGetCurrentEntityChange_(spreadsheet, storeName, entityId) {
+  var sheet = spreadsheet.getSheetByName(storeName);
+  if (!sheet) return null;
+  var found = bagreScoreFindRowByValue_(sheet, "entityId", entityId);
+  return found ? bagreScoreEntityRecordToChange_(storeName, found.record) : null;
 }
 
 function bagreScoreWriteEntity_(spreadsheet, storeName, entityId, operationType, payload, userId, deviceId) {
