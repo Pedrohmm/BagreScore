@@ -503,6 +503,14 @@ Não é necessário atualizar o `Code.gs` para a versão 1.4.6. Publique os arqu
 
 Esta atualização exige o Apps Script `1.6.2`. Substitua o conteúdo publicado pelo novo `Code.gs`, crie uma nova versão da implantação mantendo a mesma URL `/exec` e use **Forçar atualização** uma vez no aplicativo.
 
+## Atualização 1.4.8 — confirmação do gol no fim do tempo
+
+- O formulário do último lance ficou mais compacto e removeu textos explicativos e o campo de observação.
+- Ao abrir o registro do gol, o cabeçalho é recolhido para liberar espaço para jogador, assistência e tipo de gol.
+- Os botões **Confirmar gol** e **Voltar** ficam fixos e acessíveis no rodapé do formulário em celulares.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.4.8. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.

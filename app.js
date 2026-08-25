@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.7";
+  const APP_VERSION = "1.4.8";
   const MIN_SYNC_API_VERSION = "1.6.2";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -11079,7 +11079,6 @@
           <header class="time-expired-hero">
             <span>00:00 · último lance</span>
             <h3>Teve gol antes da bola sair?</h3>
-            <p>Confirme o último lance antes de fechar o placar e atualizar as estatísticas.</p>
           </header>
           <div class="time-expired-score">
             <span><i>${escapeHtml(getLiveTeamInitials(teamNameFromGame(jogo, "A"), "A"))}</i><strong>${escapeHtml(teamNameFromGame(jogo, "A"))}</strong></span>
@@ -11090,12 +11089,10 @@
             <button class="is-goal" type="button" data-time-expired-choice="goal">
               <span aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m9 9 3-2 3 2-1 4h-4zM6 5l3 4M18 5l-3 4M3.5 14l6.5-1M20.5 14 14 13M7 20l3-7M17 20l-3-7"/></svg></span>
               <strong>Sim, registrar gol</strong>
-              <small>Escolher jogador, assistência e tipo do gol.</small>
             </button>
             <button class="is-no-goal" type="button" data-time-expired-choice="no-goal">
               <span aria-hidden="true">✓</span>
               <strong>Não teve gol</strong>
-              <small>Encerrar a partida com o placar atual.</small>
             </button>
           </div>
           <form class="time-expired-goal-form" id="time-expired-goal-form" hidden novalidate>
@@ -11117,12 +11114,8 @@
               <select name="assistenteId"><option value="">Escolha o assistente</option></select>
             </label>
             ${renderQuickGoalTypeOptions("normal")}
-            <label class="field-label">
-              <span>Observação</span>
-              <textarea name="observacoes" rows="2" placeholder="Opcional"></textarea>
-            </label>
             <div class="form-actions">
-              <button class="primary-button big-touch" type="submit">Salvar gol e encerrar</button>
+              <button class="primary-button big-touch" type="submit">Confirmar gol</button>
               <button class="ghost-button big-touch" type="button" data-time-expired-back>Voltar</button>
             </div>
           </form>
@@ -11131,6 +11124,7 @@
       { dismissible: false }
     );
     const options = modal.querySelector("[data-time-expired-options]");
+    const decisionRoot = modal.querySelector(".time-expired-decision");
     const form = modal.querySelector("#time-expired-goal-form");
     const assistWrap = modal.querySelector("[data-time-expired-assist]");
     const scorerSelect = form.elements.jogadorId;
@@ -11151,7 +11145,8 @@
     modal.querySelector("[data-time-expired-choice='goal']")?.addEventListener("click", () => {
       options.hidden = true;
       form.hidden = false;
-      scorerSelect.focus({ preventScroll: true });
+      decisionRoot.classList.add("is-form-open");
+      decisionRoot.scrollTop = 0;
     });
 
     return new Promise((resolve) => {
@@ -11163,6 +11158,8 @@
       modal.querySelector("[data-time-expired-back]")?.addEventListener("click", () => {
         form.hidden = true;
         options.hidden = false;
+        decisionRoot.classList.remove("is-form-open");
+        decisionRoot.scrollTop = 0;
       });
 
       form.addEventListener("submit", (event) => {
@@ -11189,7 +11186,7 @@
           jogadorId,
           assistenteId,
           tipoGol,
-          observacoes: String(form.elements.observacoes?.value || "").trim(),
+          observacoes: "",
         });
       });
     });

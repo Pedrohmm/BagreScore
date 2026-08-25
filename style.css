@@ -2076,6 +2076,9 @@ body[data-section="ranking"] .ranking-period-filters select {
 
 #live-modal:has(.time-expired-decision) .modal-panel {
   width: min(570px, 100%);
+  max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 12px);
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
   padding-bottom: 16px;
 }
 
@@ -2090,8 +2093,39 @@ body[data-section="ranking"] .ranking-period-filters select {
 
 .time-expired-decision {
   display: grid;
+  min-height: 0;
   gap: 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding-top: 8px;
+  padding-right: 2px;
+  scrollbar-width: thin;
+}
+
+.time-expired-decision.is-form-open {
+  gap: 9px;
+}
+
+.time-expired-decision.is-form-open .time-expired-hero {
+  display: none;
+}
+
+.time-expired-decision.is-form-open .time-expired-score {
+  border-radius: 16px;
+  padding: 9px 12px;
+}
+
+.time-expired-decision.is-form-open .time-expired-score > span {
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  justify-items: start;
+  gap: 7px;
+  text-align: left;
+}
+
+.time-expired-decision.is-form-open .time-expired-score > span > i {
+  width: 36px;
+  height: 36px;
 }
 
 .time-expired-hero {
@@ -2114,14 +2148,6 @@ body[data-section="ranking"] .ranking-period-filters select {
   color: #fff;
   font-size: clamp(1.2rem, 5.6vw, 1.65rem);
   letter-spacing: -0.035em;
-}
-
-.time-expired-hero p {
-  max-width: 420px;
-  margin: 0;
-  color: #919191;
-  font-size: 0.75rem;
-  line-height: 1.45;
 }
 
 .time-expired-score {
@@ -2203,7 +2229,7 @@ body[data-section="ranking"] .ranking-period-filters select {
 
 .time-expired-options > button {
   display: grid;
-  min-height: 118px;
+  min-height: 94px;
   justify-items: center;
   align-content: center;
   gap: 7px;
@@ -2252,19 +2278,10 @@ body[data-section="ranking"] .ranking-period-filters select {
   font-size: 0.82rem;
 }
 
-.time-expired-options small {
-  color: #8c8c8c;
-  font-size: 0.63rem;
-  line-height: 1.35;
-}
-
 .time-expired-goal-form {
   display: grid;
-  gap: 12px;
-  max-height: min(68vh, 650px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
+  gap: 9px;
+  min-height: 0;
 }
 
 .time-expired-goal-form[hidden],
@@ -2277,6 +2294,26 @@ body[data-section="ranking"] .ranking-period-filters select {
   margin: 0;
 }
 
+.time-expired-goal-form > .form-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(96px, 0.75fr);
+  gap: 8px;
+  margin: 2px -2px -2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 10px 2px 2px;
+  background: linear-gradient(180deg, rgba(8, 8, 8, 0.2), rgba(8, 8, 8, 0.98) 24%);
+  backdrop-filter: blur(16px);
+}
+
+.time-expired-goal-form > .form-actions .big-touch {
+  min-height: 50px;
+  border-radius: 14px;
+  font-size: 0.82rem;
+}
+
 @media (max-width: 430px) {
   body[data-section="ranking"] .ranking-period-filters {
     grid-template-columns: 1fr;
@@ -2287,15 +2324,37 @@ body[data-section="ranking"] .ranking-period-filters select {
   }
 
   .time-expired-options > button {
-    min-height: 86px;
+    min-height: 68px;
     grid-template-columns: 42px minmax(0, 1fr);
     justify-items: start;
     align-content: center;
     text-align: left;
   }
 
-  .time-expired-options > button small {
-    grid-column: 2;
+  #live-modal:has(.time-expired-decision) .modal-panel {
+    padding: 12px;
+  }
+
+  #live-modal:has(.time-expired-decision) .modal-header {
+    margin: -12px -12px 0;
+    padding: 12px;
+  }
+
+  .time-expired-goal-form .quick-question {
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .time-expired-goal-form .goal-method-fieldset {
+    padding: 9px;
+  }
+
+  .time-expired-goal-form .goal-method-options label {
+    min-height: 54px;
+  }
+
+  .time-expired-goal-form > .form-actions {
+    padding-bottom: max(2px, env(safe-area-inset-bottom));
   }
 }
 
