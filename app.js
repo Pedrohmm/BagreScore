@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.8";
+  const APP_VERSION = "1.4.9";
   const MIN_SYNC_API_VERSION = "1.6.2";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -11130,18 +11130,30 @@
     const scorerSelect = form.elements.jogadorId;
     const assistSelect = form.elements.assistenteId;
 
-    const refreshAssistOptions = () => {
+    const refreshAssistOptions = ({ rebuild = false } = {}) => {
       const scorerId = scorerSelect.value || "";
       const teamKey = scorerSelect.selectedOptions[0]?.dataset.team || "";
       const teammates = teamKey ? getLineupPlayers(bundle, teamKey).filter((player) => player.id !== scorerId) : [];
-      assistSelect.innerHTML = `<option value="">Escolha o assistente</option>${teammates.map((player) => `
-        <option value="${escapeHtml(player.id)}">${escapeHtml(playerDisplayName(player))}</option>
-      `).join("")}`;
-      assistWrap.hidden = form.elements.hasAssist?.value !== "sim";
+      const hasAssist = form.elements.hasAssist?.value === "sim";
+
+      if (rebuild) {
+        const selectedAssistId = assistSelect.value || "";
+        assistSelect.innerHTML = `<option value="">Escolha o assistente</option>${teammates.map((player) => `
+          <option value="${escapeHtml(player.id)}">${escapeHtml(playerDisplayName(player))}</option>
+        `).join("")}`;
+        if (teammates.some((player) => player.id === selectedAssistId)) {
+          assistSelect.value = selectedAssistId;
+        }
+      }
+
+      assistWrap.hidden = !hasAssist;
+      if (!hasAssist) assistSelect.value = "";
     };
 
-    scorerSelect.addEventListener("change", refreshAssistOptions);
-    form.addEventListener("change", refreshAssistOptions);
+    scorerSelect.addEventListener("change", () => refreshAssistOptions({ rebuild: true }));
+    form.querySelectorAll("input[name='hasAssist']").forEach((input) => {
+      input.addEventListener("change", () => refreshAssistOptions());
+    });
     modal.querySelector("[data-time-expired-choice='goal']")?.addEventListener("click", () => {
       options.hidden = true;
       form.hidden = false;

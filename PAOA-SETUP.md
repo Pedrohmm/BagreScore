@@ -511,6 +511,14 @@ Esta atualização exige o Apps Script `1.6.2`. Substitua o conteúdo publicado 
 
 Não é necessário atualizar o `Code.gs` para a versão 1.4.8. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.4.9 — assistência no último lance
+
+- A escolha do assistente no formulário de gol após o fim do tempo agora permanece selecionada.
+- O gol do último lance continua sendo salvo antes da decisão da partida; se ele empatar o placar, o fluxo segue para os pênaltis.
+- Com exatamente quatro times completos, permanece a escolha entre retirar os dois times empatados ou disputar pênaltis.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.4.9. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.
