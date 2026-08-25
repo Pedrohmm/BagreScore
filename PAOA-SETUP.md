@@ -519,6 +519,14 @@ Não é necessário atualizar o `Code.gs` para a versão 1.4.8. Publique os arqu
 
 Não é necessário atualizar o `Code.gs` para a versão 1.4.9. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.4.10 — decisão do último lance
+
+- O modal **Tempo encerrado** fica centralizado no celular.
+- As opções **Sim, registrar gol** e **Não teve gol** ficaram compactas, simétricas e com textos centralizados.
+- Os símbolos das duas opções foram removidos para deixar a decisão mais limpa.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.4.10. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.
