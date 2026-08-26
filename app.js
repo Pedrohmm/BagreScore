@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.10";
+  const APP_VERSION = "1.4.11";
   const MIN_SYNC_API_VERSION = "1.6.2";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -9902,7 +9902,7 @@
 
   function renderPitchPlayers(bundle, teamKey) {
     const players = getLineupPlayers(bundle, teamKey);
-    const layout = getLiveTeamLayoutPlayers(players);
+    const layout = getLiveTeamLayoutPlayers(players, bundle, teamKey);
     const color = teamColorFromGame(bundle.jogo, teamKey);
     const positions = getPitchPositions(teamKey, layout.linePlayers.length);
     const nodes = [];
@@ -9918,8 +9918,16 @@
     return nodes.join("");
   }
 
-  function getLiveTeamLayoutPlayers(players) {
-    const goalkeeper = players.find(isGoalkeeperCandidate) || null;
+  function getLiveTeamLayoutPlayers(players, bundle = null, teamKey = "") {
+    const teamId = teamKey === "A" ? bundle?.jogo?.timeA?.id : bundle?.jogo?.timeB?.id;
+    const gameTeam = bundle?.times?.find((team) =>
+      (teamId && team.id === teamId) ||
+      (teamKey && team.time === teamKey && team.jogoId === bundle?.jogo?.id)
+    );
+    const designatedGoalkeeperId = gameTeam?.goleiroId || "";
+    const goalkeeper = designatedGoalkeeperId
+      ? players.find((player) => player.id === designatedGoalkeeperId) || null
+      : players.find(isGoalkeeperCandidate) || null;
     const linePlayers = players
       .filter((player) => !goalkeeper || player.id !== goalkeeper.id)
       .slice(0, 5);
@@ -9928,6 +9936,19 @@
       goalkeeper,
       linePlayers,
     };
+  }
+
+  function isCurrentLiveGoalkeeper(bundle, playerId, teamKey = "") {
+    const resolvedTeamKey = teamKey || getLineupTeamForPlayer(bundle, playerId);
+    if (!resolvedTeamKey || !playerId) return false;
+
+    const layout = getLiveTeamLayoutPlayers(
+      getLineupPlayers(bundle, resolvedTeamKey),
+      bundle,
+      resolvedTeamKey
+    );
+
+    return layout.goalkeeper?.id === playerId;
   }
 
   function getPitchPositions(teamKey, lineCount = 0) {
@@ -10031,9 +10052,11 @@
       return;
     }
 
-    const isGoalkeeper = isGoalkeeperCandidate(player);
+    const teamKey = getLineupTeamForPlayer(bundle, player.id);
+    const isGoalkeeper = isCurrentLiveGoalkeeper(bundle, player.id, teamKey);
     const actions = isGoalkeeper
       ? [
+          ["goal", "Gol", "G"],
           ["save", "Defesa difícil", "DD"],
           ["foul-suffered", "Falta sofrida", "FS"],
           ["substitute", "Substituir", "↔"],
@@ -10049,7 +10072,6 @@
           ["red-card", "Cartão vermelho", "CV"],
           ["own-goal", "Gol contra", "GC"],
         ];
-    const teamKey = getLineupTeamForPlayer(bundle, player.id);
     const roleLabel = isGoalkeeper ? "Goleiro" : player.posicaoPrincipal || "Linha";
     const teamName = teamNameFromGame(bundle.jogo, teamKey);
     const teamColor = teamColorFromGame(bundle.jogo, teamKey);
@@ -10214,7 +10236,7 @@
     const presentPlayers = isBagreCupGame(bundle.jogo, bundle.pelada)
       ? activePlayers
       : getPresentPlayersForPelada(bundle.pelada, activePlayers);
-    const outgoingIsGoalkeeper = isGoalkeeperCandidate(outgoingPlayer);
+    const outgoingIsGoalkeeper = isCurrentLiveGoalkeeper(bundle, outgoingPlayer.id, teamKey);
     const candidates = presentPlayers
       .filter((player) => !activeOnField.has(player.id) && !isReserveGoalkeeperPlayer(player))
       .filter((player) => outgoingIsGoalkeeper ? isGoalkeeperCandidate(player) : isLineupPlayer(player))
@@ -10851,7 +10873,11 @@
     if (!bundle || normalizeToken(bundle.jogo.fase) !== "penaltis" || bundle.jogo.penaltiProximoTime !== teamKey) return;
     const eligibility = getPenaltyKickerEligibility(bundle, teamKey);
     const players = eligibility.available;
-    const goalkeeper = getLiveTeamLayoutPlayers(getLineupPlayers(bundle, oppositeTeam(teamKey))).goalkeeper;
+    const goalkeeper = getLiveTeamLayoutPlayers(
+      getLineupPlayers(bundle, oppositeTeam(teamKey)),
+      bundle,
+      oppositeTeam(teamKey)
+    ).goalkeeper;
     const modal = openLiveModal(
       `Pênalti - ${teamNameFromGame(bundle.jogo, teamKey)}`,
       `

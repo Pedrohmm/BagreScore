@@ -527,6 +527,14 @@ Não é necessário atualizar o `Code.gs` para a versão 1.4.9. Publique os arqu
 
 Não é necessário atualizar o `Code.gs` para a versão 1.4.10. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
 
+## Atualização 1.4.11 — posição do goleiro no jogo ao vivo
+
+- O campo ao vivo respeita o goleiro definido na escalação daquele jogo, mesmo quando outro jogador com card de goleiro atua na linha.
+- A posição do jogador no campo e as ações disponíveis passam a considerar a função exercida na partida.
+- Goleiros também podem registrar gols; o evento continua usando o mesmo fluxo de estatísticas e evolução.
+
+Não é necessário atualizar o `Code.gs` para a versão 1.4.11. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+
 ## Atualizações futuras
 
 Sempre que `Code.gs` mudar, crie uma nova versão da implantação do Apps Script. A URL `/exec` pode continuar a mesma se a implantação existente for editada.
