@@ -26126,3 +26126,68 @@ body[data-section="configuracoes"] .admin-settings-advanced .server-reset-card {
     padding-inline: 15px;
   }
 }
+
+/* Independent modalities share the same pelada, with compact mobile controls. */
+.pelada-competition-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 4px;
+  background: #101012;
+  border: 1px solid #303034;
+  border-radius: 14px;
+}
+
+.pelada-competition-tabs button {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  min-height: 66px;
+  padding: 12px 8px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: #f4f4f5;
+  text-align: center;
+  letter-spacing: 0;
+}
+
+.pelada-competition-tabs strong { font-size: 15px; overflow-wrap: anywhere; }
+.pelada-competition-tabs small { color: #b9b9c1; font-size: 12px; }
+.pelada-competition-tabs .active { border-color: #ff6b16; background: #25201c; }
+.pelada-competition-tabs .active strong { color: #ff8a43; }
+.pelada-competition-tabs button:focus-visible,
+.competition-preparation button:focus-visible { outline: 2px solid #ff8a43; outline-offset: 3px; }
+
+.competition-preparation {
+  min-width: 0;
+  padding: 20px 0;
+  color: #f4f4f5;
+  border-bottom: 1px solid #303034;
+}
+
+.competition-preparation h3 { margin: 8px 0; font-size: 22px; }
+.competition-preparation p { max-width: 65ch; color: #c3c3ca; font-size: 14px; line-height: 1.55; }
+.competition-preparation-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.competition-preparation-actions button { min-height: 46px; white-space: normal; }
+.competition-preparation-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.pelada-form .pelada-cup-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding-block: 16px;
+  border-top: 1px solid #343439;
+  color: #f4f4f5;
+}
+
+.pelada-form .pelada-cup-option input { flex: 0 0 22px; width: 22px; height: 22px; min-height: 0; margin: 0; accent-color: #ff6b16; }
+.pelada-cup-option span { display: grid; gap: 6px; min-width: 0; }
+.pelada-cup-option small { color: #b9b9c1; font-size: 13px; line-height: 1.45; }
+.other-open-peladas { margin-block: 24px; }
+.other-open-peladas h3 { color: #f4f4f5; font-size: 18px; margin-bottom: 14px; }
+
+@media (max-width: 480px) {
+  .competition-preparation-actions { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .competition-preparation-actions button { width: 100%; }
+}

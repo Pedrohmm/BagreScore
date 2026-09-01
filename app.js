@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.13";
+  const APP_VERSION = "1.4.14";
   const MIN_SYNC_API_VERSION = "1.6.2";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -243,6 +243,7 @@
       "tipoRegistro",
       "modoJogo",
       "bagreCup",
+      "modalidades",
       "proximoConfronto",
       "presencas",
       "timeDaVez",
@@ -290,7 +291,7 @@
       "updatedAt",
       "revision",
     ],
-    times: ["id", "tipo", "peladaId", "jogoId", "presetId", "ordem", "nome", "cor", "jogadores", "linha", "goleiroId", "goleiroReservaOperadorId"],
+    times: ["id", "tipo", "peladaId", "jogoId", "presetId", "modoJogo", "ordem", "nome", "cor", "jogadores", "linha", "goleiroId", "goleiroReservaOperadorId"],
     escalacoes: ["id", "jogoId", "jogadorId", "time", "timeId", "ativo", "entrouEm", "saiuEm", "createdAt", "updatedAt"],
     eventos: [
       "id",
@@ -559,6 +560,7 @@
   const resolvingTimeExpiredGameIds = new Set();
   const openingPeladaFinishIds = new Set();
   const finalizingPeladaIds = new Set();
+  const updatingCupIds = new Set();
   let sectionSwitchInProgress = false;
   let rankingViewTransitionInProgress = false;
   let deferredViewRefreshPending = false;
@@ -722,6 +724,8 @@
     rankingCategory: "overall",
     rankingPeladaId: "",
     rankingMonth: "",
+    peladaViewModes: {},
+    competitionDrafts: {},
     rankingCompetitionMode: "todos",
     evolutionMessage: "",
     gameDraft: {
@@ -739,6 +743,7 @@
       jogadorId: "",
       posicao: "",
       sortBy: "gols",
+      modoJogo: "",
     },
     activeGameId: localStorage.getItem("bagrescore:active-game-id") || null,
     liveTimerId: null,
@@ -2232,7 +2237,34 @@
   }
 
   function getGameCompetitionMode(jogo, pelada = null) {
-    return normalizeGameMode(jogo?.modoJogo) || normalizeGameMode(pelada?.modoJogo) || "classica";
+    return normalizeGameMode(jogo?.modoJogo) || (jogo?.confrontoTorneioId ? "bagrecup" : "") || normalizeGameMode(pelada?.modoJogo) || "classica";
+  }
+
+  function getPeladaViewMode(pelada) {
+    return state.peladaViewModes[pelada?.id] || getPeladaGameMode(pelada) || "classica";
+  }
+
+  function getPresetCompetitionMode(preset, pelada) {
+    // Untagged teams retain their original mode; switching tabs never moves a team.
+    return normalizeGameMode(preset?.modoJogo) || normalizeGameMode(pelada?.modoJogo) || "classica";
+  }
+
+  function hasPeladaCompetition(pelada, mode) {
+    if (!mode || pelada?.modalidades?.includes(mode)) return true;
+    if (mode === "classica") return normalizeGameMode(pelada?.modoJogo) !== "bagrecup";
+    return Boolean(pelada?.bagreCup) || normalizeGameMode(pelada?.modoJogo) === mode;
+  }
+
+  function getBagreCupStatus(pelada, games = []) {
+    const cupGames = games.filter((game) => isBagreCupGame(game, pelada));
+    if (cupGames.some((game) => normalizeToken(game.faseTorneio) === "final" && game.status === "Finalizado") || pelada?.bagreCup?.concluidaEm) return "concluida";
+    if (cupGames.length || pelada?.bagreCup?.iniciadoEm) return "em_andamento";
+    if (pelada?.bagreCup?.status === "nao_realizado" || (isFinalizedPelada(pelada) && hasPeladaCompetition(pelada, "bagrecup"))) return "nao_realizado";
+    return hasPeladaCompetition(pelada, "bagrecup") ? "preparado" : "nao_preparado";
+  }
+
+  function getBagreCupStatusLabel(status) {
+    return { nao_preparado: "Opcional", preparado: "Preparado", em_andamento: "Em andamento", concluida: "Concluído", nao_realizado: "Não realizado" }[status] || "Opcional";
   }
 
   function isBagreCupGame(jogo, pelada = null) {
@@ -2543,10 +2575,11 @@
     return normalizeToken(time?.tipo) === "preset" && Boolean(time?.peladaId);
   }
 
-  async function readTeamPresets(peladaId) {
-    const times = await getAllRecords("times");
+  async function readTeamPresets(peladaId, mode = "") {
+    const [times, pelada] = await Promise.all([getAllRecords("times"), getRecord("peladas", peladaId)]);
+    const selectedMode = normalizeGameMode(mode) || getPeladaViewMode(pelada);
     return times
-      .filter((time) => isTeamPreset(time) && time.peladaId === peladaId)
+      .filter((time) => isTeamPreset(time) && time.peladaId === peladaId && getPresetCompetitionMode(time, pelada) === selectedMode)
       .sort((a, b) =>
         Number(a.ordem || 0) - Number(b.ordem || 0) ||
         String(a.createdAt || "").localeCompare(String(b.createdAt || ""))
@@ -3704,8 +3737,7 @@
     };
 
     const peladaFinalizada = isFinalizedPelada(pelada);
-    const bagreCupPending = getPeladaGameMode(pelada, jogos) === "bagrecup" &&
-      !finalizedGames.some((jogo) => normalizeToken(jogo.faseTorneio) === "final");
+    const bagreCupPending = getBagreCupStatus(pelada, jogos) === "em_andamento";
     summary.canFinalize = summary.totals.jogosRealizados > 0 && !summary.hasActiveGames && !peladaFinalizada && !bagreCupPending;
     summary.finishDisabledReason = peladaFinalizada
       ? "Pelada já finalizada."
@@ -3832,7 +3864,14 @@
     const selectedGameIds = new Set(selectedGames.map((jogo) => jogo.id));
     const selectedPeladaIdsForAwards = new Set(
       peladas
-        .filter((pelada) => peladaMatchesStatsFilters(pelada, filters))
+        .filter((pelada) => {
+          if (!peladaMatchesStatsFilters(pelada, filters, jogos)) return false;
+          const mode = normalizeGameMode(filters.modoJogo);
+          if (!mode) return true;
+          const playedModes = new Set(jogos.filter((game) => game.peladaId === pelada.id && game.status === "Finalizado").map((game) => getGameCompetitionMode(game, pelada)));
+          // Whole-pelada awards are shown in Geral when both modalities were played.
+          return playedModes.size === 1 && playedModes.has(mode);
+        })
         .map((pelada) => pelada.id)
     );
     const finalizedGames = selectedGames.filter((jogo) => jogo.status === "Finalizado");
@@ -4070,7 +4109,7 @@
       const tipoDefesa = normalizeToken(evento.tipoDefesaGoleiro);
       return eventType === "defesa_goleiro" && ["dificil", "penalti", "cara_a_cara", "reflexo"].includes(tipoDefesa);
     }).length;
-    const eligiblePeladas = peladas.filter((pelada) => peladaMatchesStatsFilters(pelada, filters));
+    const eligiblePeladas = peladas.filter((pelada) => peladaMatchesStatsFilters(pelada, filters, jogos));
 
     const result = {
       filters,
@@ -4126,7 +4165,7 @@
     return true;
   }
 
-  function peladaMatchesStatsFilters(pelada, filters) {
+  function peladaMatchesStatsFilters(pelada, filters, games = []) {
     if (!filters.includeTests && isTestPelada(pelada)) {
       return false;
     }
@@ -4135,7 +4174,7 @@
     }
 
     const competitionMode = normalizeGameMode(filters.modoJogo);
-    if (competitionMode && (normalizeGameMode(pelada.modoJogo) || "classica") !== competitionMode) {
+    if (competitionMode && !games.some((game) => game.peladaId === pelada.id && getGameCompetitionMode(game, pelada) === competitionMode) && !hasPeladaCompetition(pelada, competitionMode)) {
       return false;
     }
 
@@ -5925,9 +5964,10 @@
     }
 
     const jogos = await readGamesForPelada(selectedPelada.id);
-    const gameMode = getPeladaGameMode(selectedPelada, jogos);
+    const gameMode = getPeladaViewMode(selectedPelada);
+    const modeGames = jogos.filter((game) => getGameCompetitionMode(game, selectedPelada) === gameMode);
     const teamPresets = allTimes
-      .filter((time) => isTeamPreset(time) && time.peladaId === selectedPelada.id)
+      .filter((time) => isTeamPreset(time) && time.peladaId === selectedPelada.id && getPresetCompetitionMode(time, selectedPelada) === gameMode)
       .sort((a, b) => Number(a.ordem || 0) - Number(b.ordem || 0));
     const selectedGame = state.selectedGameSummaryId
       ? jogos.find((jogo) => jogo.id === state.selectedGameSummaryId) || null
@@ -5988,19 +6028,18 @@
 
     $("#section-content").innerHTML = `
       <div class="pelada-detail-flow">
+        ${renderPeladaCompetitionTabs(selectedPelada, jogos, gameMode)}
         ${gameMode === "bagrecup"
-          ? renderBagreCupControlBar(selectedPelada, jogos, teamPresets, detailView)
-          : gameMode
-            ? renderPeladaGameModeBar(selectedPelada, jogos, gameMode)
-            : ""}
+          ? renderBagreCupControlBar(selectedPelada, modeGames, teamPresets, detailView)
+          : ""}
         ${gameMode === "bagrecup"
           ? renderBagreCupSectionNav(detailView)
           : gameMode
             ? renderPeladaDetailNav(detailView, teamPresets, selectedPelada, jogadores, gameMode)
             : ""}
         <div class="pelada-detail-view" data-pelada-detail-view="${escapeHtml(detailView)}">
-          ${!gameMode
-            ? renderPeladaGameModeSelector(selectedPelada)
+          ${gameMode === "bagrecup" && !hasPeladaCompetition(selectedPelada, "bagrecup")
+            ? renderBagreCupPreparation(selectedPelada, jogos, teamPresets)
             : detailView === "times"
               ? renderTeamPresetsPanel(selectedPelada, teamPresets, jogadores, gameMode)
             : gameMode !== "bagrecup" && detailView === "presencas"
@@ -6008,8 +6047,10 @@
             : gameMode === "bagrecup"
               ? renderBagreCupView(detailView, selectedPelada, jogos, teamPresets, jogadores, eventsByGameId, playerById, peladaSummary)
               : `
-                ${renderGameSetup(selectedPelada, jogadores, teamPresets)}
-                ${renderGameHistory(selectedPelada, jogos, eventsByGameId, playerById, peladaSummary)}
+                ${getBagreCupStatus(selectedPelada, jogos) === "em_andamento"
+                  ? `<section class="competition-preparation"><h3>BagresCup em andamento</h3><p>A Pelada Clássica pode continuar após o torneio.</p><button class="primary-button" type="button" data-pelada-action="set-game-mode" data-game-mode="bagrecup">Abrir BagresCup</button></section>`
+                  : renderGameSetup(selectedPelada, jogadores, teamPresets)}
+                ${renderGameHistory(selectedPelada, modeGames, eventsByGameId, playerById, peladaSummary)}
               `}
         </div>
       </div>
@@ -6056,46 +6097,43 @@
     `;
   }
 
-  function renderPeladaGameModeSelector(pelada) {
-    const canManage = hasPermission("times:montar") && !isFinalizedPelada(pelada);
-
+  function renderPeladaCompetitionTabs(pelada, games, mode) {
+    const cupStatus = getBagreCupStatus(pelada, games);
     return `
-      <section class="game-mode-selector-card">
-        <header>
-          <span class="panel-kicker">Formato do dia</span>
-          <h3>Escolha o modo de jogo</h3>
-        </header>
-        <div class="game-mode-options">
-          <button type="button" data-pelada-action="set-game-mode" data-game-mode="classica" ${canManage ? "" : "disabled"}>
-            <span class="game-mode-option-mark is-classic">PC</span>
-            <span><strong>Pelada Clássica</strong><small>Times na hora e Time da vez.</small></span>
-            <i aria-hidden="true">›</i>
+      <nav class="pelada-competition-tabs" aria-label="Modalidade da pelada">
+        ${[["classica", "Pelada Clássica", "Times e confrontos"], ["bagrecup", "BagresCup", getBagreCupStatusLabel(cupStatus)]].map(([id, label, subtitle]) => `
+          <button type="button" class="${mode === id ? "active" : ""}" aria-pressed="${mode === id}" data-pelada-action="set-game-mode" data-game-mode="${id}">
+            <strong>${label}</strong><small>${subtitle}</small>
           </button>
-          <button type="button" data-pelada-action="set-game-mode" data-game-mode="bagrecup" ${canManage ? "" : "disabled"}>
-            <span class="game-mode-option-mark is-cup">BC</span>
-            <span><strong>BagreCup</strong><small>4 times, grupos e mata-mata.</small></span>
-            <i aria-hidden="true">›</i>
-          </button>
-        </div>
-      </section>
-    `;
+        `).join("")}
+      </nav>`;
   }
 
-  function renderPeladaGameModeBar(pelada, games = [], gameMode = "classica") {
-    const isCup = gameMode === "bagrecup";
-    const canChange = hasPermission("times:montar") && !games.length && !isFinalizedPelada(pelada);
+  function renderBagreCupPreparation(pelada, games, presets) {
+    const status = getBagreCupStatus(pelada, games);
+    const prepared = status === "preparado";
+    const canManage = hasPermission("times:montar") && !isFinalizedPelada(pelada);
+    const ready = presets.length === 4 && presets.every((team) => getPresetCompleteness(team, 5).complete);
+    const hasActiveGame = games.some((game) => game.status === "Em andamento");
     return `
-      <section class="pelada-game-mode-bar is-${escapeHtml(gameMode)}">
-        <span class="game-mode-option-mark ${isCup ? "is-cup" : "is-classic"}">${isCup ? "BC" : "PC"}</span>
-        <span><small>Modo de jogo</small><strong>${isCup ? "BagreCup" : "Pelada Clássica"}</strong></span>
-        ${canChange ? `<button type="button" data-pelada-action="clear-game-mode">Trocar</button>` : ""}
-      </section>
-    `;
+      <section class="competition-preparation">
+        <span class="panel-kicker">BagresCup · ${getBagreCupStatusLabel(status)}</span>
+        <h3>${prepared ? "Torneio preparado" : status === "nao_realizado" ? "Torneio não realizado" : "Prepare o torneio do dia"}</h3>
+        <p>${prepared ? "Os times estão salvos. A Pelada Clássica continua disponível até você iniciar o torneio." : "Organize os times com antecedência e decida na hora se o torneio vai acontecer."}</p>
+        ${hasActiveGame && prepared ? `<p role="status">Finalize a partida ao vivo antes de iniciar o BagresCup.</p>` : ""}
+        <div class="competition-preparation-actions">
+          ${canManage && !prepared ? `<button class="primary-button" type="button" data-pelada-action="prepare-cup">${status === "nao_realizado" ? "Preparar novamente" : "Preparar BagresCup"}</button>` : ""}
+          ${canManage && prepared ? `
+            <button class="primary-button" type="button" data-pelada-action="start-cup" ${ready && !hasActiveGame && hasPermission("jogos:iniciar") ? "" : "disabled"}>Iniciar BagresCup</button>
+            <button class="ghost-button" type="button" data-pelada-action="show-detail-times">${ready ? "Editar times" : "Completar os 4 times"}</button>
+            <button class="ghost-button" type="button" data-pelada-action="skip-cup">Não realizar hoje</button>
+          ` : ""}
+        </div>
+      </section>`;
   }
 
   function renderBagreCupControlBar(pelada, games = [], presets = [], activeView = "torneio") {
-    const canChange = hasPermission("times:montar") && !games.length && !isFinalizedPelada(pelada);
-    const canConfigure = canChange;
+    const canConfigure = hasPermission("times:montar") && getBagreCupStatus(pelada, games) === "preparado" && !isFinalizedPelada(pelada);
     const settings = getBagreCupSettings(pelada);
     const completeTeams = presets
       .slice(0, 4)
@@ -6105,8 +6143,7 @@
       <section class="bagrecup-control-bar" aria-label="Configurações da BagreCup">
         <div class="bagrecup-mode-compact">
           <span class="game-mode-option-mark is-cup">BC</span>
-          <span><small>Modo</small><strong>BagreCup</strong></span>
-          ${canChange ? `<button type="button" data-pelada-action="clear-game-mode" aria-label="Trocar modo de jogo">Trocar</button>` : ""}
+          <span><small>Torneio</small><strong>${getBagreCupStatusLabel(getBagreCupStatus(pelada, games))}</strong></span>
         </div>
         <button class="bagrecup-teams-shortcut ${activeView === "times" ? "active" : ""}" type="button" data-pelada-action="show-detail-times">
           <small>Times</small><strong>${escapeHtml(completeTeams)}/4</strong>
@@ -6352,6 +6389,7 @@
     const officialPeladas = peladas.filter((pelada) => !isTestPelada(pelada));
     const testPeladas = peladas.filter(isTestPelada);
     const featuredPelada = selectNextOpenPelada(officialPeladas);
+    const otherOpenPeladas = officialPeladas.filter((pelada) => !isFinalizedPelada(pelada) && pelada.id !== featuredPelada?.id);
 
     return `
       <section class="pelada-workspace peladas-manage-shell">
@@ -6362,6 +6400,12 @@
               gamesByPeladaId.get(featuredPelada.id) || []
             )
           : renderNoOpenPeladaCard()}
+
+        ${otherOpenPeladas.length ? `
+          <section class="other-open-peladas">
+            <h3>Outras peladas abertas</h3>
+            <div class="pelada-card-grid">${otherOpenPeladas.map((pelada) => renderPeladaCard(pelada, gameCountByPeladaId.get(pelada.id) || 0, gamesByPeladaId.get(pelada.id) || [])).join("")}</div>
+          </section>` : ""}
 
         ${testPeladas.length ? `
           <section class="test-records-panel">
@@ -6463,6 +6507,10 @@
               <span><strong>Teste</strong><small>Permite simular tudo sem alterar os dados oficiais.</small></span>
             </label>
           </fieldset>
+          <label class="pelada-cup-option wide-field">
+            <input type="checkbox" name="prepararBagreCup" />
+            <span><strong>Preparar BagresCup também</strong><small>A Pelada Clássica fica disponível enquanto você organiza o torneio.</small></span>
+          </label>
         </div>
         <div class="form-actions">
           <button class="primary-button" type="submit">Marcar pelada</button>
@@ -6720,6 +6768,7 @@
           <span class="next-match-state-text ${readiness.complete ? "is-ready" : "is-incomplete"}">${escapeHtml(readiness.label)}</span>
         </div>
         <form class="game-form" id="game-form" novalidate>
+          <input type="hidden" name="modoJogo" value="classica" />
           <div class="form-errors" id="game-form-errors" hidden></div>
           ${presets.length ? `
             <div class="matchup-selectors optional-team-selectors">
@@ -6834,6 +6883,7 @@
           <em>10 min</em>
         </div>
         <form class="game-form" id="game-form" novalidate>
+          <input type="hidden" name="modoJogo" value="bagrecup" />
           <input type="hidden" name="presetAId" value="${escapeHtml(fixture.presetAId)}" />
           <input type="hidden" name="presetBId" value="${escapeHtml(fixture.presetBId)}" />
           <input type="hidden" name="confrontoTorneioId" value="${escapeHtml(fixture.id)}" />
@@ -6879,7 +6929,7 @@
             <small>Campeão</small><strong>${escapeHtml(progress.champion.nome || "BagreCup")}</strong>
           </section>
         ` : ""}
-        ${!progress.complete ? renderBagreCupNextMatch(pelada, progress.nextFixture, presets, jogadores) : ""}
+        ${!progress.complete && getBagreCupStatus(pelada, progress.tournamentGames) === "em_andamento" && !isFinalizedPelada(pelada) ? renderBagreCupNextMatch(pelada, progress.nextFixture, presets, jogadores) : ""}
         <section class="bagrecup-fixtures-board">
           <header><span class="panel-kicker">Jogos do torneio</span><strong>${escapeHtml(progress.fixtures.filter((fixture) => normalizeToken(fixture.game?.status) === "finalizado").length)}/${escapeHtml(progress.fixtures.length)} jogos</strong></header>
           <div class="bagrecup-fixtures-list">
@@ -6938,10 +6988,13 @@
     const completeTeams = progress.teams.filter((team) => getPresetCompleteness(team, 5).complete).length;
     const ready = progress.teams.length === 4 && completeTeams === 4;
 
-    if (!ready) return renderBagreCupReadiness(presets);
+    const status = getBagreCupStatus(pelada, games);
+    const preparation = ["nao_preparado", "preparado", "nao_realizado"].includes(status)
+      ? renderBagreCupPreparation(pelada, games, presets) : "";
+    if (!ready) return preparation || renderBagreCupReadiness(presets);
     if (activeView === "classificacao") return renderBagreCupClassificationView(progress);
     if (activeView === "chaveamento") return renderBagreCupBracketView(progress);
-    return renderBagreCupTournamentView(pelada, progress, presets, jogadores, eventsByGameId, playerById, peladaSummary);
+    return preparation + renderBagreCupTournamentView(pelada, progress, presets, jogadores, eventsByGameId, playerById, peladaSummary);
   }
 
   function renderPresetOptions(presets, selectedId, blockedId) {
@@ -7126,7 +7179,7 @@
       readActivePlayers(),
       state.selectedPeladaId ? getRecord("peladas", state.selectedPeladaId) : Promise.resolve(null),
     ]);
-    const jogadores = getPeladaGameMode(pelada) === "bagrecup"
+    const jogadores = getPeladaViewMode(pelada) === "bagrecup"
       ? allPlayers
       : getPresentPlayersForPelada(pelada, allPlayers);
     const requiredLineCount = 5;
@@ -7264,7 +7317,9 @@
     ]);
     const preset = presets.find((item) => item.id === presetId) || null;
     const suggestedOrder = preset?.ordem || Math.max(0, ...presets.map((item) => Number(item.ordem || 0))) + 1;
-    const isCup = getPeladaGameMode(pelada) === "bagrecup";
+    const gameMode = getPeladaViewMode(pelada);
+    const isCup = gameMode === "bagrecup";
+    if (isFinalizedPelada(pelada)) return;
     if (isCup && !preset && presets.length >= 4) {
       window.alert("A BagreCup já possui os 4 times.");
       return;
@@ -7309,6 +7364,7 @@
         id: preset?.id || uid(),
         tipo: "preset",
         peladaId: state.selectedPeladaId,
+        modoJogo: gameMode,
         jogoId: "",
         ordem: suggestedOrder,
         nome,
@@ -7487,6 +7543,15 @@
     if (!state.selectedPeladaId || !requirePermission("times:montar")) return;
     const preset = await getRecord("times", presetId);
     if (!preset || !isTeamPreset(preset)) return;
+    const pelada = await getRecord("peladas", preset.peladaId);
+    if (isFinalizedPelada(pelada)) return;
+    if (getPresetCompetitionMode(preset, pelada) === "bagrecup") {
+      const games = await readGamesForPelada(preset.peladaId);
+      if (["em_andamento", "concluida"].includes(getBagreCupStatus(pelada, games))) {
+        window.alert("Os times de um torneio iniciado não podem ser excluídos. As escalações podem ser ajustadas em Editar time.");
+        return;
+      }
+    }
     if (!window.confirm(`Excluir ${preset.nome || "este time"}?\n\nOs jogos já finalizados continuarão preservados.`)) return;
 
     const queueRecord = createSyncQueueRecord("times", "delete", preset.id, {
@@ -8028,27 +8093,63 @@
   }
 
   async function setPeladaGameMode(mode) {
-    if (!state.selectedPeladaId || !requirePermission("times:montar")) return;
+    if (!state.selectedPeladaId) return;
     const normalizedMode = normalizeGameMode(mode);
-    const [pelada, games] = await Promise.all([
-      getRecord("peladas", state.selectedPeladaId),
-      readGamesForPelada(state.selectedPeladaId),
-    ]);
-    if (!pelada || isFinalizedPelada(pelada)) return;
-    if (games.length) {
-      window.alert("O modo não pode ser alterado depois que o primeiro jogo começa.");
-      return;
-    }
-    await savePeladaOperationalState(pelada, {
-      modoJogo: normalizedMode,
-      bagreCup: normalizedMode === "bagrecup"
-        ? { ...getBagreCupSettings(pelada), ...(pelada.bagreCup || {}) }
-        : pelada.bagreCup || null,
-      proximoConfronto: normalizedMode === "bagrecup" ? null : pelada.proximoConfronto || null,
-    }, normalizedMode ? `definir-modo-${normalizedMode}` : "limpar-modo");
+    if (!normalizedMode) return;
+    const pelada = await getRecord("peladas", state.selectedPeladaId);
+    if (!pelada) return;
+    const previousMode = getPeladaViewMode(pelada);
+    if (previousMode === normalizedMode) return;
+    syncGameDraftFromForm();
+    state.competitionDrafts[`${pelada.id}:${previousMode}`] = structuredClone({
+      gameDraft: state.gameDraft, matchPresetIds: state.matchPresetIds, matchPersist: state.matchPersist, matchSetupKey: state.matchSetupKey,
+    });
+    state.peladaViewModes[state.selectedPeladaId] = normalizedMode;
     resetMatchSetupState();
-    state.peladaDetailView = normalizedMode === "bagrecup" ? "times" : "confrontos";
+    const savedDraft = state.competitionDrafts[`${pelada.id}:${normalizedMode}`];
+    if (savedDraft) Object.assign(state, structuredClone(savedDraft));
+    state.peladaDetailView = normalizedMode === "bagrecup" ? "torneio" : "confrontos";
     await renderCurrentSection();
+  }
+
+  async function updatePeladaCup(action) {
+    const peladaId = state.selectedPeladaId;
+    if (!peladaId || updatingCupIds.has(peladaId) || !requirePermission(action === "start" ? "jogos:iniciar" : "times:montar")) return;
+    updatingCupIds.add(peladaId);
+    try {
+      const [pelada, games, presets, activeGame, players] = await Promise.all([
+        getRecord("peladas", peladaId), readGamesForPelada(peladaId), readTeamPresets(peladaId, "bagrecup"), findActiveGame(), readActivePlayers(),
+      ]);
+      if (!pelada || isFinalizedPelada(pelada)) return;
+      const status = getBagreCupStatus(pelada, games);
+      if (["em_andamento", "concluida"].includes(status)) return;
+      const savedAt = nowIso();
+      let cup = { ...getBagreCupSettings(pelada), ...(pelada.bagreCup || {}), status: "preparado", preparadoEm: pelada.bagreCup?.preparadoEm || savedAt };
+      if (action === "start") {
+        if (status !== "preparado") return;
+        if (activeGame) return window.alert("Finalize a partida ao vivo antes de iniciar o BagresCup.");
+        const ids = presets.flatMap((preset) => preset.linha || []);
+        const presentIds = new Set(getPresentPlayersForPelada(pelada, players).filter(isLineupPlayer).map((player) => player.id));
+        if (presets.length !== 4 || presets.some((preset) => !getPresetCompleteness(preset, 5).complete) || new Set(ids).size !== 20) {
+          return window.alert("Complete os 4 times com 5 jogadores de linha diferentes em cada um antes de iniciar o torneio.");
+        }
+        if (ids.some((id) => !presentIds.has(id))) return window.alert("Há jogadores inativos ou marcados como ausentes/atrasados nos times. Atualize as presenças ou as escalações antes de iniciar.");
+        if (!window.confirm("Iniciar o BagresCup agora?\n\nOs jogos da Pelada Clássica ficam preservados. O próximo confronto será válido pelo torneio.")) return;
+        cup = { ...cup, status: "em_andamento", iniciadoEm: savedAt };
+      } else if (action === "skip") {
+        if (!window.confirm("Não realizar o BagresCup hoje?\n\nOs times preparados ficam salvos e a Pelada Clássica continua normalmente.")) return;
+        cup = { ...cup, status: "nao_realizado" };
+      }
+      await savePeladaOperationalState(pelada, {
+        modalidades: ["classica", "bagrecup"],
+        bagreCup: cup,
+      }, `bagrecup-${action}`);
+      resetMatchSetupState();
+      state.peladaDetailView = action === "prepare" ? "times" : "torneio";
+      await renderCurrentSection();
+    } finally {
+      updatingCupIds.delete(peladaId);
+    }
   }
 
   async function setBagreCupThirdPlace(enabled) {
@@ -8057,7 +8158,7 @@
       getRecord("peladas", state.selectedPeladaId),
       readGamesForPelada(state.selectedPeladaId),
     ]);
-    if (!pelada || games.length || getPeladaGameMode(pelada, games) !== "bagrecup") return;
+    if (!pelada || isFinalizedPelada(pelada) || getBagreCupStatus(pelada, games) !== "preparado") return;
     await savePeladaOperationalState(pelada, {
       bagreCup: { ...(pelada.bagreCup || {}), terceiroLugar: Boolean(enabled), duracaoMinutos: 10 },
     }, "configurar-terceiro-lugar");
@@ -8186,13 +8287,13 @@
 
       const action = actionButton.dataset.peladaAction;
 
-      if (action === "set-game-mode") {
-        await setPeladaGameMode(actionButton.dataset.gameMode || "");
+      if (["prepare-cup", "start-cup", "skip-cup"].includes(action)) {
+        await updatePeladaCup(action.split("-")[0]);
         return;
       }
 
-      if (action === "clear-game-mode") {
-        await setPeladaGameMode("");
+      if (action === "set-game-mode") {
+        await setPeladaGameMode(actionButton.dataset.gameMode || "");
         return;
       }
 
@@ -8904,6 +9005,8 @@
         ...pelada,
         status: "Finalizada",
         finalizadaEm: savedAt,
+        ...(getBagreCupStatus(pelada, summary.jogos) === "preparado"
+          ? { bagreCup: { ...(pelada.bagreCup || {}), status: "nao_realizado" } } : {}),
         mvpJogadorId,
         bagreJogadorId,
         defensorJogadorId,
@@ -8970,6 +9073,7 @@
       valor: valorText ? Number(valorText) : "",
       observacoes: String(form.elements.observacoes?.value || "").trim(),
       tipoRegistro: form.elements.tipoRegistro?.value === "teste" ? "teste" : "oficial",
+      prepararBagreCup: Boolean(form.elements.prepararBagreCup?.checked),
     };
   }
 
@@ -9010,7 +9114,8 @@
     if (!requirePermission("peladas:criar")) return;
 
     const form = event.currentTarget;
-    const data = collectPeladaFormData(form);
+    if (form.dataset.submitting === "true") return;
+    const { prepararBagreCup, ...data } = collectPeladaFormData(form);
     const errors = validatePeladaForm(data);
     showFormErrors("pelada-form-errors", errors);
 
@@ -9018,13 +9123,18 @@
       return;
     }
 
+    form.dataset.submitting = "true";
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton) submitButton.disabled = true;
+    try {
     const savedAt = nowIso();
     const peladaRecord = {
       id: uid(),
       ...data,
       status: "Aberta",
-      modoJogo: "",
-      bagreCup: null,
+      modoJogo: "classica",
+      modalidades: prepararBagreCup ? ["classica", "bagrecup"] : ["classica"],
+      bagreCup: prepararBagreCup ? { status: "preparado", preparadoEm: savedAt, terceiroLugar: true, duracaoMinutos: 10 } : null,
       proximoConfronto: null,
       presencas: {},
       timeDaVez: {
@@ -9056,6 +9166,10 @@
     form.reset();
     await switchSection("peladas", { historyMode: "replace", peladaId: peladaRecord.id });
     await syncNow();
+    } finally {
+      form.dataset.submitting = "false";
+      if (submitButton) submitButton.disabled = false;
+    }
   }
 
   function collectGameFormData(form, jogadores) {
@@ -9113,6 +9227,7 @@
 
     return {
       ...pelada,
+      modalidades: hasPeladaCompetition(pelada, "bagrecup") ? ["classica", "bagrecup"] : ["classica"],
       ...buildPeladaTimeDaVezPatch(pelada, { linha: nextTimeDaVez }),
       goleiroReservaAtualId: "",
       updatedAt: savedAt,
@@ -9171,6 +9286,7 @@
     const requiredLineCount = 5;
 
     if (!selectedPelada) errors.push("Selecione ou crie uma pelada.");
+    if (isFinalizedPelada(selectedPelada)) errors.push("Esta pelada já foi finalizada.");
     if (activeGame) errors.push("Finalize o jogo em andamento antes de iniciar outro.");
     if (data.presetAId && data.presetAId === data.presetBId) errors.push("Escolha dois times diferentes.");
     if (!data.timeA.jogadores.length) errors.push("Escolha os jogadores do Time A.");
@@ -9179,6 +9295,13 @@
     if (!data.timeB.goleiroId) errors.push("Defina o goleiro do Time B.");
     if (data.timeA.linha.length !== requiredLineCount) errors.push(`Complete os ${requiredLineCount} jogadores de linha do Time A.`);
     if (data.timeB.linha.length !== requiredLineCount) errors.push(`Complete os ${requiredLineCount} jogadores de linha do Time B.`);
+    const playerById = new Map(jogadores.map((player) => [player.id, player]));
+    [data.timeA, data.timeB].forEach((team) => {
+      if (team.jogadores.some((id) => !playerById.has(id))) errors.push("Existem jogadores indisponíveis na escalação.");
+      if (team.linha.some((id) => !isLineupPlayer(playerById.get(id)))) errors.push("Escolha jogadores de linha válidos.");
+      if (team.goleiroId && !isGoalkeeperCandidate(playerById.get(team.goleiroId))) errors.push("Escolha um goleiro válido.");
+      if (team.linha.includes(team.goleiroId)) errors.push("O goleiro não pode ocupar também uma vaga de linha.");
+    });
 
     const duplicates = data.timeA.jogadores.filter((playerId) => data.timeB.jogadores.includes(playerId));
 
@@ -9199,6 +9322,7 @@
 
     const form = event.currentTarget;
     const submitButton = form.querySelector('button[type="submit"]');
+    const gameMode = normalizeGameMode(form.elements.modoJogo?.value) || "classica";
 
     if (submitButton?.disabled) return;
     if (submitButton) {
@@ -9212,15 +9336,18 @@
       state.selectedPeladaId ? getRecord("peladas", state.selectedPeladaId) : null,
       findActiveGame(),
       state.selectedPeladaId ? readGamesForPelada(state.selectedPeladaId) : Promise.resolve([]),
-      state.selectedPeladaId ? readTeamPresets(state.selectedPeladaId) : Promise.resolve([]),
+      state.selectedPeladaId ? readTeamPresets(state.selectedPeladaId, gameMode) : Promise.resolve([]),
     ]);
-    const gameMode = getPeladaGameMode(pelada, peladaGames) || "classica";
-    const availablePlayers = gameMode === "bagrecup" ? jogadores : getPresentPlayersForPelada(pelada, jogadores);
+    const availablePlayers = getPresentPlayersForPelada(pelada, jogadores);
     const data = collectGameFormData(form, availablePlayers);
     const errors = validateGameForm(data, pelada, activeGame, availablePlayers);
     const cupProgress = gameMode === "bagrecup" ? buildBagreCupProgress(pelada, peladaGames, presets) : null;
     const cupFixture = cupProgress?.nextFixture || null;
+    const cupStatus = getBagreCupStatus(pelada, peladaGames);
+    if (gameMode === "classica" && cupStatus === "em_andamento") errors.push("Conclua o BagresCup antes de retomar a Pelada Clássica.");
+    if ([data.presetAId, data.presetBId].some((id) => id && !presets.some((preset) => preset.id === id))) errors.push("Escolha times da modalidade atual.");
     if (gameMode === "bagrecup") {
+      if (cupStatus !== "em_andamento") errors.push("Inicie o BagresCup antes de jogar os confrontos do torneio.");
       if (!cupFixture) errors.push("A tabela da BagreCup não possui outro confronto disponível.");
       if (cupFixture && data.confrontoTorneioId !== cupFixture.id) errors.push("Atualize a tela para iniciar o próximo confronto da BagreCup.");
       if (cupFixture && (data.presetAId !== cupFixture.presetAId || data.presetBId !== cupFixture.presetBId)) {
@@ -9313,12 +9440,13 @@
     const updatedPelada = gameMode === "bagrecup"
       ? {
           ...pelada,
-          modoJogo: "bagrecup",
           bagreCup: {
             ...(pelada.bagreCup || {}),
             ...getBagreCupSettings(pelada),
             iniciadoEm: pelada.bagreCup?.iniciadoEm || savedAt,
+            status: "em_andamento",
           },
+          modalidades: ["classica", "bagrecup"],
           updatedAt: savedAt,
           revision: (pelada.revision || 0) + 1,
         }
@@ -10174,7 +10302,7 @@
 
     const [activePlayers, presets] = await Promise.all([
       readActivePlayers(),
-      readTeamPresets(bundle.jogo.peladaId),
+      readTeamPresets(bundle.jogo.peladaId, getGameCompetitionMode(bundle.jogo, bundle.pelada)),
     ]);
     const teamKey = getLineupTeamForPlayer(bundle, outgoingPlayer.id);
     const targetPresetId = teamKey === "A" ? bundle.jogo.presetAId : bundle.jogo.presetBId;
@@ -10942,7 +11070,7 @@
     }
 
     if (!isBagreCupGame(jogo) && getWinningTeamKey(jogo) === "" && normalizeToken(jogo.fase) !== "penaltis") {
-      const presets = await readTeamPresets(jogo.peladaId);
+      const presets = await readTeamPresets(jogo.peladaId, "classica");
       if (getFourTeamDrawOutsidePresets(jogo, presets).length === 2) {
         return true;
       }
@@ -12043,7 +12171,8 @@
       return;
     }
 
-    const presets = allTimes.filter((time) => isTeamPreset(time) && time.peladaId === jogo.peladaId);
+    const gamePelada = await getRecord("peladas", jogo.peladaId);
+    const presets = allTimes.filter((time) => isTeamPreset(time) && time.peladaId === jogo.peladaId && getPresetCompetitionMode(time, gamePelada) === getGameCompetitionMode(jogo, gamePelada));
     let rotateBothAfterDraw = false;
     const bagreCupGame = isBagreCupGame(jogo);
     const bagreCupGroupDraw = bagreCupGame && normalizeToken(jogo.faseTorneio) === "grupo";
@@ -12106,7 +12235,7 @@
           ...pelada,
           bagreCup: {
             ...(pelada?.bagreCup || {}),
-            ...(normalizeToken(finalJogo.faseTorneio) === "final" ? { concluidaEm: savedAt } : {}),
+            ...(normalizeToken(finalJogo.faseTorneio) === "final" ? { concluidaEm: savedAt, status: "concluida" } : {}),
           },
           updatedAt: savedAt,
           revision: (pelada?.revision || 0) + 1,
@@ -12376,6 +12505,12 @@
       <section class="data-card stats-filter-card">
         <form class="stats-filter-form" id="stats-filter-form">
           <label class="field-label">
+            <span>Modalidade</span>
+            <select name="modoJogo">
+              ${[["", "Todas"], ["classica", "Pelada Clássica"], ["bagrecup", "BagresCup"]].map(([mode, label]) => `<option value="${mode}" ${normalizeGameMode(filters.modoJogo) === mode ? "selected" : ""}>${label}</option>`).join("")}
+            </select>
+          </label>
+          <label class="field-label">
             <span>Período</span>
             <select name="periodo">
               <option value="all" ${periodo === "all" ? "selected" : ""}>Todos os tempos</option>
@@ -12561,10 +12696,11 @@
   }
 
   async function renderRankingSection() {
-    const officialPeladas = (await readPeladasSorted()).filter((pelada) => !isTestPelada(pelada));
+    const [peladas, games] = await Promise.all([readPeladasSorted(), getAllRecords("jogos")]);
+    const officialPeladas = peladas.filter((pelada) => !isTestPelada(pelada));
     const competitionMode = normalizeGameMode(state.rankingCompetitionMode);
     const scopedPeladas = competitionMode
-      ? officialPeladas.filter((pelada) => (normalizeGameMode(pelada.modoJogo) || "classica") === competitionMode)
+      ? officialPeladas.filter((pelada) => peladaMatchesStatsFilters(pelada, { modoJogo: competitionMode }, games))
       : officialPeladas;
     const monthOptions = getRankingMonthOptions(scopedPeladas);
     if (state.rankingMonth && !monthOptions.includes(state.rankingMonth)) {
@@ -13779,6 +13915,7 @@
         jogadorId: String(formData.get("jogadorId") || ""),
         posicao: String(formData.get("posicao") || ""),
         sortBy: String(formData.get("sortBy") || "gols"),
+        modoJogo: normalizeGameMode(formData.get("modoJogo")),
       };
 
       state.selectedStatsPlayerId = null;
