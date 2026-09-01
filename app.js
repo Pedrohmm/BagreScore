@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.14";
+  const APP_VERSION = "1.4.15";
   const MIN_SYNC_API_VERSION = "1.6.2";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -2478,6 +2478,12 @@
     return players.filter((player) => isReserveGoalkeeperPlayer(player) || isPlayerPresentAtPelada(pelada, player));
   }
 
+  function getMatchSelectablePlayers(pelada, players = [], mode = "classica") {
+    const presentIds = new Set(getPresentPlayersForPelada(pelada, players).map((player) => player.id));
+    return players.filter((player) => presentIds.has(player.id) ||
+      (normalizeGameMode(mode) === "bagrecup" && isGoalkeeperCandidate(player)));
+  }
+
   function getPresentLinePlayers(pelada, players = []) {
     return getPresentPlayersForPelada(pelada, players).filter(
       (player) => isLineupPlayer(player) && !isReserveGoalkeeperPlayer(player)
@@ -2691,7 +2697,7 @@
     };
   }
 
-  function setMatchGoalkeeper(teamKey, goalkeeperId) {
+  function setMatchGoalkeeper(teamKey, goalkeeperId, mode = "classica") {
     if (!state.gameDraft?.[teamKey]) return;
     const otherTeam = oppositeTeam(teamKey);
     const previousGoalkeeperId = state.gameDraft[teamKey].goleiro || "";
@@ -2706,6 +2712,12 @@
         : "";
     }
 
+    if (normalizeGameMode(mode) === "bagrecup" && selectedGoalkeeperId) {
+      // A goalkeeper can play for any cup team, but occupies only one slot in this match.
+      ["A", "B"].forEach((side) => {
+        state.gameDraft[side].linha = state.gameDraft[side].linha.filter((id) => id !== selectedGoalkeeperId);
+      });
+    }
     state.gameDraft[teamKey].goleiro = selectedGoalkeeperId;
   }
 
@@ -6872,7 +6884,7 @@
     }
 
     ensureBagreCupDraft(pelada, fixture, presets);
-    const availablePlayers = jogadores;
+    const availablePlayers = getMatchSelectablePlayers(pelada, jogadores, "bagrecup");
     const draft = normalizeGameDraft(availablePlayers);
     const readiness = getGameDraftReadiness(draft, 5);
 
@@ -7048,9 +7060,13 @@
     `;
   }
 
-  function isSelectionBlocked(player, teamKey, selectionType) {
+  function isSelectionBlocked(player, teamKey, selectionType, mode = "classica") {
     const draft = state.gameDraft;
     const otherTeam = oppositeTeam(teamKey);
+
+    if (selectionType === "goleiro" && normalizeGameMode(mode) === "bagrecup") {
+      return !isGoalkeeperCandidate(player);
+    }
 
     if (draft[otherTeam].linha.includes(player.id)) {
       return true;
@@ -7071,7 +7087,7 @@
     return false;
   }
 
-  function renderTeamSelectionModal(teamKey, selectionType, jogadores, requiredLineCount = 5) {
+  function renderTeamSelectionModal(teamKey, selectionType, jogadores, requiredLineCount = 5, mode = "classica") {
     const isGoalkeeperSelection = selectionType === "goleiro";
     const teamDraft = state.gameDraft[teamKey] || createEmptyGameDraft()[teamKey];
     const candidates = jogadores.filter(
@@ -7112,7 +7128,7 @@
                   <span class="selection-avatar-placeholder">?</span>
                   <span>
                     <strong>Sem goleiro definido</strong>
-                    <small>Goleiro opcional nesta etapa.</small>
+                    <small>Escolha um goleiro antes de iniciar o jogo.</small>
                   </span>
                 </label>
               `
@@ -7122,7 +7138,9 @@
             candidates.length
               ? candidates
                   .map((player) => {
-                    const blocked = isSelectionBlocked(player, teamKey, selectionType);
+                    const blocked = isSelectionBlocked(player, teamKey, selectionType, mode);
+                    const lineTeam = isGoalkeeperSelection && mode === "bagrecup"
+                      ? ["A", "B"].find((side) => state.gameDraft[side].linha.includes(player.id)) : "";
                     const checked = isGoalkeeperSelection
                       ? selectedGoalkeeper === player.id
                       : selectedLine.has(player.id);
@@ -7152,6 +7170,7 @@
                             <b>${escapeHtml(player.posicaoPrincipal || "-")}</b>
                             <em>${escapeHtml(player.overall || "-")} OVR</em>
                             <i>${escapeHtml(player.peForte || "Pé não informado")}</i>
+                            ${lineTeam ? `<i>Na linha do ${escapeHtml(state.gameDraft[lineTeam].nome)} neste confronto</i>` : ""}
                           </small>
                         </span>
                       </label>
@@ -7179,16 +7198,16 @@
       readActivePlayers(),
       state.selectedPeladaId ? getRecord("peladas", state.selectedPeladaId) : Promise.resolve(null),
     ]);
-    const jogadores = getPeladaViewMode(pelada) === "bagrecup"
-      ? allPlayers
-      : getPresentPlayersForPelada(pelada, allPlayers);
+    const gameMode = getPeladaViewMode(pelada);
+    const jogadores = getMatchSelectablePlayers(pelada, allPlayers, gameMode);
     const requiredLineCount = 5;
     normalizeGameDraft(jogadores);
     const teamName = state.gameDraft[teamKey]?.nome || `Time ${teamKey}`;
+    const selectionPlayers = selectionType === "goleiro" ? jogadores : getPresentPlayersForPelada(pelada, jogadores);
 
     const modal = openLiveModal(
       selectionType === "goleiro" ? "Escolha o goleiro" : "Monte a escalação",
-      renderTeamSelectionModal(teamKey, selectionType, jogadores, requiredLineCount)
+      renderTeamSelectionModal(teamKey, selectionType, selectionPlayers, requiredLineCount, gameMode)
     );
     const form = modal.querySelector("#team-selection-form");
     const searchInput = form.elements.search;
@@ -7243,8 +7262,11 @@
       event.preventDefault();
 
       if (selectionType === "goleiro") {
-        const selectedGoalkeeperId = form.querySelector('input[name="goalkeeperId"]:checked')?.value || "";
-        setMatchGoalkeeper(teamKey, selectedGoalkeeperId);
+        const selectedGoalkeeperId = form.querySelector('input[name="goalkeeperId"]:checked:not(:disabled)')?.value || "";
+        const lineTeam = gameMode === "bagrecup"
+          ? ["A", "B"].find((side) => state.gameDraft[side].linha.includes(selectedGoalkeeperId)) : "";
+        if (lineTeam && !window.confirm("Esse jogador está escalado na linha deste confronto. Mover para o gol?\n\nVocê precisará completar a vaga de linha antes de iniciar o jogo.")) return;
+        setMatchGoalkeeper(teamKey, selectedGoalkeeperId, gameMode);
       } else {
         state.gameDraft[teamKey].nome = String(form.elements.teamName?.value || teamName).trim() || teamName;
         state.gameDraft[teamKey].cor = form.elements.teamColor?.value || state.gameDraft[teamKey].cor;
@@ -9299,6 +9321,7 @@
     [data.timeA, data.timeB].forEach((team) => {
       if (team.jogadores.some((id) => !playerById.has(id))) errors.push("Existem jogadores indisponíveis na escalação.");
       if (team.linha.some((id) => !isLineupPlayer(playerById.get(id)))) errors.push("Escolha jogadores de linha válidos.");
+      if (team.linha.some((id) => !isPlayerPresentAtPelada(selectedPelada, playerById.get(id) || id))) errors.push("Os jogadores de linha precisam estar marcados como presentes.");
       if (team.goleiroId && !isGoalkeeperCandidate(playerById.get(team.goleiroId))) errors.push("Escolha um goleiro válido.");
       if (team.linha.includes(team.goleiroId)) errors.push("O goleiro não pode ocupar também uma vaga de linha.");
     });
@@ -9338,7 +9361,7 @@
       state.selectedPeladaId ? readGamesForPelada(state.selectedPeladaId) : Promise.resolve([]),
       state.selectedPeladaId ? readTeamPresets(state.selectedPeladaId, gameMode) : Promise.resolve([]),
     ]);
-    const availablePlayers = getPresentPlayersForPelada(pelada, jogadores);
+    const availablePlayers = getMatchSelectablePlayers(pelada, jogadores, gameMode);
     const data = collectGameFormData(form, availablePlayers);
     const errors = validateGameForm(data, pelada, activeGame, availablePlayers);
     const cupProgress = gameMode === "bagrecup" ? buildBagreCupProgress(pelada, peladaGames, presets) : null;
