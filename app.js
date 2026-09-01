@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.11";
+  const APP_VERSION = "1.4.12";
   const MIN_SYNC_API_VERSION = "1.6.2";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -725,8 +725,8 @@
     rankingCompetitionMode: "todos",
     evolutionMessage: "",
     gameDraft: {
-      A: { nome: "Time A", cor: "#ff5a00", linha: [], goleiro: "", goleiroReservaOperadorId: "" },
-      B: { nome: "Time B", cor: "#4aa3df", linha: [], goleiro: "", goleiroReservaOperadorId: "" },
+      A: { nome: "Time A", cor: "#ff5a00", linha: [], goleiro: "" },
+      B: { nome: "Time B", cor: "#4aa3df", linha: [], goleiro: "" },
     },
     matchPresetIds: { A: "", B: "" },
     matchPersist: { A: false, B: false },
@@ -2182,8 +2182,8 @@
 
   function createEmptyGameDraft() {
     return {
-      A: { nome: "Time A", cor: "#ff5a00", linha: [], goleiro: "", goleiroReservaOperadorId: "" },
-      B: { nome: "Time B", cor: "#4aa3df", linha: [], goleiro: "", goleiroReservaOperadorId: "" },
+      A: { nome: "Time A", cor: "#ff5a00", linha: [], goleiro: "" },
+      B: { nome: "Time B", cor: "#4aa3df", linha: [], goleiro: "" },
     };
   }
 
@@ -2200,7 +2200,9 @@
   }
 
   function isLineupPlayer(player) {
-    return !isGoalkeeper(player?.tipoJogador, player?.posicaoPrincipal);
+    const positions = [player?.posicaoPrincipal, player?.posicaoSecundaria]
+      .map((position) => String(position || "").trim().toUpperCase());
+    return positions.some((position) => LINE_POSITIONS.includes(position));
   }
 
   function uniqueIds(ids) {
@@ -2564,15 +2566,10 @@
 
   function getSavedMatchupGoalkeeper(savedMatchup, sideKey) {
     if (!savedMatchup || !["A", "B"].includes(sideKey)) {
-      return { goleiro: "", goleiroReservaOperadorId: "" };
+      return "";
     }
 
-    return {
-      goleiro: sideKey === "A" ? savedMatchup.goleiroAId || "" : savedMatchup.goleiroBId || "",
-      goleiroReservaOperadorId: sideKey === "A"
-        ? savedMatchup.goleiroReservaOperadorAId || ""
-        : savedMatchup.goleiroReservaOperadorBId || "",
-    };
+    return sideKey === "A" ? savedMatchup.goleiroAId || "" : savedMatchup.goleiroBId || "";
   }
 
   function getSavedMatchupTeamName(savedMatchup, sideKey, presetId) {
@@ -2607,8 +2604,7 @@
       nome: savedName || preset?.nome || `Time ${fallbackKey}`,
       cor: savedColor || preset?.cor || (fallbackKey === "A" ? "#ff5a00" : "#4aa3df"),
       linha: savedLineup === null || savedLineupIsCorrupted ? presetLineup : savedLineup,
-      goleiro: preservedDraft?.goleiro || savedGoalkeeper.goleiro || "",
-      goleiroReservaOperadorId: preservedDraft?.goleiroReservaOperadorId || savedGoalkeeper.goleiroReservaOperadorId || "",
+      goleiro: preservedDraft?.goleiro || savedGoalkeeper || "",
     };
   }
 
@@ -2619,8 +2615,7 @@
       nome: String(sideKey === "A" ? savedMatchup?.nomeA || "" : savedMatchup?.nomeB || "").trim() || fallback.nome,
       cor: (sideKey === "A" ? savedMatchup?.corA : savedMatchup?.corB) || fallback.cor,
       linha: uniqueIds(sideKey === "A" ? savedMatchup?.linhaA || [] : savedMatchup?.linhaB || []).slice(0, 5),
-      goleiro: goalkeeper.goleiro,
-      goleiroReservaOperadorId: goalkeeper.goleiroReservaOperadorId,
+      goleiro: goalkeeper,
     };
   }
 
@@ -2663,11 +2658,10 @@
     };
   }
 
-  function setMatchGoalkeeper(teamKey, goalkeeperId, reserveOperatorId, players = []) {
+  function setMatchGoalkeeper(teamKey, goalkeeperId) {
     if (!state.gameDraft?.[teamKey]) return;
     const otherTeam = oppositeTeam(teamKey);
     const previousGoalkeeperId = state.gameDraft[teamKey].goleiro || "";
-    const previousReserveOperatorId = state.gameDraft[teamKey].goleiroReservaOperadorId || "";
     const selectedGoalkeeperId = goalkeeperId || "";
     const swapsGoalkeepers = Boolean(
       selectedGoalkeeperId && state.gameDraft[otherTeam].goleiro === selectedGoalkeeperId
@@ -2677,17 +2671,9 @@
       state.gameDraft[otherTeam].goleiro = previousGoalkeeperId !== selectedGoalkeeperId
         ? previousGoalkeeperId
         : "";
-      const previousGoalkeeper = players.find((player) => player.id === previousGoalkeeperId);
-      state.gameDraft[otherTeam].goleiroReservaOperadorId = isReserveGoalkeeperPlayer(previousGoalkeeper)
-        ? previousReserveOperatorId
-        : "";
     }
 
     state.gameDraft[teamKey].goleiro = selectedGoalkeeperId;
-    const goalkeeper = players.find((player) => player.id === selectedGoalkeeperId);
-    state.gameDraft[teamKey].goleiroReservaOperadorId = isReserveGoalkeeperPlayer(goalkeeper)
-      ? reserveOperatorId || ""
-      : "";
   }
 
   function normalizeGameDraft(players = []) {
@@ -2701,21 +2687,14 @@
       };
       draft[teamKey].linha = uniqueIds(draft[teamKey].linha).filter((id) => activeIds.has(id));
       draft[teamKey].goleiro = activeIds.has(draft[teamKey].goleiro) ? draft[teamKey].goleiro : "";
-      draft[teamKey].goleiroReservaOperadorId = activeIds.has(draft[teamKey].goleiroReservaOperadorId)
-        ? draft[teamKey].goleiroReservaOperadorId
-        : "";
     });
 
     ["A", "B"].forEach((teamKey) => {
       draft[teamKey].linha = draft[teamKey].linha.filter((id) => id !== draft[teamKey].goleiro);
     });
 
-    const reserveOperators = new Set([
-      draft.A.goleiroReservaOperadorId,
-      draft.B.goleiroReservaOperadorId,
-    ].filter(Boolean));
-    draft.A.linha = draft.A.linha.filter((id) => !reserveOperators.has(id)).slice(0, 5);
-    draft.B.linha = draft.B.linha.filter((id) => !reserveOperators.has(id)).slice(0, 5);
+    draft.A.linha = draft.A.linha.slice(0, 5);
+    draft.B.linha = draft.B.linha.slice(0, 5);
 
     state.gameDraft = draft;
     return draft;
@@ -6962,7 +6941,6 @@
   function renderMatchLineupCard(teamKey, draft, jogadores, persistChanges, canPersist = false, requiredLineCount = 5) {
     const playerById = new Map(jogadores.map((player) => [player.id, player]));
     const goalkeeper = playerById.get(draft.goleiro);
-    const reserveOperator = playerById.get(draft.goleiroReservaOperadorId);
     const linePlayers = uniqueIds(draft.linha).map((id) => playerById.get(id)).filter(Boolean);
     const complete = linePlayers.length === requiredLineCount && Boolean(goalkeeper);
 
@@ -6973,7 +6951,6 @@
           <small>GK</small>
           ${goalkeeper ? renderPlayerAvatar(goalkeeper, "player-avatar match-lineup-avatar") : `<i>—</i>`}
           <strong>${goalkeeper ? escapeHtml(shortPlayerName(goalkeeper)) : "Sem goleiro"}</strong>
-          ${isReserveGoalkeeperPlayer(goalkeeper) ? `<em>${reserveOperator ? `No gol: ${escapeHtml(shortPlayerName(reserveOperator))}` : "Escolha quem vai agarrar"}</em>` : ""}
         </div>
         <div class="match-lineup-players">
           ${linePlayers.map((player) => `<span>${renderPlayerAvatar(player, "player-avatar match-lineup-avatar")}<small>${escapeHtml(shortPlayerName(player))}</small></span>`).join("")}
@@ -7009,13 +6986,6 @@
       return true;
     }
 
-    if (
-      selectionType === "linha" &&
-      [draft.A.goleiroReservaOperadorId, draft.B.goleiroReservaOperadorId].includes(player.id)
-    ) {
-      return true;
-    }
-
     if (selectionType === "goleiro" && draft[teamKey].linha.includes(player.id)) {
       return true;
     }
@@ -7033,15 +7003,6 @@
     );
     const selectedLine = new Set(state.gameDraft[teamKey].linha);
     const selectedGoalkeeper = state.gameDraft[teamKey].goleiro;
-    const selectedGoalkeeperPlayer = jogadores.find((player) => player.id === selectedGoalkeeper);
-    const selectedReserveOperator = state.gameDraft[teamKey].goleiroReservaOperadorId || "";
-    const occupiedLineIds = new Set([...state.gameDraft.A.linha, ...state.gameDraft.B.linha]);
-    const reserveOperatorCandidates = jogadores.filter(
-      (player) =>
-        isLineupPlayer(player) &&
-        !isReserveGoalkeeperPlayer(player) &&
-        (!occupiedLineIds.has(player.id) || player.id === selectedReserveOperator)
-    );
     const selectedCount = isGoalkeeperSelection ? (selectedGoalkeeper ? 1 : 0) : selectedLine.size;
     const selectedLimit = isGoalkeeperSelection ? 1 : requiredLineCount;
 
@@ -7126,15 +7087,6 @@
               `
           }
         </div>
-        ${isGoalkeeperSelection ? `
-          <label class="field-label reserve-keeper-operator-field" ${isReserveGoalkeeperPlayer(selectedGoalkeeperPlayer) ? "" : "hidden"}>
-            <span>Quem vai usar a carta Goleiro Reserva?</span>
-            <select name="reserveOperatorId">
-              ${renderPlayerOptions(reserveOperatorCandidates, selectedReserveOperator, "Escolha quem vai agarrar")}
-            </select>
-            <small>A pessoa fica fora da linha e as estatísticas vão somente para a carta reserva.</small>
-          </label>
-        ` : ""}
         <div class="form-actions">
           <button class="primary-button big-touch" type="submit">Salvar seleção</button>
           <button class="ghost-button big-touch" type="button" data-modal-close>Cancelar</button>
@@ -7162,7 +7114,6 @@
     );
     const form = modal.querySelector("#team-selection-form");
     const searchInput = form.elements.search;
-    const reserveField = form.querySelector(".reserve-keeper-operator-field");
     const intro = form.querySelector(".selection-modal-intro");
     const teamColorInput = form.elements.teamColor;
     const lineInputs = [...form.querySelectorAll('input[name="playerIds"]')];
@@ -7196,8 +7147,6 @@
 
     form.querySelectorAll('input[name="goalkeeperId"]').forEach((input) => {
       input.addEventListener("change", () => {
-        const player = jogadores.find((item) => item.id === input.value);
-        if (reserveField) reserveField.hidden = !isReserveGoalkeeperPlayer(player);
         if (countLabel) countLabel.textContent = `${input.value ? 1 : 0}/1 selecionado${input.value ? "" : "s"}`;
         form.querySelectorAll(".player-selection-option").forEach((option) => {
           option.classList.toggle("is-selected", Boolean(option.querySelector('input[name="goalkeeperId"]:checked')));
@@ -7217,11 +7166,7 @@
 
       if (selectionType === "goleiro") {
         const selectedGoalkeeperId = form.querySelector('input[name="goalkeeperId"]:checked')?.value || "";
-        const goalkeeper = jogadores.find((player) => player.id === selectedGoalkeeperId);
-        const reserveOperatorId = isReserveGoalkeeperPlayer(goalkeeper)
-          ? form.elements.reserveOperatorId?.value || ""
-          : "";
-        setMatchGoalkeeper(teamKey, selectedGoalkeeperId, reserveOperatorId, jogadores);
+        setMatchGoalkeeper(teamKey, selectedGoalkeeperId);
       } else {
         state.gameDraft[teamKey].nome = String(form.elements.teamName?.value || teamName).trim() || teamName;
         state.gameDraft[teamKey].cor = form.elements.teamColor?.value || state.gameDraft[teamKey].cor;
@@ -9104,7 +9049,6 @@
         jogadores: teamAPlayers,
         linha: [...state.gameDraft.A.linha],
         goleiroId: state.gameDraft.A.goleiro,
-        goleiroReservaOperadorId: state.gameDraft.A.goleiroReservaOperadorId || "",
       },
       timeB: {
         nome: state.gameDraft.B.nome,
@@ -9112,7 +9056,6 @@
         jogadores: teamBPlayers,
         linha: [...state.gameDraft.B.linha],
         goleiroId: state.gameDraft.B.goleiro,
-        goleiroReservaOperadorId: state.gameDraft.B.goleiroReservaOperadorId || "",
       },
       persistA: form.elements.persistA
         ? Boolean(form.elements.persistA.checked)
@@ -9140,16 +9083,13 @@
     const occupied = uniqueIds([
       ...data.timeA.linha,
       ...data.timeB.linha,
-      data.timeA.goleiroReservaOperadorId,
-      data.timeB.goleiroReservaOperadorId,
     ]);
     const nextTimeDaVez = normalizePeladaPlayerQueue(pelada, jogadores, occupied);
-    const reserveOperatorId = data.timeA.goleiroReservaOperadorId || data.timeB.goleiroReservaOperadorId || "";
 
     return {
       ...pelada,
       ...buildPeladaTimeDaVezPatch(pelada, { linha: nextTimeDaVez }),
-      goleiroReservaAtualId: reserveOperatorId,
+      goleiroReservaAtualId: "",
       updatedAt: savedAt,
       revision: (pelada.revision || 0) + 1,
     };
@@ -9225,21 +9165,6 @@
       errors.push("O mesmo goleiro não pode estar nos dois times.");
     }
 
-    [data.timeA, data.timeB].forEach((team) => {
-      const goalkeeper = jogadores.find((player) => player.id === team.goleiroId);
-      if (isReserveGoalkeeperPlayer(goalkeeper) && !team.goleiroReservaOperadorId) {
-        errors.push("Escolha quem vai usar a carta Goleiro Reserva.");
-      }
-      if (team.goleiroReservaOperadorId && team.linha.includes(team.goleiroReservaOperadorId)) {
-        errors.push("Quem está usando a carta Goleiro Reserva não pode jogar também na linha.");
-      }
-    });
-
-    const reserveOperators = [data.timeA.goleiroReservaOperadorId, data.timeB.goleiroReservaOperadorId].filter(Boolean);
-    if (new Set(reserveOperators).size !== reserveOperators.length) {
-      errors.push("A mesma pessoa não pode usar a carta Goleiro Reserva nos dois lados.");
-    }
-
     return errors;
   }
 
@@ -9304,7 +9229,6 @@
       jogadores: data.timeA.jogadores,
       linha: data.timeA.linha,
       goleiroId: data.timeA.goleiroId,
-      goleiroReservaOperadorId: data.timeA.goleiroReservaOperadorId,
       createdAt: savedAt,
       updatedAt: savedAt,
       revision: 1,
@@ -9321,7 +9245,6 @@
       jogadores: data.timeB.jogadores,
       linha: data.timeB.linha,
       goleiroId: data.timeB.goleiroId,
-      goleiroReservaOperadorId: data.timeB.goleiroReservaOperadorId,
       createdAt: savedAt,
       updatedAt: savedAt,
       revision: 1,
@@ -11953,25 +11876,17 @@
     const players = context.players || [];
     const gameTeams = context.gameTeams || [];
     const timeDaVez = getPeladaTimeDaVez(pelada);
-    const reserveOperatorIds = uniqueIds([
-      pelada?.goleiroReservaAtualId,
-      ...gameTeams.map((team) => team.goleiroReservaOperadorId),
-    ]);
-    const reserveOperatorSet = new Set(reserveOperatorIds);
     const presentIds = new Set(
       getPresentLinePlayers(pelada, players)
         .map((player) => player.id)
-        .filter((playerId) => !reserveOperatorSet.has(playerId))
     );
     const gameTeamBySide = new Map(gameTeams.map((team) => [team.time, team]));
     const sideGoalkeepers = {
       A: {
         goleiroId: gameTeamBySide.get("A")?.goleiroId || "",
-        goleiroReservaOperadorId: gameTeamBySide.get("A")?.goleiroReservaOperadorId || "",
       },
       B: {
         goleiroId: gameTeamBySide.get("B")?.goleiroId || "",
-        goleiroReservaOperadorId: gameTeamBySide.get("B")?.goleiroReservaOperadorId || "",
       },
     };
 
@@ -11994,13 +11909,11 @@
           linhaB: lineB,
           goleiroAId: sideGoalkeepers.A.goleiroId,
           goleiroBId: sideGoalkeepers.B.goleiroId,
-          goleiroReservaOperadorAId: sideGoalkeepers.A.goleiroReservaOperadorId,
-          goleiroReservaOperadorBId: sideGoalkeepers.B.goleiroReservaOperadorId,
           fila: [jogo.presetAId, jogo.presetBId],
           filaJogadores: normalizePeladaPlayerQueue(
             pelada,
             players,
-            [...lineA, ...lineB, ...reserveOperatorIds]
+            [...lineA, ...lineB]
           ),
           rotacaoEmpate: "troca_dupla",
           jogoOrigemId: jogo.id,
@@ -12059,8 +11972,6 @@
         linhaB: winnerStaysOnA ? challengerLine : winnerLine,
         goleiroAId: sideGoalkeepers.A.goleiroId,
         goleiroBId: sideGoalkeepers.B.goleiroId,
-        goleiroReservaOperadorAId: sideGoalkeepers.A.goleiroReservaOperadorId,
-        goleiroReservaOperadorBId: sideGoalkeepers.B.goleiroReservaOperadorId,
         fila: nextQueue,
         vencedorAnteriorId: winnerId,
         vencedorAnteriorLado: winningTeamKey,
