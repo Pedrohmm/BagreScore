@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.16";
+  const APP_VERSION = "1.4.17";
   const MIN_SYNC_API_VERSION = "1.6.2";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -12474,12 +12474,13 @@
     const selectedProfile = state.selectedStatsPlayerId
       ? statsResult.playersStats.find((item) => item.jogadorId === state.selectedStatsPlayerId)
       : null;
+    const careerStats = selectedProfile ? await calcularEstatisticasJogadores({}) : null;
 
     document.body.classList.toggle("stats-profile-mode", Boolean(selectedProfile));
     setSectionTitle("Ranking", selectedProfile ? "Perfil do jogador" : "Estatísticas");
 
     $("#section-content").innerHTML = selectedProfile
-      ? renderPlayerStatsProfile(selectedProfile, statsResult)
+      ? renderPlayerStatsProfile(selectedProfile, statsResult, getPlayerCupAwards(careerStats, selectedProfile.jogadorId))
       : renderStatsDashboard(statsResult);
 
     bindStatsSectionEvents(statsResult);
@@ -12532,7 +12533,8 @@
     }
 
     document.body.classList.add("stats-profile-mode");
-    $("#section-content").innerHTML = renderPlayerStatsProfile(selectedProfile, statsResult);
+    const careerStats = await calcularEstatisticasJogadores({});
+    $("#section-content").innerHTML = renderPlayerStatsProfile(selectedProfile, statsResult, getPlayerCupAwards(careerStats, selectedProfile.jogadorId));
     bindStatsSectionEvents(statsResult);
   }
 
@@ -13554,7 +13556,7 @@
     });
   }
 
-  function renderPlayerStatsProfile(stats, statsResult) {
+  function renderPlayerStatsProfile(stats, statsResult, cupAwards = []) {
     const jogador = stats.jogador;
     const activeDefinitions = getActiveAttributeDefinitions(jogador.tipoJogador, jogador.posicaoPrincipal);
     const activeTab = getActiveProfileTab();
@@ -13566,7 +13568,7 @@
         </header>
 
         <section class="player-card-showcase">
-          ${renderPlayerBagreCard(jogador, activeDefinitions)}
+          ${renderPlayerBagreCard(jogador, activeDefinitions, cupAwards)}
 
           <div class="profile-performance-strip" aria-label="Desempenho do jogador">
             ${renderProfileHeroMetric("Jogos", stats.jogos)}
@@ -13627,7 +13629,82 @@
     ];
   }
 
-  function renderPlayerBagreCard(jogador, activeDefinitions) {
+  function getPlayerCupAwards(statsResult, jogadorId) {
+    return (statsResult?.eventos || [])
+      .filter((evento) => normalizeToken(evento.tipo) === "mvp_bagrecup" && evento.jogadorId === jogadorId)
+      .map((evento) => {
+        const pelada = statsResult.peladaById.get(evento.peladaId);
+        return {
+          id: evento.id,
+          local: pelada?.local || "BagresCup",
+          data: pelada?.data || evento.createdAt?.slice(0, 10) || "",
+          pontuacao: evento.pontuacaoCalculada,
+          observacoes: evento.observacoes || "",
+        };
+      })
+      .sort((a, b) => String(b.data).localeCompare(String(a.data)) || String(a.id).localeCompare(String(b.id)));
+  }
+
+  function renderCupTrophyIcon(instance) {
+    const metal = `cup-metal-${instance}`;
+    const edge = `cup-edge-${instance}`;
+    return `<svg class="cup-trophy-art" viewBox="0 0 64 80" fill="none" aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id="${metal}" x1="12" y1="0" x2="54" y2="0" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#81531c"/><stop offset=".24" stop-color="#f0b84f"/><stop offset=".43" stop-color="#fff0bc"/><stop offset=".57" stop-color="#d6932c"/><stop offset=".8" stop-color="#f5d079"/><stop offset="1" stop-color="#92581a"/>
+        </linearGradient>
+        <linearGradient id="${edge}" x1="32" y1="6" x2="32" y2="74" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#fff1c6"/><stop offset=".48" stop-color="#d99e36"/><stop offset="1" stop-color="#ff741e"/>
+        </linearGradient>
+      </defs>
+      <path d="M17 15H6v7c0 11 7 18 17 18M47 15h11v7c0 11-7 18-17 18" stroke="url(#${metal})" stroke-width="5" stroke-linejoin="round"/>
+      <path d="M15 18H9v4c0 8 4 13 10 15M49 18h6v4c0 8-4 13-10 15" stroke="#fff0ba" stroke-opacity=".6" stroke-width="1"/>
+      <path d="M28 43h8l-1 13 8 6H21l8-6-1-13Z" fill="url(#${metal})" stroke="url(#${edge})" stroke-width="1.2"/>
+      <path d="M15 11h34l-3 19c-1 8-6 14-14 17-8-3-13-9-14-17l-3-19Z" fill="url(#${metal})" stroke="url(#${edge})" stroke-width="1.4"/>
+      <path d="m19 14 4 18c1 5 4 9 9 12-3-7-4-18-4-30H19Z" fill="#fff6cf" fill-opacity=".23"/>
+      <path d="m45 14-3 17c-1 5-4 9-10 13 4-8 5-18 5-30h8Z" fill="#593d19" fill-opacity=".3"/>
+      <rect x="14" y="8" width="36" height="6" rx="2" fill="url(#${metal})" stroke="#ffe5a2" stroke-width="1.2"/>
+      <path d="M18 10h28" stroke="#fff6dc" stroke-width="1.1" stroke-linecap="round"/>
+      <path d="m32 20 2.8 5.5 6.2.9-4.5 4.4 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2-4.5-4.4 6.2-.9L32 20Z" fill="#252017" stroke="#ffedae" stroke-width=".9"/>
+      <path d="m32 24 1.5 3 3.3.5-2.4 2.3.6 3.3-3-1.6-3 1.6.6-3.3-2.4-2.3 3.3-.5L32 24Z" fill="#ff8b30"/>
+      <rect x="21" y="60" width="22" height="4" rx="1" fill="url(#${metal})"/>
+      <path d="M19 64h26l3 9H16l3-9Z" fill="#18191c" stroke="url(#${edge})" stroke-width="1.4"/>
+      <path d="M22 66h20M19 71h26" stroke="#f4c877" stroke-opacity=".55" stroke-linecap="round"/>
+      <path d="M29 68h6" stroke="#ff8b30" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>`;
+  }
+
+  function renderPlayerCupTrophies(jogadorId, awards) {
+    if (!awards.length) return "";
+    const total = awards.length;
+    const label = `${total} conquista${total === 1 ? "" : "s"} de Craque da Copa. Ver troféus do BagresCup`;
+    return `<button class="player-cup-trophies" type="button" data-stats-action="cup-trophies" data-player-id="${escapeHtml(jogadorId)}" aria-haspopup="dialog" aria-label="${label}" title="${label}">
+      ${awards.slice(0, 3).map((award, index) => `<span class="player-cup-miniature">${renderCupTrophyIcon(`card-${index}`)}</span>`).join("")}
+      ${total > 3 ? `<span class="player-cup-overflow" aria-hidden="true">+${total - 3}</span>` : ""}
+    </button>`;
+  }
+
+  async function openPlayerCupTrophies(jogadorId) {
+    const careerStats = await calcularEstatisticasJogadores({});
+    const awards = getPlayerCupAwards(careerStats, jogadorId);
+    const jogador = careerStats.playerById.get(jogadorId);
+    if (!jogador) return;
+    openLiveModal("Craque da Copa", `
+      <section class="cup-awards-gallery">
+        <header class="cup-awards-heading">
+          <span class="cup-awards-emblem">${renderCupTrophyIcon("gallery-hero")}</span>
+          <div><span>MVP do BagresCup</span><h3>${escapeHtml(playerDisplayName(jogador))}</h3><p>${awards.length} conquista${awards.length === 1 ? "" : "s"}</p></div>
+        </header>
+        ${awards.length ? `<ol class="cup-awards-list">${awards.map((award, index) => `<li>
+          <span class="cup-awards-number" aria-label="Conquista ${awards.length - index}">${String(awards.length - index).padStart(2, "0")}</span>
+          <div><strong>${escapeHtml(award.local)}</strong><time>${escapeHtml(formatDateLabel(award.data))}</time>${award.observacoes ? `<p>${escapeHtml(award.observacoes)}</p>` : ""}</div>
+          ${Number.isFinite(award.pontuacao) ? `<span class="cup-awards-score"><strong>${escapeHtml(formatScoreNumber(award.pontuacao))}</strong><small>pontos</small></span>` : ""}
+        </li>`).join("")}</ol>` : `<p class="cup-awards-empty">Nenhuma conquista registrada ainda.</p>`}
+        <button class="ghost-button big-touch" type="button" data-modal-close>Voltar à carta</button>
+      </section>`);
+  }
+
+  function renderPlayerBagreCard(jogador, activeDefinitions, cupAwards = []) {
     const modalidade = getPlayerModality(jogador);
     const isMonthly = modalidade === "Mensalista";
     return `
@@ -13668,7 +13745,7 @@
           </span>
           <span class="player-bagre-level">
             ${renderPlayerStars(jogador.overall, "player-bagre-stars")}
-            ${isMonthly ? `<small class="player-bagre-modality">Mensalista</small>` : ""}
+            ${renderPlayerCupTrophies(jogador.id, cupAwards)}
           </span>
         </div>
         <div class="player-bagre-portrait">
@@ -14097,6 +14174,11 @@
       }
 
       const action = actionButton.dataset.statsAction;
+
+      if (action === "cup-trophies") {
+        await openPlayerCupTrophies(actionButton.dataset.playerId);
+        return;
+      }
 
       if (action === "profile") {
         state.selectedStatsPlayerId = actionButton.dataset.playerId || null;
