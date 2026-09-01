@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.12";
+  const APP_VERSION = "1.4.13";
   const MIN_SYNC_API_VERSION = "1.6.2";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -2910,6 +2910,16 @@
     return requestToPromise(request);
   }
 
+  async function getRecordsByIndex(storeName, indexName, value, fallbackFilter) {
+    const transaction = state.db.transaction(storeName, "readonly");
+    const store = transaction.objectStore(storeName);
+    const hasIndex = store.indexNames.contains(indexName);
+    const request = hasIndex ? store.index(indexName).getAll(value) : store.getAll();
+    const records = await requestToPromise(request);
+
+    return hasIndex || !fallbackFilter ? records : records.filter(fallbackFilter);
+  }
+
   async function putRecord(storeName, record) {
     const transaction = state.db.transaction(storeName, "readwrite");
     transaction.objectStore(storeName).put(record);
@@ -3319,9 +3329,12 @@
   }
 
   async function readGamesForPelada(peladaId) {
-    const jogos = await getAllRecords("jogos");
-    return jogos
-      .filter((jogo) => jogo.peladaId === peladaId)
+    return (await getRecordsByIndex(
+      "jogos",
+      "por_pelada",
+      peladaId,
+      (jogo) => jogo.peladaId === peladaId
+    ))
       .sort((a, b) => String(a.createdAt || a.inicio || "").localeCompare(String(b.createdAt || b.inicio || "")));
   }
 
@@ -3330,22 +3343,23 @@
       return null;
     }
 
-    const [jogo, times, escalacoes, jogadores, eventos, peladas] = await Promise.all([
-      getRecord("jogos", jogoId),
-      getAllRecords("times"),
-      getAllRecords("escalacoes"),
-      getAllRecords("jogadores"),
-      getAllRecords("eventos"),
-      getAllRecords("peladas"),
-    ]);
+    const jogo = await getRecord("jogos", jogoId);
 
     if (!jogo) {
       return null;
     }
 
+    const [times, escalacoes, jogadores, eventos, pelada] = await Promise.all([
+      getRecordsByIndex("times", "por_jogo", jogoId, (time) => time.jogoId === jogoId),
+      getRecordsByIndex("escalacoes", "por_jogo", jogoId, (escalacao) => escalacao.jogoId === jogoId),
+      getAllRecords("jogadores"),
+      getRecordsByIndex("eventos", "por_jogo", jogoId, (evento) => evento.jogoId === jogoId),
+      getRecord("peladas", jogo.peladaId),
+    ]);
+
     const playerById = new Map(jogadores.map((jogador) => [jogador.id, jogador]));
-    const gameTeams = times.filter((time) => time.jogoId === jogoId);
-    const gameLineups = escalacoes.filter((escalacao) => escalacao.jogoId === jogoId);
+    const gameTeams = times;
+    const gameLineups = escalacoes;
     const participantsA = gameLineups
       .filter((escalacao) => escalacao.time === "A" || escalacao.timeId === jogo.timeA?.id)
       .map((escalacao) => playerById.get(escalacao.jogadorId))
@@ -3361,12 +3375,12 @@
 
     return {
       jogo,
-      pelada: peladas.find((pelada) => pelada.id === jogo.peladaId) || null,
+      pelada,
       times: gameTeams,
       escalacoes: gameLineups,
       playerById,
       eventos: eventos
-        .filter((evento) => evento.jogoId === jogoId && !evento.cancelado)
+        .filter((evento) => !evento.cancelado)
         .sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || ""))),
       playersA,
       playersB,
@@ -3714,9 +3728,12 @@
       }
     }
 
-    const jogos = await getAllRecords("jogos");
-    const activeGame = jogos
-      .filter((jogo) => jogo.status === "Em andamento")
+    const activeGame = (await getRecordsByIndex(
+      "jogos",
+      "por_status",
+      "Em andamento",
+      (jogo) => jogo.status === "Em andamento"
+    ))
       .sort((a, b) => String(b.inicio || "").localeCompare(String(a.inicio || "")))[0];
 
     if (activeGame) {
@@ -3785,7 +3802,7 @@
     });
   }
 
-  async function calcularEstatisticasJogadores(filters = state.statsFilters) {
+  async function calcularEstatisticasJogadores(filters = state.statsFilters, sourceData = null) {
     const cacheKey = getStatsCalculationCacheKey(filters);
     const cachedResult = statsCalculationCache.get(cacheKey);
 
@@ -3793,13 +3810,21 @@
       return cachedResult;
     }
 
-    const [jogadores, peladas, jogos, escalacoes, eventos] = await Promise.all([
-      readPlayersWithAttributes(),
-      getAllRecords("peladas"),
-      getAllRecords("jogos"),
-      getAllRecords("escalacoes"),
-      getAllRecords("eventos"),
-    ]);
+    const [jogadores, peladas, jogos, escalacoes, eventos] = sourceData
+      ? [
+          sourceData.jogadores,
+          sourceData.peladas,
+          sourceData.jogos,
+          sourceData.escalacoes,
+          sourceData.eventos,
+        ]
+      : await Promise.all([
+          readPlayersWithAttributes(),
+          getAllRecords("peladas"),
+          getAllRecords("jogos"),
+          getAllRecords("escalacoes"),
+          getAllRecords("eventos"),
+        ]);
     const peladaById = new Map(peladas.map((pelada) => [pelada.id, pelada]));
     const gameById = new Map(jogos.map((jogo) => [jogo.id, jogo]));
     const playerById = new Map(jogadores.map((jogador) => [jogador.id, jogador]));
@@ -4233,7 +4258,7 @@
           jogadorId: "",
           posicao: "",
           sortBy: "gols",
-        })
+        }, statsResult)
       : null;
 
     const jogadorPorId = new Map(jogadores.map((jogador) => [jogador.id, jogador]));
