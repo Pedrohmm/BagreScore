@@ -25261,11 +25261,22 @@ body.stats-profile-mode .player-bagre-stars svg {
   height: clamp(14px, 4vw, 19px);
 }
 
-body.stats-profile-mode .player-cup-trophies {
+body.stats-profile-mode .player-cup-honors {
   display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+body.stats-profile-mode .player-cup-trophies {
+  position: relative;
+  display: flex;
+  flex: 0 1 auto;
   width: max-content;
   max-width: 100%;
-  min-width: 0;
+  min-width: 44px;
   min-height: 44px;
   align-items: center;
   justify-content: flex-end;
@@ -25287,9 +25298,25 @@ body.stats-profile-mode .player-cup-trophies {
 body.stats-profile-mode .player-cup-trophies:hover { background: rgba(244, 210, 139, 0.07); }
 body.stats-profile-mode .player-cup-trophies:focus-visible { outline: 2px solid #f4d28b; outline-offset: 3px; }
 body.stats-profile-mode .player-cup-miniature { display: block; flex: 0 1 32px; width: 32px; min-width: 0; }
+body.stats-profile-mode .has-both-honors .player-cup-miniature { flex-basis: 28px; width: 28px; }
+body.stats-profile-mode .has-both-honors .is-craques { border-left: 1px solid rgba(244, 210, 139, 0.18); border-top-left-radius: 0; border-bottom-left-radius: 0; padding-left: 8px; }
 .cup-trophy-art { display: block; width: 100%; height: auto; aspect-ratio: 4 / 5; }
 body.stats-profile-mode .player-cup-miniature .cup-trophy-art { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.65)); }
-body.stats-profile-mode .player-cup-overflow { flex: 0 0 auto; font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; }
+body.stats-profile-mode .player-cup-overflow {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  min-width: 20px;
+  padding: 3px 4px;
+  border: 1px solid #6d562e;
+  border-radius: 5px;
+  background: #111113;
+  color: #ffe3a5;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
 
 #live-modal:has(.cup-awards-gallery) .modal-panel { width: min(520px, 100%); background: #111113; }
 #live-modal .cup-awards-gallery { display: grid; gap: 20px; min-width: 0; color: #f4f4f5; }
