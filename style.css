@@ -18916,6 +18916,8 @@ body[data-section="ranking"] .ranking-podium-value {
   position: relative;
   z-index: 2;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   width: 100%;
   justify-items: center;
   gap: 1px;
@@ -18927,18 +18929,22 @@ body[data-section="ranking"] .ranking-podium-value {
 body[data-section="ranking"] .ranking-podium-value strong {
   display: block;
   min-height: 0;
+  min-width: 0;
   max-width: 100%;
   border: 0;
   border-radius: 0;
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
   color: #fff;
   background: transparent;
   font-size: 0.74rem;
   font-weight: 950;
-  line-height: 1.05;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.25;
+  letter-spacing: 0;
+  text-align: center;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 body[data-section="ranking"] .ranking-leaderboard-board .ranking-podium-place .ranking-podium-value strong {
