@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.18";
+  const APP_VERSION = "1.4.19";
   const MIN_SYNC_API_VERSION = "1.6.2";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -9031,11 +9031,90 @@
     }
   }
 
+  function getLegacyCupBagre(summary) {
+    const award = summary?.awards?.bagre;
+    if (!summary || !isFinalizedPelada(summary.pelada) || summary.bagreMode !== "bagrecup" ||
+        !award?.id || normalizeToken(award.tipo) !== "bagre_pelada" ||
+        award.cancelado || award.deletedAt) return null;
+
+    const performance = summary.bagreSummary.scoreByPlayerId.get(award.jogadorId);
+    if (!performance?.jogador || isReserveGoalkeeperPlayer(performance.jogador) ||
+        performance.jogos < 1 || summary.awards.mvp?.jogadorId === award.jogadorId) return null;
+    return { award, performance };
+  }
+
+  async function confirmLegacyCupBagre(peladaId, expectedAward, button) {
+    if (!requirePermission("jogos:finalizar") || !requirePermission("eventos:criar")) return;
+    if (finalizingPeladaIds.has(peladaId)) return;
+    finalizingPeladaIds.add(peladaId);
+    const originalLabel = button.textContent;
+    button.disabled = true;
+    button.textContent = "Salvando...";
+
+    try {
+      const summary = await readPeladaClosureSummary(peladaId);
+      const legacy = getLegacyCupBagre(summary);
+      if (!legacy || legacy.award.id !== expectedAward.id ||
+          legacy.award.jogadorId !== expectedAward.jogadorId ||
+          Number(legacy.award.revision || 0) !== Number(expectedAward.revision || 0)) {
+        throw new Error("A escolha foi atualizada. Feche e abra o resumo para conferir o registro atual.");
+      }
+
+      const { award, performance } = legacy;
+      const savedAt = nowIso();
+      // Reclassify the existing award: preserve its identity and all original match/XP records.
+      const updatedAward = {
+        ...award,
+        tipo: "BAGRE_BAGRECUP",
+        modoJogo: "bagrecup",
+        detalhe: `Bagre da Copa - ${summary.pelada.local || "Pelada"}`,
+        pontuacaoCalculada: Number(Number(performance.mediaDesempenho || 0).toFixed(2)),
+        escolhidoManual: true,
+        editadoPor: getActorId(),
+        updatedAt: savedAt,
+        revision: Number(award.revision || 0) + 1,
+      };
+      const updatedPelada = {
+        ...summary.pelada,
+        bagreJogadorId: award.jogadorId,
+        bagreTipo: updatedAward.tipo,
+        updatedAt: savedAt,
+        revision: Number(summary.pelada.revision || 0) + 1,
+      };
+      await putRecords({
+        eventos: [updatedAward],
+        peladas: [updatedPelada],
+        syncQueue: [
+          createSyncQueueRecord("eventos", "upsert", award.id, updatedAward),
+          createSyncQueueRecord("peladas", "upsert", peladaId, updatedPelada),
+        ],
+        auditLog: [
+          createAuditRecord("eventos", award.id, "confirmar-bagre-copa-retroativo", award, updatedAward),
+          createAuditRecord("peladas", peladaId, "confirmar-bagre-copa-retroativo", summary.pelada, updatedPelada),
+        ],
+      });
+      closeLiveModal();
+      await renderCurrentSection();
+      await openPeladaClosureSummaryModal(peladaId);
+      runBackgroundTask(syncNow, "Falha ao sincronizar confirmação do Bagre da Copa");
+    } catch (error) {
+      showFormErrors("confirm-cup-bagre-errors", [error.message || "Não foi possível salvar. Tente novamente."]);
+    } finally {
+      finalizingPeladaIds.delete(peladaId);
+      if (button.isConnected) {
+        button.disabled = false;
+        button.textContent = originalLabel;
+      }
+    }
+  }
+
   async function openPeladaClosureSummaryModal(peladaId) {
     if (!peladaId) return;
     const summary = await readPeladaClosureSummary(peladaId);
     if (!summary || !isFinalizedPelada(summary.pelada)) return;
     const mvp = summary.awards.mvp;
+    const legacyBagre = getLegacyCupBagre(summary);
+    const canConfirmBagre = legacyBagre && hasPermission("jogos:finalizar") && hasPermission("eventos:criar");
     const awardName = (event, fallbackId) => {
       const id = event?.jogadorId || fallbackId;
       return id ? playerDisplayName(summary.playerById.get(id) || { nome: "Jogador removido" }) : "Não escolhido";
@@ -9051,10 +9130,18 @@
             <span><small>${escapeHtml(getBagreAwardLabel(summary.awards.bagre || { tipo: summary.pelada.bagreTipo }))}</small><strong>${escapeHtml(awardName(summary.awards.bagre, summary.pelada.bagreJogadorId))}</strong></span>
             <span><small>Defensor da Pelada</small><strong>${escapeHtml(awardName(null, summary.pelada.defensorJogadorId))}</strong></span>
           </div>
+          ${canConfirmBagre ? `
+            <p class="finish-scope-note">${escapeHtml(playerDisplayName(legacyBagre.performance.jogador))} foi escolhido como Bagre neste encontro, mas o prêmio ainda está no formato antigo. Confirme para contabilizá-lo no ranking do BagresCup, sem duplicar o prêmio ou alterar XP.</p>
+            <div class="form-errors" id="confirm-cup-bagre-errors" role="alert" hidden></div>
+            <button class="primary-button big-touch" type="button" data-confirm-cup-bagre>Confirmar ${escapeHtml(playerDisplayName(legacyBagre.performance.jogador))} como Bagre da Copa</button>
+          ` : ""}
         </section>
         <button class="ghost-button big-touch" type="button" data-modal-close>Fechar resumo</button>
       </div>`);
     bindPeladaSummaryTabs(modal);
+    modal.querySelector("[data-confirm-cup-bagre]")?.addEventListener("click", (event) => {
+      void confirmLegacyCupBagre(peladaId, legacyBagre.award, event.currentTarget);
+    });
   }
 
   function validatePeladaAwardChoices(summary, choices) {
