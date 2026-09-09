@@ -1,5 +1,13 @@
 # BagreScore no modelo PAOA
 
+## Correção 1.4.20 — próximo jogo da Pelada Clássica
+
+- Corrige o bloqueio “Escolha times da modalidade atual” ao iniciar o jogo seguinte sem times cadastrados.
+- A preparação do confronto mantém os identificadores de times salvos separados dos times temporários da rotação, preservando nomes, escalações e goleiros.
+- A validação de modalidade dos times cadastrados permanece ativa.
+- Não é necessário atualizar o Apps Script nem alterar os dados existentes. Publique os arquivos do aplicativo e use **Forçar atualização** no celular.
+- Testes de regressão: `node --test tests/classic-next-game.test.cjs`.
+
 O BagreScore usa o mesmo desenho geral do PAOA:
 
 1. o aplicativo salva primeiro no IndexedDB do aparelho;

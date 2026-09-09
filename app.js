@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.19";
+  const APP_VERSION = "1.4.20";
   const MIN_SYNC_API_VERSION = "1.6.2";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -2667,9 +2667,11 @@
   }
 
   function hydrateMatchDraft(presetA, presetB, savedMatchup = null) {
+    // Rotation identities can refer to temporary teams, not saved presets.
+    // Their names and lineups are restored separately from savedMatchup below.
     state.matchPresetIds = {
-      A: presetA?.id || savedMatchup?.timeAId || "",
-      B: presetB?.id || savedMatchup?.timeBId || "",
+      A: presetA?.id || "",
+      B: presetB?.id || "",
     };
     state.matchPersist = { A: false, B: false };
     state.gameDraft = {
