@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.20";
+  const APP_VERSION = "1.4.21";
   const MIN_SYNC_API_VERSION = "1.6.2";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -29,6 +29,7 @@
   ]);
   const STATS_SOURCE_STORES = new Set(["jogadores", "atributos", "peladas", "jogos", "escalacoes", "eventos"]);
   const statsCalculationCache = new Map();
+  const manualStats = window.BagreScoreManualStats;
 
   const STORE_SCHEMAS = [
     {
@@ -1694,6 +1695,11 @@
 
     withoutDuplicateEncounterAwards(eventos)
       .forEach((evento) => {
+        if (manualStats.isManual(evento)) {
+          buildEventEvolutionChanges(jogadorId, jogador, attributes, manualStats.evolutionEvents(evento))
+            .forEach(change => changes.push({ ...change, eventoId: evento.id, origem: "anotacoes" }));
+          return;
+        }
         const eventType = normalizeToken(evento.tipo);
         const tipoGol = normalizeToken(evento.tipoGol);
         const cartao = normalizeToken(evento.cartao);
@@ -3091,7 +3097,7 @@
     };
   }
 
-  async function aplicarAlteracoesAtributos(jogadorId, changes) {
+  async function aplicarAlteracoesAtributos(jogadorId, changes, options = {}) {
     const filteredChanges = (changes || []).filter((change) => {
       const amount = Number((change?.xp ?? change?.xpGanho ?? change?.variacao) || 0);
       return change && Number.isFinite(amount) && amount !== 0;
@@ -3101,7 +3107,7 @@
       return [];
     }
 
-    const [jogador, existingAttributes, existingEvolucoes] = await Promise.all([
+    const [jogador, existingAttributes, existingEvolucoes] = options.snapshot || await Promise.all([
       getRecord("jogadores", jogadorId),
       getRecord("atributos", jogadorId),
       getAllRecords("evolucoes"),
@@ -3194,7 +3200,7 @@
       nextAttributes[atributo] = valorNovo;
       nextXp[atributo] = xpNovo;
       evolucoes.push({
-        id: uid(),
+        id: options.deterministic ? `evolucao:${change.sourceKey}` : uid(),
         jogadorId,
         atributo,
         variacao: variacaoReal,
@@ -3246,7 +3252,7 @@
       revision: (existingAttributes?.revision || 0) + 1,
     };
 
-    await putRecords({
+    const mutations = {
       jogadores: [jogadorAtualizado],
       atributos: [atributosAtualizados],
       evolucoes,
@@ -3264,8 +3270,9 @@
           evolucoes,
         }),
       ],
-    });
-
+    };
+    if (options.preview) return mutations;
+    await putRecords(mutations);
     return evolucoes;
   }
 
@@ -3326,6 +3333,7 @@
   }
 
   function hasProtectedInteraction() {
+    if (state.manualStatsInProgress || $("#manual-stats-form")) return true;
     if ($("#live-modal")) return true;
     if ($("#pelada-form") || $("#player-form")) return true;
 
@@ -3857,6 +3865,9 @@
 
   function createEmptyPlayerStats(jogador) {
     return {
+      golsAvulsos: 0,
+      assistenciasAvulsas: 0,
+      lancamentosAvulsos: [],
       jogador,
       jogadorId: jogador.id,
       jogos: 0,
@@ -4043,6 +4054,7 @@
       }
 
       const eventType = normalizeToken(evento.tipo);
+      if (manualStats.isManual(evento)) return manualStats.matches(evento, filters);
       const isGameEvent = selectedGameIds.has(evento.jogoId);
       if (isEncounterMvpEvent(evento) || isEncounterBagreEvent(evento)) {
         const pelada = peladaById.get(evento.peladaId);
@@ -4056,6 +4068,17 @@
     });
 
     scopedEvents.forEach((evento) => {
+      if (manualStats.isManual(evento)) {
+        const stats = statsByPlayerId.get(evento.jogadorId);
+        if (stats) {
+          stats.gols += evento.gols;
+          stats.assistencias += evento.assistencias;
+          stats.golsAvulsos += evento.gols;
+          stats.assistenciasAvulsas += evento.assistencias;
+          stats.lancamentosAvulsos.push(evento);
+        }
+        return;
+      }
       const eventType = normalizeToken(evento.tipo);
       const tipoGol = normalizeToken(evento.tipoGol);
       const cartao = normalizeToken(evento.cartao);
@@ -4206,18 +4229,21 @@
       stats.aproveitamento = stats.jogos
         ? ((stats.vitorias * 3 + stats.empates) / (stats.jogos * 3)) * 100
         : 0;
-      stats.golsPorJogo = safeDivide(stats.gols, stats.jogos);
-      stats.assistenciasPorJogo = safeDivide(stats.assistencias, stats.jogos);
-      stats.gaPorJogo = safeDivide(stats.participacoesGol, stats.jogos);
+      stats.golsPorJogo = safeDivide(stats.gols - stats.golsAvulsos, stats.jogos);
+      stats.assistenciasPorJogo = safeDivide(stats.assistencias - stats.assistenciasAvulsas, stats.jogos);
+      stats.gaPorJogo = safeDivide(stats.participacoesGol - stats.golsAvulsos - stats.assistenciasAvulsas, stats.jogos);
       stats.disputasPenaltis = stats.penaltisConvertidos + stats.penaltisPerdidos;
       stats.historico.sort((a, b) => String(b.data || "").localeCompare(String(a.data || "")));
       stats.premiosPelada.sort((a, b) => String(b.data || "").localeCompare(String(a.data || "")));
       return stats;
     });
-    const golsRegistrados = scopedEvents.filter(
+    const manualEvents = scopedEvents.filter(manualStats.active);
+    const manualGoals = manualEvents.reduce((sum, event) => sum + event.gols, 0);
+    const manualAssists = manualEvents.reduce((sum, event) => sum + event.assistencias, 0);
+    const golsRegistrados = manualGoals + scopedEvents.filter(
       (evento) => normalizeToken(evento.tipo) === "gol" && !evento.golContra
     ).length;
-    const assistencias = scopedEvents.filter(
+    const assistencias = manualAssists + scopedEvents.filter(
       (evento) => normalizeToken(evento.tipo) === "gol" && evento.assistenteId
     ).length;
     const faltas = scopedEvents.filter((evento) => normalizeToken(evento.tipo) === "falta").length;
@@ -4253,7 +4279,7 @@
         totalFaltas: faltas,
         totalAcoesDefensivas: acoesDefensivas,
         totalDefesasDificeis: defesasDificeis,
-        mediaGolsPorJogo: safeDivide(golsRegistrados, finalizedGames.length),
+        mediaGolsPorJogo: safeDivide(golsRegistrados - manualGoals, finalizedGames.length),
       },
     };
     statsCalculationCache.set(cacheKey, result);
@@ -4429,6 +4455,10 @@
       eventosValidos.filter((evento) => evento.assistenteId),
       "assistenteId"
     );
+    eventosValidos.filter(manualStats.active).forEach(event => {
+      golsPorJogador[event.jogadorId] = (golsPorJogador[event.jogadorId] || 0) + event.gols;
+      assistencias[event.jogadorId] = (assistencias[event.jogadorId] || 0) + event.assistencias;
+    });
 
     const topScorer = topFromTally(golsPorJogador, jogadorPorId);
     const topAssists = topFromTally(assistencias, jogadorPorId);
@@ -11664,7 +11694,8 @@
     updateLiveMiniDockFromGame(jogo);
 
     if (remaining <= 0) {
-      resolveTimeExpiredGame(jogoId);
+      stopLiveTimer();
+      if (state.currentSection === "ao-vivo") resolveTimeExpiredGame(jogoId);
     }
   }
 
@@ -12981,13 +13012,16 @@
   }
 
   async function renderRankingSection() {
-    const [peladas, games] = await Promise.all([readPeladasSorted(), getAllRecords("jogos")]);
+    const [peladas, games, events] = await Promise.all([readPeladasSorted(), getAllRecords("jogos"), getAllRecords("eventos")]);
     const officialPeladas = peladas.filter((pelada) => !isTestPelada(pelada));
     const competitionMode = normalizeGameMode(state.rankingCompetitionMode);
     const scopedPeladas = competitionMode
       ? officialPeladas.filter((pelada) => peladaMatchesStatsFilters(pelada, { modoJogo: competitionMode }, games))
       : officialPeladas;
-    const monthOptions = getRankingMonthOptions(scopedPeladas);
+    const monthOptions = getRankingMonthOptions([
+      ...scopedPeladas,
+      ...events.filter(event => manualStats.matches(event, { modoJogo: competitionMode })),
+    ]);
     if (state.rankingMonth && !monthOptions.includes(state.rankingMonth)) {
       state.rankingMonth = "";
     }
@@ -13446,7 +13480,7 @@
       .filter((stats) =>
         stats.jogador &&
         !isReserveGoalkeeperPlayer(stats.jogador) &&
-        (!scopedRanking || Number(stats.jogos || 0) > 0)
+        (!scopedRanking || Number(stats.jogos || 0) > 0 || stats.lancamentosAvulsos?.length > 0)
       )
       .sort((a, b) =>
         Number(b.jogador.overall || 0) - Number(a.jogador.overall || 0) ||
@@ -13495,7 +13529,7 @@
       .filter((stats) => {
         const jogador = stats.jogador;
         return jogador &&
-          (!scopedRanking || Number(stats.jogos || 0) > 0) &&
+          (!scopedRanking || Number(stats.jogos || 0) > 0 || stats.lancamentosAvulsos?.length > 0) &&
           getActiveAttributeKeys(jogador.tipoJogador, jogador.posicaoPrincipal).includes(attributeKey);
       })
       .sort((a, b) => {
@@ -13754,6 +13788,7 @@
           </div>
         </section>
 
+        ${stats.lancamentosAvulsos?.length ? `<section class="profile-panel-card"><h3>Anotações avulsas</h3>${stats.lancamentosAvulsos.map(item => `<p>${escapeHtml(formatDateLabel(item.data))} · ${item.gols} gols · ${item.assistencias} assistências</p>`).join("")}<small>Incluídas nos totais e atributos. As médias por jogo usam somente as partidas registradas.</small></section>` : ""}
         ${renderPlayerProfileTabs(activeTab)}
         ${renderPlayerProfileTabPanel(activeTab, stats, statsResult, activeDefinitions)}
       </div>
@@ -14628,6 +14663,7 @@
         </section>
 
         ${isAdminPanel ? renderUserManagement(accountPlayers) : ""}
+        ${isAdminPanel ? renderManualStatsImportPanel() : ""}
 
         <section class="admin-settings-section admin-operation-section">
           <header class="admin-settings-section-heading">
@@ -14678,6 +14714,219 @@
     $("#user-admin-form")?.addEventListener("submit", handleUserAdminSubmit);
     $(".user-admin-card")?.addEventListener("click", handleUserAdminClick);
     $("#server-reset-form")?.addEventListener("submit", handleServerResetSubmit);
+    bindManualStatsImportPanel();
+  }
+
+  function renderManualStatsImportPanel() {
+    return `<section class="admin-settings-section">
+      <h3>Anotações avulsas</h3>
+      <p>Importe gols e assistências sem criar peladas ou partidas. Confira os jogadores antes de registrar.</p>
+      <label class="field-label"><span>Arquivo de anotações (.json)</span><input id="manual-stats-file" type="file" accept=".json,application/json" /></label>
+      <div id="manual-stats-preview"></div>
+      <p id="manual-stats-feedback" role="status"></p>
+      <details><summary>Desfazer uma importação</summary>
+        <label class="field-label"><span>Identificador da importação</span><input id="manual-stats-undo-id" type="text" placeholder="anotacoes-2026-09-09" /></label>
+        <button id="manual-stats-undo" class="ghost-button" type="button">Desfazer lançamento e evolução</button>
+        <p>Use o aparelho que importou. Se houver alterações posteriores nos atributos, a restauração automática será bloqueada para preservar a evolução mais recente.</p>
+      </details>
+    </section>`;
+  }
+
+  function bindManualStatsImportPanel() {
+    $("#manual-stats-file")?.addEventListener("change", async event => {
+      try {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        if (file.size > 100000) throw new Error("O arquivo de anotações é muito grande.");
+        const input = manualStats.validate(JSON.parse(await file.text()));
+        const players = await getAllRecords("jogadores");
+        const goals = input.jogadores.reduce((sum, row) => sum + row.gols, 0);
+        const assists = input.jogadores.reduce((sum, row) => sum + row.assistencias, 0);
+        $("#manual-stats-preview").innerHTML = `<form id="manual-stats-form">
+          <h4>${escapeHtml(formatDateLabel(input.data))} · ${goals} gols · ${assists} assistências</h4>
+          <p>Os vínculos sugeridos usam somente nomes e apelidos exatos. Revise cada um.</p>
+          ${input.jogadores.map((row, i) => `<label class="field-label"><span>${escapeHtml(row.nome)}${row.goleiro ? " (goleiro)" : ""} · ${row.gols} gols · ${row.assistencias} assistências</span>
+            <select name="player${i}" required>${renderPlayerOptions(players, manualStats.suggest(row, players), "Selecione o jogador")}</select></label>`).join("")}
+          <button class="primary-button" type="submit">Baixar backup e importar</button>
+        </form>`;
+        $("#manual-stats-feedback").textContent = "Nenhum dado foi gravado. Confira os vínculos acima.";
+        $("#manual-stats-form").addEventListener("submit", async submitEvent => {
+          submitEvent.preventDefault();
+          const form = submitEvent.currentTarget;
+          const ids = input.jogadores.map((row, i) => form.elements[`player${i}`].value);
+          const button = form.querySelector('button[type="submit"]');
+          button.disabled = true;
+          try {
+            await importManualStats(input, ids);
+            $("#manual-stats-feedback").textContent = "Lançamentos e evolução salvos. Aguarde a fila de sincronização zerar antes de fechar o app.";
+            $("#manual-stats-preview").innerHTML = "";
+            $("#manual-stats-undo-id").value = input.id;
+          } catch (error) {
+            $("#manual-stats-feedback").textContent = error.message;
+          } finally { if (button.isConnected) button.disabled = false; }
+        });
+      } catch (error) { $("#manual-stats-feedback").textContent = error.message; }
+    });
+    $("#manual-stats-undo")?.addEventListener("click", async event => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        await undoManualStats(String($("#manual-stats-undo-id").value || "").trim());
+        $("#manual-stats-feedback").textContent = "Importação desfeita. Aguarde a sincronização terminar.";
+      } catch (error) { $("#manual-stats-feedback").textContent = error.message; }
+      finally { button.disabled = false; }
+    });
+  }
+
+  async function readManualStatsSnapshot() {
+    const names = [...REMOTE_SYNC_STORES, "syncQueue", "auditLog"];
+    const transaction = state.db.transaction(names, "readonly");
+    const done = transactionDone(transaction);
+    const values = await Promise.all(names.map(name => requestToPromise(transaction.objectStore(name).getAll())));
+    await done;
+    return Object.fromEntries(names.map((name, index) => [name, values[index]]));
+  }
+
+  function downloadManualStatsBackup(backup) {
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `bagrescore-backup-${backup.importacaoId}-${Date.now()}.json`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+
+  async function commitManualStats(snapshot, mutations, backup, deletions = {}) {
+    const names = [...new Set([...Object.keys(snapshot), ...Object.keys(mutations), ...Object.keys(deletions), "configs"])];
+    const transaction = state.db.transaction(names, "readwrite");
+    const done = transactionDone(transaction);
+    let error = null;
+    const checks = Object.entries(snapshot);
+    let remaining = checks.length;
+    checks.forEach(([name, expected]) => {
+      const request = transaction.objectStore(name).getAll();
+      request.onsuccess = () => {
+        if (error) return;
+        if (JSON.stringify(request.result) !== JSON.stringify(expected)) {
+          error = new Error("Os dados mudaram durante a preparação. Atualize e tente novamente; nada foi importado.");
+          transaction.abort();
+          return;
+        }
+        if (--remaining !== 0) return;
+        for (const [store, keys] of Object.entries(deletions)) {
+          for (const key of keys) transaction.objectStore(store).delete(key);
+        }
+        for (const [store, records] of Object.entries(mutations)) {
+          for (const record of records) transaction.objectStore(store).put(record);
+        }
+        transaction.objectStore("configs").put(backup);
+      };
+    });
+    try { await done; } catch (cause) { throw error || cause; }
+    invalidateStatsCache([...Object.keys(mutations), ...Object.keys(deletions)]);
+  }
+
+  async function prepareManualStatsOperation() {
+    if (state.manualStatsInProgress) throw new Error("Uma importação já está sendo processada.");
+    if (!canManageUsers() || !hasPermission("atributos:editar")) throw new Error("Entre como administrador para importar.");
+    if (!state.backendUrl || !state.authToken || !navigator.onLine) throw new Error("Conecte o servidor e entre como administrador antes de importar na base atual.");
+    let response = await syncLatestMutations();
+    while (response?.hasMore) response = await syncLatestMutations();
+    if (!response?.ok || !isApiVersionAtLeast(response.version, MIN_SYNC_API_VERSION)) {
+      throw new Error("Não foi possível confirmar uma sincronização completa com o servidor atualizado. Tente novamente.");
+    }
+    if (!canManageUsers() || !hasPermission("atributos:editar")) throw new Error("A conta não possui permissão administrativa.");
+    // Pause periodic sync for the entire snapshot, backup and atomic write.
+    if (state.syncInProgress || state.manualStatsInProgress) throw new Error("Aguarde a sincronização e tente novamente.");
+    state.manualStatsInProgress = true;
+  }
+
+  function validateManualStatsSnapshot(snapshot) {
+    if (snapshot.syncQueue.some(item => item.status !== "sincronizado")) throw new Error("Aguarde a fila de sincronização zerar e resolva eventuais erros antes de importar.");
+    if (snapshot.jogos.some(game => game.status !== "Finalizado")) throw new Error("Finalize a partida em andamento antes de importar.");
+  }
+
+  async function importManualStats(input, ids) {
+    await prepareManualStatsOperation();
+    try {
+      const snapshot = await readManualStatsSnapshot();
+      validateManualStatsSnapshot(snapshot);
+      const savedAt = nowIso();
+      const events = manualStats.buildEvents(input, ids, snapshot.jogadores, snapshot.eventos, getActorId(), savedAt);
+      const mutations = { eventos: events, jogadores: [], atributos: [], evolucoes: [], syncQueue: [], auditLog: [] };
+      for (const event of events) {
+        const player = snapshot.jogadores.find(item => item.id === event.jogadorId);
+        const attributes = snapshot.atributos.find(item => item.jogadorId === player.id);
+        const changes = buildEventEvolutionChanges(player.id, player, attributes || {}, [event]);
+        const plan = await aplicarAlteracoesAtributos(player.id, changes, {
+          snapshot: [player, attributes, snapshot.evolucoes], preview: true, deterministic: true,
+        });
+        if (!Array.isArray(plan)) {
+          for (const [store, records] of Object.entries(plan)) mutations[store].push(...records);
+        }
+        mutations.syncQueue.push(createSyncQueueRecord("eventos", "upsert", event.id, event));
+      }
+      mutations.auditLog.push(createAuditRecord("eventos", input.id, "importar-anotacoes", null, { data: input.data, ids: events.map(event => event.id) }));
+      const backup = {
+        id: `manual-backup:${input.id}`, importacaoId: input.id, format: "bagrescore-backup-v1", appVersion: APP_VERSION,
+        createdAt: savedAt, snapshot, afterAttributes: mutations.atributos, eventIds: events.map(event => event.id),
+      };
+      downloadManualStatsBackup(backup);
+      await commitManualStats(snapshot, mutations, backup);
+    } finally { state.manualStatsInProgress = false; }
+    runBackgroundTask(syncNow, "Falha ao sincronizar anotações");
+  }
+
+  function manualAttributeSignature(record, player) {
+    return JSON.stringify(getActiveAttributeKeys(player.tipoJogador, player.posicaoPrincipal)
+      .map(key => [key, Number(record?.[key] || 0), Number(record?.xp?.[key] || 0)]));
+  }
+
+  async function undoManualStats(batchId) {
+    await prepareManualStatsOperation();
+    try {
+      const backup = await getRecord("configs", `manual-backup:${batchId}`);
+      if (!backup || backup.undoneAt) throw new Error("Backup local não encontrado ou importação já desfeita.");
+      const snapshot = await readManualStatsSnapshot();
+      validateManualStatsSnapshot(snapshot);
+      const mutations = { jogadores: [], atributos: [], eventos: [], syncQueue: [], auditLog: [] };
+      const savedAt = nowIso();
+      for (const after of backup.afterAttributes) {
+        const player = snapshot.jogadores.find(item => item.id === after.jogadorId);
+        const current = snapshot.atributos.find(item => item.jogadorId === after.jogadorId);
+        const before = backup.snapshot.atributos.find(item => item.jogadorId === after.jogadorId);
+        if (!player || manualAttributeSignature(current, player) !== manualAttributeSignature(after, player)) {
+          throw new Error("Os atributos mudaram após a importação. A restauração automática foi bloqueada para preservar alterações posteriores.");
+        }
+        const values = before || defaultAttributes(player.tipoJogador, player.posicaoPrincipal);
+        const card = recalcularOverallJogador({ ...player, attributes: values });
+        mutations.jogadores.push({ ...player, overall: card.overall, estrelas: card.estrelas, revision: Number(player.revision || 0) + 1, updatedAt: savedAt });
+        mutations.atributos.push({ ...current, ...card.attributes, xp: before?.xp || {}, overall: card.overall, estrelas: card.estrelas, revision: Number(current?.revision || 0) + 1, updatedAt: savedAt });
+      }
+      for (const id of backup.eventIds) {
+        const event = snapshot.eventos.find(item => item.id === id);
+        if (!event || !manualStats.active(event)) throw new Error("Os lançamentos já mudaram. Atualize os dados antes de desfazer.");
+        mutations.eventos.push({ ...event, cancelado: true, canceladoEm: savedAt, canceladoPor: getActorId(), revision: Number(event.revision || 0) + 1, updatedAt: savedAt });
+      }
+      const importedEventIds = new Set(backup.eventIds);
+      const evolutionsToDelete = snapshot.evolucoes.filter(item =>
+        importedEventIds.has(item.eventoId) && item.origem === "anotacoes"
+      );
+      for (const store of ["jogadores", "atributos", "eventos"]) {
+        mutations.syncQueue.push(...mutations[store].map(record => createSyncQueueRecord(store, "upsert", getStoreRecordKey(store, record), record)));
+      }
+      mutations.syncQueue.push(...evolutionsToDelete.map(record =>
+        createSyncQueueRecord("evolucoes", "delete", record.id, { id: record.id, revision: record.revision })
+      ));
+      mutations.auditLog.push(createAuditRecord("eventos", batchId, "desfazer-anotacoes", backup.eventIds, null));
+      await commitManualStats(snapshot, mutations, { ...backup, undoneAt: savedAt }, {
+        evolucoes: evolutionsToDelete.map(record => record.id),
+      });
+    } finally { state.manualStatsInProgress = false; }
+    runBackgroundTask(syncNow, "Falha ao sincronizar restauração");
   }
 
   function updateNetworkStatus() {
@@ -14858,7 +15107,7 @@
     if (!url) throw new Error("Servidor do Apps Script não configurado.");
 
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 30000);
+    const timeoutId = window.setTimeout(() => controller.abort(), 90000);
 
     try {
       const response = await fetch(url, {
@@ -15602,7 +15851,7 @@
   }
 
   async function syncNow() {
-    if (!state.db || state.syncInProgress) return;
+    if (!state.db || state.syncInProgress || state.manualStatsInProgress) return;
 
     if (pendingGoalGameIds.size || finalizingGameIds.size) {
       window.setTimeout(syncNow, 180);
@@ -15679,6 +15928,7 @@
       if (response.hasMore) {
         window.setTimeout(syncNow, 350);
       }
+      return response;
     } catch (error) {
       console.error("Falha de sincronização", error);
       if (/sessão|conta inativa|entre novamente/i.test(error.message)) {
@@ -15696,7 +15946,7 @@
       await new Promise((resolve) => window.setTimeout(resolve, 50));
     }
 
-    await syncNow();
+    return syncNow();
   }
 
   async function forceUpdate() {

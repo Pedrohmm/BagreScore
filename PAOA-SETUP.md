@@ -1,5 +1,15 @@
 # BagreScore no modelo PAOA
 
+## Atualização 1.4.21 — anotações avulsas
+
+- Adiciona ao painel administrativo a importação de gols e assistências anotados fora do aplicativo, sem criar pelada ou partidas fictícias.
+- Os lançamentos entram nos totais, rankings, cartões de jogador e evolução de atributos pelas mesmas regras de gol e assistência. Médias por jogo e vitórias permanecem baseadas apenas nas partidas registradas.
+- Antes de gravar, o aplicativo exige uma sincronização completa, fila zerada, jogadores vinculados e nenhuma partida em andamento. Também baixa e guarda um backup da base atual.
+- A importação tem identificador único para impedir duplicidade e pode ser desfeita enquanto os atributos envolvidos não receberem evolução posterior.
+- A espera por respostas do Apps Script foi ampliada para 90 segundos em bases grandes.
+- Não é necessário atualizar o `Code.gs`. Publique os arquivos do aplicativo e use **Forçar atualização** uma vez no celular.
+- Testes de regressão: `node --test tests/*.test.cjs`.
+
 ## Correção 1.4.20 — próximo jogo da Pelada Clássica
 
 - Corrige o bloqueio “Escolha times da modalidade atual” ao iniciar o jogo seguinte sem times cadastrados.
