@@ -1,4 +1,4 @@
-var BAGRESCORE_API_VERSION = "1.6.2";
+var BAGRESCORE_API_VERSION = "1.6.3";
 var BAGRESCORE_DB_PROPERTY = "BAGRESCORE_SPREADSHEET_ID";
 var BAGRESCORE_SECRET_PROPERTY = "BAGRESCORE_AUTH_SECRET";
 var BAGRESCORE_REVISION_PROPERTY = "BAGRESCORE_GLOBAL_REVISION";
@@ -710,8 +710,11 @@ function bagreScoreHandleSync_(request) {
               payload
             )
           : null;
+        var regressionConflict = storeName === "atributos" && operationType !== "delete" && currentEntity
+          ? bagreScoreGetAttributeRegressionConflict_(bagreScoreParseEntityPayload_(currentEntity.record), payload, operation)
+          : null;
 
-        if (revisionConflict) {
+        if (revisionConflict || regressionConflict) {
           var currentChange = bagreScoreEntityRecordToChange_(storeName, currentEntity.record);
           forcedChanges[storeName + ":" + entityId] = currentChange;
           bagreScoreAppendObject_(operationSheet, {
@@ -728,9 +731,11 @@ function bagreScoreHandleSync_(request) {
             status: "ok",
             conflict: true,
             serverRevision: currentChange.serverRevision,
-            resolution: "Atualização antiga descartada; a versão mais recente foi mantida."
+            resolution: regressionConflict
+              ? "Queda inesperada de atributos descartada; a carta atual foi mantida."
+              : "Atualização antiga descartada; a versão mais recente foi mantida."
           });
-          bagreScoreAppendAudit_(spreadsheet, auth.user.id, deviceId, "conflito-descartado", storeName, entityId, revisionConflict, currentChange.serverRevision);
+          bagreScoreAppendAudit_(spreadsheet, auth.user.id, deviceId, "conflito-descartado", storeName, entityId, revisionConflict || regressionConflict, currentChange.serverRevision);
           return;
         }
 
@@ -840,6 +845,24 @@ function bagreScoreGetRevisionConflict_(currentRevision, operationType, operatio
     revisaoBase: baseRevision,
     revisaoAtual: currentRevision
   };
+}
+
+function bagreScoreGetAttributeRegressionConflict_(previous, incoming, operation) {
+  var allowedReasons = ["admin-edit", "rollback", "historical-repair"];
+  if (allowedReasons.indexOf(String(operation.regressionReason || "")) >= 0) return null;
+  var keys = ["RIT", "TIR", "PAS", "REG", "DEF", "FIS", "DIV", "HAN", "KIC", "REF", "SPE", "POS"];
+  var decreased = 0;
+  var totalDrop = 0;
+  keys.forEach(function (key) {
+    var before = Number(previous[key]);
+    var after = Number(incoming[key]);
+    if (!Number.isFinite(before) || !Number.isFinite(after) || after >= before) return;
+    decreased += 1;
+    totalDrop += before - after;
+  });
+  var overallDrop = Number(previous.overall || 0) - Number(incoming.overall || 0);
+  if ((decreased < 3 || totalDrop < 8) && overallDrop < 4) return null;
+  return { motivo: "queda-inconsistente-de-atributos", atributosReduzidos: decreased, pontosPerdidos: totalDrop, quedaOverall: overallDrop };
 }
 
 function bagreScoreEntityRecordToChange_(storeName, record) {

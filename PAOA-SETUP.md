@@ -1,5 +1,13 @@
 # BagreScore no modelo PAOA
 
+## Correção 1.4.24 — OVR após sincronização
+
+- Reconstitui os atributos e o XP dos jogadores existentes no backup de 09/09/2026 a partir das evoluções de partidas e eventos posteriores. O painel administrativo mostra a prévia, baixa uma cópia integral da base e só grava se o servidor estiver sincronizado e a base não mudar durante a preparação.
+- Preserva partidas, gols, assistências, vitórias e qualquer atributo atual superior ao valor reconstruído. Jogadores cadastrados depois do backup têm apenas o OVR recalculado a partir dos atributos atuais, se necessário.
+- A edição de uma carta aberta antes de uma atualização de outro aparelho agora pede que o usuário reabra a ficha, evitando salvar atributos antigos.
+- O `Code.gs` 1.6.3 descarta quedas amplas e inesperadas de atributos recebidas de dispositivos desatualizados. Para ativar essa proteção, substitua o arquivo no editor do Apps Script e publique **Nova versão** da implantação existente. A URL `/exec` permanece igual.
+- Testes de regressão: `node --test tests/*.test.cjs`.
+
 ## Atualização 1.4.21 — anotações avulsas
 
 - Adiciona ao painel administrativo a importação de gols e assistências anotados fora do aplicativo, sem criar pelada ou partidas fictícias.

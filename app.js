@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.21";
+  const APP_VERSION = "1.4.24";
   const MIN_SYNC_API_VERSION = "1.6.2";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -30,6 +30,7 @@
   const STATS_SOURCE_STORES = new Set(["jogadores", "atributos", "peladas", "jogos", "escalacoes", "eventos"]);
   const statsCalculationCache = new Map();
   const manualStats = window.BagreScoreManualStats;
+  const ovrRepair = window.BagreScoreOvrRepair;
 
   const STORE_SCHEMAS = [
     {
@@ -3051,7 +3052,7 @@
     return requestToPromise(request);
   }
 
-  function createSyncQueueRecord(storeName, operation, entityId, payload) {
+  function createSyncQueueRecord(storeName, operation, entityId, payload, options = {}) {
     const payloadRevision = Number(payload?.revision);
     const baseRevision = Number.isFinite(payloadRevision) && payloadRevision >= 0
       ? operation === "delete"
@@ -3065,6 +3066,7 @@
       operation,
       entityId,
       payload,
+      regressionReason: options.regressionReason || "",
       baseRevision,
       status: "pendente",
       attempts: 0,
@@ -4946,6 +4948,7 @@
           estrelas: card.estrelas,
           attributes: card.attributes,
           xp,
+          attributeRevision: Number(attributeRecord.revision || 0),
         };
       })
       .sort(comparePlayersByNickname);
@@ -5069,7 +5072,7 @@
     const idade = Number.isFinite(Number(player?.idade)) ? player.idade : "";
 
     return `
-      <form class="player-form player-wizard-form" id="player-form" data-player-id="${escapeHtml(player?.id || "")}" data-player-step="${escapeHtml(activeStep)}" novalidate>
+      <form class="player-form player-wizard-form" id="player-form" data-player-id="${escapeHtml(player?.id || "")}" data-player-revision="${Number(player?.revision || 0)}" data-attribute-revision="${Number(player?.attributeRevision || 0)}" data-player-step="${escapeHtml(activeStep)}" novalidate>
         <div class="form-errors" id="player-form-errors" hidden></div>
         ${renderPlayerFormStepper(activeStep)}
 
@@ -5853,6 +5856,11 @@
     try {
       const existingPlayer = formData.playerId ? await getRecord("jogadores", formData.playerId) : null;
       const existingAttributes = formData.playerId ? await getRecord("atributos", formData.playerId) : null;
+      if (formData.playerId && (!existingPlayer ||
+        Number(existingPlayer.revision || 0) !== Number(form.dataset.playerRevision || 0) ||
+        Number(existingAttributes?.revision || 0) !== Number(form.dataset.attributeRevision || 0))) {
+        throw new Error("A carta mudou enquanto estava aberta. Reabra a edição antes de salvar.");
+      }
       const savedAt = nowIso();
       const jogadorId = existingPlayer?.id || uid();
       const revision = (existingPlayer?.revision || 0) + 1;
@@ -5895,7 +5903,7 @@
         atributos: [atributosRecord],
         syncQueue: [
           createSyncQueueRecord("jogadores", "upsert", jogadorId, jogadorRecord),
-          createSyncQueueRecord("atributos", "upsert", jogadorId, atributosRecord),
+          createSyncQueueRecord("atributos", "upsert", jogadorId, atributosRecord, { regressionReason: "admin-edit" }),
         ],
         auditLog: [auditRecord],
       });
@@ -5910,7 +5918,7 @@
       await syncNow();
     } catch (error) {
       console.error(error);
-      showPlayerFormErrors(["Não foi possível salvar o jogador. Tente novamente."]);
+      showPlayerFormErrors([error.message || "Não foi possível salvar o jogador. Tente novamente."]);
       form.dataset.submitting = "false";
       form.querySelectorAll("button").forEach((button) => {
         button.disabled = false;
@@ -8848,7 +8856,7 @@
     );
     attributeUpdates.forEach((record) =>
       syncRecords.push(
-        createSyncQueueRecord("atributos", "upsert", record.jogadorId, record)
+        createSyncQueueRecord("atributos", "upsert", record.jogadorId, record, { regressionReason: "rollback" })
       )
     );
     cacheUpdates.forEach((record) =>
@@ -12140,7 +12148,7 @@
           createSyncQueueRecord("jogadores", "upsert", player.id, player)
         ),
         ...rollback.attributeUpdates.map((record) =>
-          createSyncQueueRecord("atributos", "upsert", record.jogadorId, record)
+          createSyncQueueRecord("atributos", "upsert", record.jogadorId, record, { regressionReason: "rollback" })
         )
       );
       records.auditLog.push(
@@ -14721,9 +14729,16 @@
     return `<section class="admin-settings-section">
       <h3>Anotações avulsas</h3>
       <p>Importe gols e assistências sem criar peladas ou partidas. Confira os jogadores antes de registrar.</p>
+      <button id="download-data-backup" class="ghost-button" type="button">Baixar cópia de segurança da base</button>
       <label class="field-label"><span>Arquivo de anotações (.json)</span><input id="manual-stats-file" type="file" accept=".json,application/json" /></label>
       <div id="manual-stats-preview"></div>
       <p id="manual-stats-feedback" role="status"></p>
+      <details><summary>Corrigir OVR a partir do histórico</summary>
+        <p>Use o backup das anotações de 09/09/2026 para reconstruir os atributos com as evoluções posteriores. Partidas, gols e assistências são preservados.</p>
+        <label class="field-label"><span>Backup das anotações de 09/09 (.json)</span><input id="ovr-repair-file" type="file" accept=".json,application/json" /></label>
+        <div id="ovr-repair-preview"></div>
+        <p id="ovr-repair-feedback" role="status"></p>
+      </details>
       <details><summary>Desfazer uma importação</summary>
         <label class="field-label"><span>Identificador da importação</span><input id="manual-stats-undo-id" type="text" placeholder="anotacoes-2026-09-09" /></label>
         <button id="manual-stats-undo" class="ghost-button" type="button">Desfazer lançamento e evolução</button>
@@ -14733,6 +14748,28 @@
   }
 
   function bindManualStatsImportPanel() {
+    bindOvrRepairPanel();
+    $("#download-data-backup")?.addEventListener("click", async event => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        const snapshot = await readManualStatsSnapshot();
+        if (snapshot.syncQueue.some(item => item.status !== "sincronizado")) {
+          throw new Error("Aguarde a fila de sincronização zerar antes de baixar o backup.");
+        }
+        downloadManualStatsBackup({
+          id: `backup-completo-${Date.now()}`,
+          importacaoId: "base-completa",
+          format: "bagrescore-backup-v1",
+          appVersion: APP_VERSION,
+          createdAt: nowIso(),
+          snapshot,
+        });
+        $("#manual-stats-feedback").textContent = "Cópia de segurança baixada.";
+      } catch (error) {
+        $("#manual-stats-feedback").textContent = error.message;
+      } finally { button.disabled = false; }
+    });
     $("#manual-stats-file")?.addEventListener("change", async event => {
       try {
         const file = event.target.files?.[0];
@@ -14776,6 +14813,126 @@
       } catch (error) { $("#manual-stats-feedback").textContent = error.message; }
       finally { button.disabled = false; }
     });
+  }
+
+  function getOvrRepairPreview(snapshot, repair) {
+    const players = new Map(snapshot.jogadores.map(player => [player.id, player]));
+    const attributes = new Map(snapshot.atributos.map(record => [record.jogadorId, record]));
+    const changed = repair.repairs.map(item => {
+      const player = players.get(item.id);
+      const current = attributes.get(item.id);
+      const card = recalcularOverallJogador({ ...player, attributes: { ...current, ...item.values } });
+      return { ...item, before: recalcularOverallJogador({ ...player, attributes: current }).overall, after: card.overall };
+    });
+    const overallOnly = snapshot.jogadores.flatMap(player => {
+      if (changed.some(item => item.id === player.id)) return [];
+      const current = attributes.get(player.id);
+      if (!current) return [];
+      const card = recalcularOverallJogador({ ...player, attributes: current });
+      return player.overall !== card.overall || current.overall !== card.overall
+        ? [{ id: player.id, nome: player.apelido || player.nome, before: Number(player.overall), after: card.overall }]
+        : [];
+    });
+    return { changed, overallOnly };
+  }
+
+  function bindOvrRepairPanel() {
+    const fileInput = $("#ovr-repair-file");
+    if (!fileInput) return;
+    let sourceBackup = null;
+    let expectedPreview = "";
+    fileInput.addEventListener("change", async event => {
+      const target = $("#ovr-repair-preview");
+      const feedback = $("#ovr-repair-feedback");
+      target.innerHTML = "";
+      sourceBackup = null;
+      expectedPreview = "";
+      try {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        if (file.size > 20000000) throw new Error("O arquivo é grande demais para este backup.");
+        if (!ovrRepair) throw new Error("Atualize o aplicativo para carregar o cálculo de OVR.");
+        const backup = JSON.parse(await file.text());
+        const snapshot = await readManualStatsSnapshot();
+        validateManualStatsSnapshot(snapshot);
+        const repair = ovrRepair.buildRepair(backup, snapshot);
+        const preview = getOvrRepairPreview(snapshot, repair);
+        sourceBackup = backup;
+        expectedPreview = JSON.stringify(preview);
+        const rows = [...preview.changed, ...preview.overallOnly];
+        target.innerHTML = `<h4>${rows.length} cartas a corrigir · ${repair.unanchored.length} jogadores novos sem backup anterior</h4>
+          <p>${repair.addedCount} evoluções posteriores reprocessadas; ${repair.removedCount} evoluções desfeitas descontadas.</p>
+          ${rows.map(row => {
+            const attributeChanges = row.differences?.filter(diff => diff.after !== diff.before)
+              .map(diff => `${diff.key} ${diff.before}→${diff.after}`) || [];
+            return `<p>${escapeHtml(row.nome)}: OVR ${row.before} → ${row.after}${row.differences
+              ? attributeChanges.length ? ` · ${attributeChanges.join(", ")}` : " · saldo de XP ajustado"
+              : ""}</p>`;
+          }).join("")}
+          <button id="apply-ovr-repair" class="primary-button" type="button" ${rows.length ? "" : "disabled"}>Baixar backup e corrigir OVR</button>`;
+        feedback.textContent = "Confira a prévia antes de aplicar. Nenhum dado foi alterado.";
+        $("#apply-ovr-repair")?.addEventListener("click", async clickEvent => {
+          const button = clickEvent.currentTarget;
+          button.disabled = true;
+          try {
+            await applyOvrRepair(sourceBackup, expectedPreview);
+            feedback.textContent = "Cartas corrigidas. Aguarde a sincronização terminar antes de fechar o app.";
+            target.innerHTML = "";
+          } catch (error) {
+            feedback.textContent = error.message;
+            button.disabled = false;
+          }
+        });
+      } catch (error) { feedback.textContent = error.message; }
+    });
+  }
+
+  async function applyOvrRepair(backup, expectedPreview) {
+    await prepareManualStatsOperation();
+    try {
+      const snapshot = await readManualStatsSnapshot();
+      validateManualStatsSnapshot(snapshot);
+      const repair = ovrRepair.buildRepair(backup, snapshot);
+      const preview = getOvrRepairPreview(snapshot, repair);
+      if (JSON.stringify(preview) !== expectedPreview) {
+        throw new Error("A base mudou desde a prévia. Selecione o backup novamente para revisar os novos valores.");
+      }
+      const savedAt = nowIso();
+      const playerById = new Map(snapshot.jogadores.map(player => [player.id, player]));
+      const attributeById = new Map(snapshot.atributos.map(record => [record.jogadorId, record]));
+      const repairedById = new Map(repair.repairs.map(item => [item.id, item]));
+      const mutations = { jogadores: [], atributos: [], syncQueue: [], auditLog: [] };
+      for (const item of [...preview.changed, ...preview.overallOnly]) {
+        const player = playerById.get(item.id);
+        const current = attributeById.get(item.id);
+        const repaired = repairedById.get(item.id);
+        if (!player || !current || (repaired && (
+          Number(player.revision || 0) !== repaired.expectedPlayerRevision ||
+          Number(current.revision || 0) !== repaired.expectedAttributeRevision ||
+          ovrRepair.signature(current, player) !== repaired.expectedSignature
+        ))) throw new Error("Uma carta mudou durante a preparação. Refaça a prévia.");
+        const card = recalcularOverallJogador({ ...player, attributes: { ...current, ...(repaired?.values || {}) } });
+        const nextPlayer = { ...player, overall: card.overall, estrelas: card.estrelas, revision: Number(player.revision || 0) + 1, updatedAt: savedAt };
+        const nextAttributes = {
+          ...current, ...card.attributes,
+          xp: repaired ? { ...current.xp, ...repaired.xp } : current.xp,
+          overall: card.overall, estrelas: card.estrelas,
+          revision: Number(current.revision || 0) + 1, updatedAt: savedAt,
+        };
+        mutations.jogadores.push(nextPlayer);
+        mutations.atributos.push(nextAttributes);
+        mutations.syncQueue.push(createSyncQueueRecord("jogadores", "upsert", player.id, nextPlayer));
+        mutations.syncQueue.push(createSyncQueueRecord("atributos", "upsert", player.id, nextAttributes, { regressionReason: "historical-repair" }));
+        mutations.auditLog.push(createAuditRecord("atributos", player.id, "corrigir-ovr-historico", { jogador: player, atributos: current }, { jogador: nextPlayer, atributos: nextAttributes }));
+      }
+      const repairBackup = {
+        id: `ovr-backup:${savedAt}`, importacaoId: "ovr-antes-correcao", format: "bagrescore-backup-v1",
+        appVersion: APP_VERSION, createdAt: savedAt, snapshot,
+      };
+      downloadManualStatsBackup(repairBackup);
+      await commitManualStats(snapshot, mutations, repairBackup);
+    } finally { state.manualStatsInProgress = false; }
+    runBackgroundTask(syncNow, "Falha ao sincronizar correção de OVR");
   }
 
   async function readManualStatsSnapshot() {
