@@ -1,5 +1,10 @@
 # BagreScore no modelo PAOA
 
+## Ajuste 1.4.25 — perfil dos jogadores
+
+- Remove o painel “Anotações avulsas” exibido acima das abas do perfil. Os lançamentos continuam nos totais, rankings e atributos das cartas.
+- Não é necessário atualizar o Apps Script nem alterar a base de dados. Use **Forçar atualização** no celular após a publicação do app.
+
 ## Correção 1.4.24 — OVR após sincronização
 
 - Reconstitui os atributos e o XP dos jogadores existentes no backup de 09/09/2026 a partir das evoluções de partidas e eventos posteriores. O painel administrativo mostra a prévia, baixa uma cópia integral da base e só grava se o servidor estiver sincronizado e a base não mudar durante a preparação.

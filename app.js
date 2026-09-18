@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.24";
+  const APP_VERSION = "1.4.25";
   const MIN_SYNC_API_VERSION = "1.6.2";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -13796,7 +13796,6 @@
           </div>
         </section>
 
-        ${stats.lancamentosAvulsos?.length ? `<section class="profile-panel-card"><h3>Anotações avulsas</h3>${stats.lancamentosAvulsos.map(item => `<p>${escapeHtml(formatDateLabel(item.data))} · ${item.gols} gols · ${item.assistencias} assistências</p>`).join("")}<small>Incluídas nos totais e atributos. As médias por jogo usam somente as partidas registradas.</small></section>` : ""}
         ${renderPlayerProfileTabs(activeTab)}
         ${renderPlayerProfileTabPanel(activeTab, stats, statsResult, activeDefinitions)}
       </div>
