@@ -1,11 +1,12 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.25";
+  const APP_VERSION = "1.4.26";
   const MIN_SYNC_API_VERSION = "1.6.2";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
-  const SYNC_INTERVAL_MS = 5000;
+  const SYNC_INTERVAL_MS = 15000;
+  const LIVE_SYNC_INTERVAL_MS = 5000;
   const SYNC_BATCH_SIZE = 100;
   const BAGRE_MIN_PARTICIPATION_RATE = 0.3;
   const GOALKEEPER_MVP_SAVE_POINTS = 1;
@@ -571,7 +572,6 @@
   let sectionSwitchInProgress = false;
   let rankingViewTransitionInProgress = false;
   let deferredViewRefreshPending = false;
-  const bootStartedAt = window.performance?.now?.() || Date.now();
   let bootFinished = false;
   const GOAL_TYPES = [
     { value: "normal", label: "Normal" },
@@ -1157,7 +1157,6 @@
       if (shouldAnimate) {
         document.body.classList.add("is-section-switching");
         sectionContent?.setAttribute("aria-busy", "true");
-        await new Promise((resolve) => window.setTimeout(resolve, 55));
       }
 
       state.currentSection = targetSection;
@@ -3001,6 +3000,21 @@
 
     await transactionDone(transaction);
     invalidateStatsCache(storeNames);
+  }
+
+  // Limpeza única dos itens já sincronizados que versões antigas deixaram na fila.
+  // Usa o índice "por_status" para buscar só as chaves, sem carregar os payloads.
+  async function pruneSyncedQueue() {
+    const transaction = state.db.transaction("syncQueue", "readwrite");
+    const store = transaction.objectStore("syncQueue");
+
+    if (store.indexNames.contains("por_status")) {
+      const request = store.index("por_status").getAllKeys("sincronizado");
+      // Apaga dentro do próprio callback para a transação continuar ativa.
+      request.onsuccess = () => request.result.forEach((key) => store.delete(key));
+    }
+
+    await transactionDone(transaction);
   }
 
   async function deleteRecords(keysByStore) {
@@ -15929,8 +15943,19 @@
       };
     });
 
-    if (queueUpdates.length) {
-      await putRecords({ syncQueue: queueUpdates });
+    // Itens confirmados pelo servidor saem da fila; só os que deram erro ficam
+    // guardados (com a próxima tentativa agendada). Antes, os sincronizados
+    // ficavam para sempre e a fila inteira era relida a cada sincronização.
+    const failedUpdates = queueUpdates.filter((item) => item.status !== "sincronizado");
+    const syncedIds = queueUpdates
+      .filter((item) => item.status === "sincronizado")
+      .map((item) => item.id);
+
+    if (failedUpdates.length) {
+      await putRecords({ syncQueue: failedUpdates });
+    }
+    if (syncedIds.length) {
+      await deleteRecords({ syncQueue: syncedIds });
     }
 
     const currentQueue = await getAllRecords("syncQueue");
@@ -16416,9 +16441,8 @@
     }
 
     bootFinished = true;
-    const currentTime = window.performance?.now?.() || Date.now();
-    const elapsed = Math.max(0, currentTime - bootStartedAt);
-    const delay = Math.max(0, 760 - elapsed);
+    // Antes a abertura ficava no mínimo 760 ms na tela, mesmo com o app pronto.
+    const delay = 0;
 
     window.setTimeout(() => {
       document.body.classList.remove("is-booting");
@@ -16456,8 +16480,20 @@
       requestScreenWakeLock();
       finishAppBoot();
       await registerServiceWorker();
+      await pruneSyncedQueue().catch((error) => console.error("Falha ao limpar a fila de sincronização", error));
       await syncNow();
-      window.setInterval(syncNow, SYNC_INTERVAL_MS);
+      // Sincroniza em segundo plano só com o app visível. Ao voltar para o app,
+      // o listener de "visibilitychange" já dispara um syncNow() imediato.
+      // Na tela "Ao vivo" mantém os 5 s de antes (placar entre celulares);
+      // nas demais telas, 15 s.
+      let lastAutoSyncAt = Date.now();
+      window.setInterval(() => {
+        if (document.visibilityState !== "visible") return;
+        const interval = state.currentSection === "ao-vivo" ? LIVE_SYNC_INTERVAL_MS : SYNC_INTERVAL_MS;
+        if (Date.now() - lastAutoSyncAt < interval - 500) return; // folga p/ atraso do timer
+        lastAutoSyncAt = Date.now();
+        syncNow();
+      }, LIVE_SYNC_INTERVAL_MS);
     } catch (error) {
       console.error(error);
       $("#db-status").textContent = "Erro no banco local";

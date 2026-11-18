@@ -26314,3 +26314,35 @@ body.stats-profile-mode .has-cup-award .cup-award-caption { color: #ff914d; text
   .competition-preparation-actions { display: grid; grid-template-columns: minmax(0, 1fr); }
   .competition-preparation-actions button { width: 100%; }
 }
+
+/* ==========================================================================
+   Desempenho no celular (v1.4.26)
+   backdrop-filter obriga o navegador a borrar de novo o conteúdo que fica
+   atrás do elemento a cada quadro de rolagem. Nas barras fixas e nos rótulos
+   do campo, o fundo já é 82–95% opaco, então o desfoque quase não aparece,
+   mas custa muita GPU. Mantido apenas na tela de login (.auth-gate), que é
+   estática.
+   ========================================================================== */
+body *:not(.auth-gate) {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* will-change permanente no conteúdo da página inteira cria uma camada de GPU
+   do tamanho da tela rolável e consome memória o tempo todo no celular. */
+#section-content,
+body[data-section] #section-content {
+  will-change: auto !important;
+}
+
+/* Sem o desfoque, as barras fixas ficam quase opacas para o conteúdo que
+   rola por trás não aparecer através delas. */
+.bottom-nav {
+  background: linear-gradient(180deg, rgba(10, 10, 10, 0.975), rgba(0, 0, 0, 0.99));
+}
+
+body[data-section="ao-vivo"] .bottom-nav,
+.live-control-bar,
+body[data-section="peladas"] .pelada-detail-tabs {
+  background-color: rgba(5, 5, 5, 0.985);
+}
