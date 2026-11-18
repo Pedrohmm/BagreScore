@@ -1,5 +1,18 @@
 # BagreScore no modelo PAOA
 
+## Limpeza 1.4.29 — CSS sem sobras e regras para agentes
+
+- Remove do `style.css` 547 regras e 695 seletores que apontavam para classes e ids que não existem mais no código (sobras de telas antigas). Conferido pela cobertura do Chrome em todas as telas e por comparação pixel a pixel no celular e no desktop: nenhuma mudança visual.
+- Adiciona `AGENTS.md` com as regras do projeto para o Codex e outros agentes (editar a regra CSS existente em vez de sobrescrever, versão em quatro lugares, testes antes de terminar).
+- Não é necessário atualizar o Apps Script.
+
+## Desempenho 1.4.26 a 1.4.28
+
+- 1.4.26: ícones e logos no tamanho real de uso (~4,7 MB → ~215 KB); sem `backdrop-filter` nas barras fixas; sincronização a cada 5 s na tela Ao vivo e 15 s nas demais, pausada em segundo plano; itens já sincronizados saem da `syncQueue`; sem atrasos artificiais na abertura e na troca de tela.
+- 1.4.27: a troca de tela mantém a tela atual visível até a nova estar pronta (sem tela preta); avatares usam miniaturas de 256 px; índice de jogos por pelada nas estatísticas; 1.296 declarações CSS sobrescritas removidas.
+- 1.4.28: cartões de jogadores e ranking sem efeitos caros (textura listrada, brilho interno, `drop-shadow` nas estrelas, `blur` sob o pódio).
+- Nenhuma dessas versões exige atualizar o Apps Script.
+
 ## Ajuste 1.4.25 — perfil dos jogadores
 
 - Remove o painel “Anotações avulsas” exibido acima das abas do perfil. Os lançamentos continuam nos totais, rankings e atributos das cartas.
