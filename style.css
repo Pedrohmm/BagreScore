@@ -24260,3 +24260,44 @@ body[data-section="peladas"] .pelada-detail-tabs {
 @media (prefers-reduced-motion: reduce) {
   #section-content.is-section-entering { animation: none; }
 }
+
+/* ==========================================================================
+   Listas mais leves no celular (v1.4.28)
+   Os cartões repetidos (jogadores, ranking) tinham efeitos que custam caro
+   para pintar e quase não aparecem. Mantém o visual; tira só o excesso:
+   - textura listrada a 1–2% de opacidade (repeating-linear-gradient);
+   - brilho interno a 4% (inset 32px);
+   - drop-shadow em cada estrela (um filtro por estrela);
+   - desfoque (filter: blur) sob o pódio;
+   - sombra externa grande (36px) reduzida.
+   ========================================================================== */
+body[data-section="jogadores"] .player-card {
+  background:
+    linear-gradient(110deg, rgba(255, 90, 0, 0.08), transparent 34%),
+    #0b0b0b;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+}
+
+body[data-section="jogadores"] .player-card.is-monthly-player {
+  background:
+    radial-gradient(circle at 8% 10%, rgba(255, 220, 126, 0.15), transparent 28%),
+    linear-gradient(110deg, rgba(221, 166, 37, 0.15), transparent 42%),
+    #0b0b0b;
+  box-shadow:
+    0 10px 20px rgba(0, 0, 0, 0.3),
+    inset 0 0 0 1px rgba(255, 223, 137, 0.06);
+}
+
+body[data-section="jogadores"] .player-card.is-monthly-player .player-avatar {
+  box-shadow: 0 0 0 4px rgba(232, 181, 57, 0.07), 0 0 12px rgba(232, 181, 57, 0.13);
+}
+
+.player-stars,
+.player-stars svg.is-filled {
+  filter: none;
+}
+
+body[data-section="ranking"] .ranking-leaderboard-board .ranking-podium-places::before {
+  filter: none;
+  background: radial-gradient(ellipse, rgba(255, 90, 0, 0.3), rgba(255, 90, 0, 0.06) 45%, transparent 75%);
+}
