@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "1.4.26";
+  const APP_VERSION = "1.4.27";
   const MIN_SYNC_API_VERSION = "1.6.2";
   const DB_NAME = "bagrescore-local";
   const DB_VERSION = 1;
@@ -572,6 +572,7 @@
   let sectionSwitchInProgress = false;
   let rankingViewTransitionInProgress = false;
   let deferredViewRefreshPending = false;
+  let pendingSectionChrome = null;
   let bootFinished = false;
   const GOAL_TYPES = [
     { value: "normal", label: "Normal" },
@@ -991,11 +992,87 @@
       .join("")}`;
   }
 
+  // ---- Miniaturas das fotos dos jogadores -------------------------------
+  // As fotos são salvas com até 720 px. Decodificada, cada uma ocupa ~2 MB de
+  // memória, e listas com 25+ avatares pesam no celular. Para os avatares
+  // pequenos usamos uma miniatura de 256 px gerada uma vez por sessão.
+  // A foto original no banco não muda.
+  const PLAYER_THUMB_SIZE = 256;
+  const FULL_SIZE_AVATAR_CLASSES = ["my-profile-avatar", "photo-upload-avatar"];
+  const playerThumbCache = new Map(); // chave -> URL da miniatura | null (gerando)
+
+  function getPhotoCacheKey(foto) {
+    return `${foto.length}-${foto.slice(-40).replace(/[^a-zA-Z0-9]/g, "")}`;
+  }
+
+  function loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error("Falha ao carregar a foto"));
+      image.src = src;
+    });
+  }
+
+  async function createPlayerThumb(foto) {
+    const image = await loadImage(foto);
+    // Lado menor = 256 px (os avatares usam recorte tipo "cover").
+    const scale = Math.min(1, PLAYER_THUMB_SIZE / Math.min(image.naturalWidth, image.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
+    if (!blob) throw new Error("Falha ao gerar miniatura");
+    return URL.createObjectURL(blob);
+  }
+
+  function ensurePlayerThumb(foto) {
+    const key = getPhotoCacheKey(foto);
+    if (playerThumbCache.has(key)) return Promise.resolve(playerThumbCache.get(key));
+    playerThumbCache.set(key, null);
+    return createPlayerThumb(foto)
+      .then((url) => {
+        playerThumbCache.set(key, url);
+        // Troca, nas imagens já na tela, a foto grande pela miniatura.
+        document.querySelectorAll(`img[data-photo-key="${key}"]`).forEach((img) => {
+          img.src = url;
+        });
+        return url;
+      })
+      .catch(() => {
+        playerThumbCache.delete(key);
+        return null;
+      });
+  }
+
+  function getAvatarPhotoSrc(foto, className) {
+    if (!foto.startsWith("data:image/") || FULL_SIZE_AVATAR_CLASSES.some((name) => className.includes(name))) {
+      return { src: foto, key: "" };
+    }
+    const key = getPhotoCacheKey(foto);
+    const thumb = playerThumbCache.get(key);
+    if (thumb) return { src: thumb, key: "" };
+    ensurePlayerThumb(foto);
+    return { src: foto, key };
+  }
+
+  // Gera as miniaturas em segundo plano logo depois de abrir o app.
+  async function warmPlayerThumbs() {
+    const jogadores = await getAllRecords("jogadores");
+    for (const jogador of jogadores) {
+      if (jogador.foto && jogador.foto.startsWith("data:image/")) {
+        await ensurePlayerThumb(jogador.foto);
+      }
+    }
+  }
+
   function renderPlayerAvatar(player, className = "player-avatar") {
     if (player.foto) {
+      const { src, key } = getAvatarPhotoSrc(player.foto, className);
       return `
         <span class="${className}">
-          <img src="${escapeHtml(player.foto)}" alt="Foto de ${escapeHtml(playerDisplayName(player))}" loading="lazy" />
+          <img src="${escapeHtml(src)}"${key ? ` data-photo-key="${key}"` : ""} alt="Foto de ${escapeHtml(playerDisplayName(player))}" loading="lazy" decoding="async" />
         </span>
       `;
     }
@@ -1155,7 +1232,6 @@
 
     try {
       if (shouldAnimate) {
-        document.body.classList.add("is-section-switching");
         sectionContent?.setAttribute("aria-busy", "true");
       }
 
@@ -3998,7 +4074,7 @@
           if (!peladaMatchesStatsFilters(pelada, filters, jogos)) return false;
           const mode = normalizeGameMode(filters.modoJogo);
           if (!mode) return true;
-          const playedModes = new Set(jogos.filter((game) => game.peladaId === pelada.id && game.status === "Finalizado").map((game) => getGameCompetitionMode(game, pelada)));
+          const playedModes = new Set(getGamesOfPelada(jogos, pelada.id).filter((game) => game.status === "Finalizado").map((game) => getGameCompetitionMode(game, pelada)));
           // Whole-pelada awards are shown in Geral when both modalities were played.
           return playedModes.size === 1 && playedModes.has(mode);
         })
@@ -4326,6 +4402,23 @@
     return true;
   }
 
+  // Índice jogos-por-pelada, calculado uma vez por lista de jogos. Evita varrer
+  // todos os jogos para cada pelada/evento (custo quadrático com o histórico).
+  const gamesByPeladaIndex = new WeakMap();
+  function getGamesOfPelada(games, peladaId) {
+    let index = gamesByPeladaIndex.get(games);
+    if (!index) {
+      index = new Map();
+      games.forEach((game) => {
+        const list = index.get(game.peladaId);
+        if (list) list.push(game);
+        else index.set(game.peladaId, [game]);
+      });
+      gamesByPeladaIndex.set(games, index);
+    }
+    return index.get(peladaId) || [];
+  }
+
   function peladaMatchesStatsFilters(pelada, filters, games = []) {
     if (!filters.includeTests && isTestPelada(pelada)) {
       return false;
@@ -4335,7 +4428,7 @@
     }
 
     const competitionMode = normalizeGameMode(filters.modoJogo);
-    if (competitionMode && !games.some((game) => game.peladaId === pelada.id && getGameCompetitionMode(game, pelada) === competitionMode) && !hasPeladaCompetition(pelada, competitionMode)) {
+    if (competitionMode && !getGamesOfPelada(games, pelada.id).some((game) => getGameCompetitionMode(game, pelada) === competitionMode) && !hasPeladaCompetition(pelada, competitionMode)) {
       return false;
     }
 
@@ -4869,14 +4962,20 @@
     const isHome = state.currentSection === "inicio";
     const isStatsProfile = (state.currentSection === "estatisticas" && Boolean(state.selectedStatsPlayerId))
       || (state.currentSection === "perfil" && Boolean(state.currentUser?.jogadorId));
-    document.body.dataset.section = state.currentSection;
-    document.body.classList.toggle("is-internal", !isHome);
-    document.body.classList.toggle("stats-profile-mode", isStatsProfile);
-    $(".workspace-panel")?.classList.toggle("is-home", isHome);
-    const backHome = $("#back-home");
-    if (backHome) {
-      backHome.hidden = isHome;
+    const chrome = { section: state.currentSection, isHome, isStatsProfile, kicker: null, title: null };
+    const isSectionChange = document.body.dataset.section !== state.currentSection
+      && !document.body.classList.contains("is-booting");
+
+    // Ao trocar de tela, o visual da tela nova (cabeçalho, estilos, título) só é
+    // aplicado no momento em que o conteúdo novo é escrito. Assim a tela atual
+    // continua visível enquanto os dados carregam, em vez de ficar vazia.
+    if (isSectionChange) {
+      pendingSectionChrome = chrome;
+    } else {
+      pendingSectionChrome = null;
+      applySectionChrome(chrome);
     }
+
     const counts = state.currentSection === "configuracoes"
       ? await readCollectionCounts()
       : {};
@@ -4894,14 +4993,68 @@
     };
 
     const renderer = renderers[state.currentSection] || renderHomeSection;
-    await renderer(counts);
+    try {
+      await renderer(counts);
+    } finally {
+      commitPendingSectionChrome();
+    }
     await refreshLiveMiniDock();
     runBackgroundTask(updatePendingCount, "Falha ao atualizar contador de sincronização");
   }
 
   function setSectionTitle(kicker, title) {
+    if (pendingSectionChrome) {
+      pendingSectionChrome.kicker = kicker;
+      pendingSectionChrome.title = title;
+      return;
+    }
     $("#section-kicker").textContent = kicker;
     $("#section-title").textContent = title;
+  }
+
+  function applySectionChrome({ section, isHome, isStatsProfile, kicker, title }) {
+    document.body.dataset.section = section;
+    document.body.classList.toggle("is-internal", !isHome);
+    document.body.classList.toggle("stats-profile-mode", isStatsProfile);
+    $(".workspace-panel")?.classList.toggle("is-home", isHome);
+    const backHome = $("#back-home");
+    if (backHome) {
+      backHome.hidden = isHome;
+    }
+    if (kicker !== null) $("#section-kicker").textContent = kicker;
+    if (title !== null) $("#section-title").textContent = title;
+  }
+
+  function commitPendingSectionChrome() {
+    if (!pendingSectionChrome) return;
+    const chrome = pendingSectionChrome;
+    pendingSectionChrome = null;
+    applySectionChrome(chrome);
+    const content = $("#section-content");
+    if (content) {
+      content.classList.remove("is-section-entering");
+      void content.offsetWidth; // reinicia a animação de entrada
+      content.classList.add("is-section-entering");
+    }
+  }
+
+  // Qualquer escrita via innerHTML em #section-content aplica, na mesma hora,
+  // o visual pendente da tela nova. Fica tudo no mesmo quadro: sem tela vazia
+  // e sem conteúdo antigo exibido com o estilo da tela nova.
+  function installSectionContentCommitHook() {
+    const content = $("#section-content");
+    const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, "innerHTML");
+    if (!content || !descriptor?.set) return;
+    Object.defineProperty(content, "innerHTML", {
+      configurable: true,
+      get() {
+        return descriptor.get.call(this);
+      },
+      set(value) {
+        commitPendingSectionChrome();
+        descriptor.set.call(this, value);
+      },
+    });
   }
 
   function showSectionLoadingState(sectionName, message = "Organizando seus dados...") {
@@ -4928,9 +5081,11 @@
   }
 
   async function renderHomeSection(counts) {
+    // Carrega os dados antes de limpar a tela, para não piscar vazio.
+    const stats = await readDashboardStats();
     setSectionTitle("Início", "Resumo da pelada");
     $("#section-content").innerHTML = "";
-    renderDashboardCards(await readDashboardStats());
+    renderDashboardCards(stats);
   }
 
   async function readPlayersWithAttributes() {
@@ -16468,6 +16623,7 @@
     setActiveSection(state.currentSection);
 
     updateNetworkStatus();
+    installSectionContentCommitHook();
     bindEvents();
 
     try {
@@ -16476,6 +16632,7 @@
       restoreAuthState(await getRecord("configs", "app"));
       $("#db-status").textContent = "Banco local pronto";
       await renderCurrentSection();
+      runBackgroundTask(warmPlayerThumbs, "Falha ao gerar miniaturas das fotos");
       updateWakeLockButton();
       requestScreenWakeLock();
       finishAppBoot();
